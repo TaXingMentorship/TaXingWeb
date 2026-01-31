@@ -10,17 +10,17 @@ const PastProgramsSection = () => (
       variant="h4"
       component="h4"
       gutterBottom
-      sx={{ padding: 4, px: 6 }}
+      sx={{ padding: { xs: 2, md: 4 }, px: { xs: 2, md: 6 }, textAlign: { xs: 'center', md: 'left' } }}
     >
       {pastProgramsIntro}
     </Typography>
-    <Box sx={{ display: 'flex', justifyContent: 'space-evenly', flexWrap: 'wrap', gap: 3 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 3 }}>
       {pastProgramCards.map((card) => (
         <Card
           key={card.title}
           sx={{
-            height: 300,
-            width: 300,
+            height: { xs: 260, sm: 280, md: 300 },
+            width: { xs: '100%', sm: 320, md: 300 },
             backgroundImage: `url(${card.imageSrc})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',

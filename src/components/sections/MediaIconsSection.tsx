@@ -30,7 +30,7 @@ const MediaIconsSection = () => (
             component="a"
             fontSize="large"
             href={mediaIcon.redirectUrl}
-            sx={{ display: { xs: 'none', md: 'flex' }, mr: 1 }}
+            sx={{ display: 'flex', mr: 1 }}
           >
             <Image src={mediaIcon.iconSrc} alt="Logo" width={32} height={32} style={{ objectFit: 'contain' }} />
           </SvgIcon>

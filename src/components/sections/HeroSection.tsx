@@ -8,14 +8,15 @@ const HeroSection = () => (
   <Box
     sx={{
       position: 'relative',
-      width: '100vw',
-      height: '100vh',
+      width: '100%',
+      minHeight: { xs: '75vh', md: '100vh' },
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
       alignItems: 'center',
       color: 'white',
-      mb: 6,
+      mb: { xs: 4, md: 6 },
+      overflow: 'hidden'
     }}
   >
     <Image
@@ -39,15 +40,34 @@ const HeroSection = () => (
       sx={{
         position: 'relative',
         zIndex: 1,
-        textAlign: 'left',
+        textAlign: { xs: 'center', md: 'left' },
+        px: { xs: 2, md: 4 }
       }}
     >
-        <Box sx={{ pl: 0 }}> {/* adjust pt value as needed */}
-  </Box>
-      <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold', pl: 3}}>
+      <Typography
+        variant="h2"
+        component="h1"
+        gutterBottom
+        sx={{
+          fontWeight: 'bold',
+          pl: { md: 3 },
+          fontSize: { xs: '2rem', sm: '2.5rem', md: '3.25rem' },
+          lineHeight: 1.1
+        }}
+      >
         她行
       </Typography>
-      <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold', pl: 3 }}>
+      <Typography
+        variant="h2"
+        component="h1"
+        gutterBottom
+        sx={{
+          fontWeight: 'bold',
+          pl: { md: 3 },
+          fontSize: { xs: '1.65rem', sm: '2.2rem', md: '3rem' },
+          lineHeight: 1.1
+        }}
+      >
         Forward With Her Mentorship
       </Typography>
     </Container>

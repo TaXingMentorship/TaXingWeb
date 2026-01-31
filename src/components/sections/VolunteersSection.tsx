@@ -3,10 +3,10 @@ import { Box, Typography, Card, CardContent } from '@mui/material';
 import TextDivider from '@/components/common/TextDivider';
 import Image from 'next/image';
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-const HrTeamIcon = `${basePath}/icons/她行人事组.png`;
-const OperationsTeamIcon = `${basePath}/icons/运营组 logo_增强对比度版.png`;
-const ProjectTeamIcon = `${basePath}/icons/优先_项目组logo_去除背景.png`;
-const StrategyTeamIcon = `${basePath}/icons/WechatIMG246.jpg`;
+const HrTeamIcon = `${basePath}/icons/hr_team.png`;
+const OperationsTeamIcon = `${basePath}/icons/operations_team.png`;
+const ProjectTeamIcon = `${basePath}/icons/project_team.png`;
+const StrategyTeamIcon = `${basePath}/icons/strategy_team_icon.jpg`;
 
 const volunteerGroups = [
   {
