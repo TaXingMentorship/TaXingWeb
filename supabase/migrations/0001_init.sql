@@ -28,7 +28,7 @@ create table if not exists public.cohorts (
 create table if not exists public.profiles (
   id          uuid primary key references auth.users (id) on delete cascade,
   role        user_role not null,
-  cohort_id   uuid references public.cohorts (id) on delete set null,
+  cohort_ids  uuid[] not null default '{}',
   full_name   text,
   email       text,
   bio         text,
@@ -77,7 +77,7 @@ create table if not exists public.sessions_log (
 -- ---------------------------------------------------------------------------
 -- Indexes
 -- ---------------------------------------------------------------------------
-create index if not exists idx_profiles_cohort_id        on public.profiles (cohort_id);
+create index if not exists idx_profiles_cohort_ids      on public.profiles using gin (cohort_ids);
 create index if not exists idx_bulletin_cohort_created   on public.bulletin_posts (cohort_id, created_at desc);
 create index if not exists idx_sessions_mentor_id        on public.sessions_log (mentor_id);
 create index if not exists idx_sessions_mentee_id        on public.sessions_log (mentee_id);
@@ -99,14 +99,17 @@ as $$
   );
 $$;
 
-create or replace function public.current_cohort_id()
-returns uuid
+create or replace function public.current_cohort_ids()
+returns uuid[]
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select cohort_id from public.profiles where id = auth.uid();
+  select coalesce(
+    (select cohort_ids from public.profiles where id = auth.uid()),
+    '{}'::uuid[]
+  );
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -121,7 +124,7 @@ alter table public.sessions_log   enable row level security;
 -- cohorts: members can read their own cohort; admins manage all.
 drop policy if exists cohorts_select_member on public.cohorts;
 create policy cohorts_select_member on public.cohorts
-  for select using (id = public.current_cohort_id() or public.is_admin());
+  for select using (id = any(public.current_cohort_ids()) or public.is_admin());
 
 drop policy if exists cohorts_admin_all on public.cohorts;
 create policy cohorts_admin_all on public.cohorts
@@ -133,7 +136,7 @@ create policy profiles_select_cohort on public.profiles
   for select using (
     id = auth.uid()
     or public.is_admin()
-    or (cohort_id = public.current_cohort_id() and visible = true)
+    or (cohort_ids && public.current_cohort_ids() and visible = true)
   );
 
 drop policy if exists profiles_update_own on public.profiles;
@@ -155,14 +158,14 @@ drop policy if exists bulletin_select_cohort on public.bulletin_posts;
 create policy bulletin_select_cohort on public.bulletin_posts
   for select using (
     public.is_admin()
-    or (cohort_id = public.current_cohort_id() and hidden = false)
+    or (cohort_id = any(public.current_cohort_ids()) and hidden = false)
     or author_id = auth.uid()
   );
 
 drop policy if exists bulletin_insert_self on public.bulletin_posts;
 create policy bulletin_insert_self on public.bulletin_posts
   for insert with check (
-    author_id = auth.uid() and cohort_id = public.current_cohort_id()
+    author_id = auth.uid() and cohort_id = any(public.current_cohort_ids())
   );
 
 drop policy if exists bulletin_update_author_admin on public.bulletin_posts;

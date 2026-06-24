@@ -26,7 +26,7 @@ Add a role-based mentorship portal on top of the existing TaXing Web site with t
 ## Data model (Postgres)
 
 1. **`profiles`** — one row per user.
-   - `id` (uuid, FK `auth.users`), `role` ('admin'|'mentor'|'mentee'), `cohort_id`, `full_name`, `email`, `bio`, `background`, `interests` (text[]), `goals`, `linkedin`, `avatar_url`, `visible` (bool), `created_at`, `updated_at`.
+   - `id` (uuid, FK `auth.users`), `role` ('admin'|'mentor'|'mentee'), `cohort_ids` (uuid[] — a user can belong to multiple cohorts across program runs), `full_name`, `email`, `bio`, `background`, `interests` (text[]), `goals`, `linkedin`, `avatar_url`, `visible` (bool), `created_at`, `updated_at`.
 2. **`cohorts`** — one row per program run.
    - `id`, `name`, `starts_at`, `ends_at`, `bulletin_open` (bool), `created_at`.
 3. **`roster_invites`** — pending imports before first login.
@@ -37,7 +37,7 @@ Add a role-based mentorship portal on top of the existing TaXing Web site with t
    - `id`, `cohort_id`, `mentor_id`, `mentee_id`, `session_date`, `notes`, `created_by` (admin id), `created_at`.
 
 ### RLS summary
-- `profiles`: anyone in the same cohort can `SELECT` rows where `visible = true`; users `UPDATE` only their own row; admins can do anything.
+- `profiles`: a user in a **shared cohort** (array overlap) can `SELECT` rows where `visible = true`; users `UPDATE` only their own row; admins can do anything.
 - `bulletin_posts`: same-cohort `SELECT` of non-hidden rows; authenticated users `INSERT` as themselves; only author or admin can `UPDATE`/`DELETE`; admins toggle `hidden`.
 - `sessions_log`: read by mentor/mentee involved; write only by admins (enforced server-side via service role).
 - `roster_invites`: admin only.
@@ -75,7 +75,7 @@ AppBar gains a **Portal** link and a sign-in/avatar menu when authenticated.
 
 ### Phase A — Backend foundation ✅ *(code complete; live Supabase deferred until after the prototype)*
 6. ⏳ **Deferred until Phase B (real-data wiring):** Create a Supabase project and set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in Vercel + `.env.local`. Template in `.env.example`. **Not needed for the prototype** — the prototype runs entirely on mock data with no backend.
-7. ✅ SQL migration written: `supabase/migrations/0001_init.sql` — five tables, enums, indexes (`profiles.cohort_id`, `bulletin_posts(cohort_id, created_at)`, `sessions_log.mentor_id`, `sessions_log.mentee_id`, `roster_invites(lower(email))`), `is_admin()`/`current_cohort_id()` helpers, RLS policies, and an `updated_at` trigger. Ready to run when we wire real data.
+7. ✅ SQL migration written: `supabase/migrations/0001_init.sql` — five tables, enums, indexes (GIN on `profiles.cohort_ids`, `bulletin_posts(cohort_id, created_at)`, `sessions_log.mentor_id`, `sessions_log.mentee_id`, `roster_invites(lower(email))`), `is_admin()`/`current_cohort_ids()` helpers, RLS policies, and an `updated_at` trigger. Ready to run when we wire real data.
 8. ✅ Installed `@supabase/supabase-js`, `@supabase/ssr`, `zod`, `papaparse` (+ `@types/papaparse`). Added `src/lib/supabase/client.ts` (browser), `src/lib/supabase/server.ts` (cookie-scoped + service-role), `src/lib/auth.ts` (`getCurrentUser()` + `requireRole()`), and `src/types/portal.ts` (shared types).
 
 ### Phase P — Interactive hi-fi prototype *(NEXT — mock data, no auth; goal: shareable clickable demo for team feedback)*

@@ -14,7 +14,7 @@ export type Cohort = {
 export type Profile = {
   id: string;
   role: UserRole;
-  cohort_id: string | null;
+  cohort_ids: string[];
   full_name: string | null;
   email: string | null;
   bio: string | null;
