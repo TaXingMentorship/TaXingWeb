@@ -78,28 +78,29 @@ AppBar gains a **Portal** link and a sign-in/avatar menu when authenticated.
 7. ✅ SQL migration written: `supabase/migrations/0001_init.sql` — five tables, enums, indexes (GIN on `profiles.cohort_ids`, `bulletin_posts(cohort_id, created_at)`, `sessions_log.mentor_id`, `sessions_log.mentee_id`, `roster_invites(lower(email))`), `is_admin()`/`current_cohort_ids()` helpers, RLS policies, and an `updated_at` trigger. Ready to run when we wire real data.
 8. ✅ Installed `@supabase/supabase-js`, `@supabase/ssr`, `zod`, `papaparse` (+ `@types/papaparse`). Added `src/lib/supabase/client.ts` (browser), `src/lib/supabase/server.ts` (cookie-scoped + service-role), `src/lib/auth.ts` (`getCurrentUser()` + `requireRole()`), and `src/types/portal.ts` (shared types).
 
-### Phase P — Interactive hi-fi prototype *(NEXT — mock data, no auth; goal: shareable clickable demo for team feedback)*
+### Phase P — Interactive hi-fi prototype ✅ *(built on branch `agents/portal-prototype`; mock data, no auth)*
 
-**Why first:** Validate the C/D/E/F feature set with the team before investing in auth, magic-link email, and live data. The prototype is fully interactive but backed by an in-browser mock store, so there's nothing to log into and no secrets to configure. Everything is built against a thin **data-access layer** so Phase B can swap mocks for Supabase without rewriting the UI.
+**Why first:** Validate the C/D/E/F feature set with the team before investing in auth, magic-link email, and live data. The prototype is fully interactive but backed by an in-browser mock store, so there's nothing to log into and no secrets to configure. Everything is built against a thin **data-access layer** so Phase B can swap mocks for Supabase without rewriting the UI. **All user-facing copy is Simplified Chinese.**
 
-9. **Mock data + data-access seam.** Add `src/lib/portal/mockData.ts` with a realistic seed: one cohort, ~8–12 mentors and ~8–12 mentees (names, bios, interests, LinkedIn, avatars via placeholder service), a handful of bulletin posts across all categories, and several logged sessions. Reuse the `src/types/portal.ts` types. Add `src/lib/portal/store.ts` — a `localStorage`-backed store (seeded from the mock data on first load, with a "reset demo data" action) exposing async CRUD functions shaped like the eventual Supabase calls (`listProfiles`, `updateProfile`, `listPosts`, `createPost`, `hidePost`, `listSessions`, `logSession`, `importRoster`, …).
-10. **Fake account switcher + `<PortalShell>`.** Add a `PortalSessionProvider` (React context) holding the "logged-in as" identity, plus a small floating **dev account switcher** to jump between *Admin*, a sample *Mentor*, and a sample *Mentee* (persisted in `localStorage`). Build `<PortalShell>` (sidebar/nav + role-gated menu items) reading role from this context instead of a real session. Add a `/portal` landing page.
-11. **AppBar entry.** Update `AppBar.tsx` and `data/navigation.ts` to surface a **Portal** link (no real sign-in control yet — that arrives with auth).
+9. ✅ **Mock data + data-access seam.** `src/lib/portal/mockData.ts` (two cohorts, admin + mentors + mentees, bulletin posts across all categories, logged sessions — all in Simplified Chinese). `src/lib/portal/store.ts` — `localStorage`-backed store, versioned + reseedable ("重置演示数据"), exposing async Supabase-shaped CRUD (`listProfiles`, `updateProfile`, `listPosts`, `createPost`, `setPostHidden`, `listSessions`, `logSession`, `updateSession`, `deleteSession`, `importRoster`, …).
+10. ✅ **Fake account switcher + `<PortalShell>`.** `PortalSessionProvider` (context) holds the "当前身份" and renders a floating **演示身份** switcher (Admin / Mentor / Mentee, persisted to `localStorage`, with reset). `PortalShell` is a responsive sidebar with role-gated nav. `/portal` landing page with role-aware tiles.
+11. ✅ **AppBar entry.** Added a **师友门户** link via `data/navigation.ts`.
 
 #### Feature D — Profiles & directory
-12. Build `/portal/directory`: Mentors / Mentees tabs, search + interest filter, profile detail dialog. Reads from the mock store.
-13. Build `/portal/me` profile editor (MUI form: bio, background, interests, goals, LinkedIn, avatar, visibility toggle) writing back to the mock store so edits persist across the demo.
+12. ✅ `/portal/directory`: 导师/学员 tabs, search + interest `Autocomplete` filter, profile detail dialog. Same-cohort visibility (admins see all).
+13. ✅ `/portal/me` profile editor (姓名, 简介, 背景, 目标, 兴趣, LinkedIn, avatar randomizer, 公开开关) writing back to the store; success toast.
 
 #### Feature E — Bulletin board
-14. Build `/portal/board`: post list, composer, category filter, author info, and admin hide/unhide — all against the mock store. Honor a mock `bulletin_open` flag.
+14. ✅ `/portal/board`: composer + category select, category filter chips, author info, admin 隐藏/取消隐藏, honors `bulletin_open` (closed cohort shows a notice), multi-cohort selector.
 
 #### Feature C — Admin roster import
-15. Build `/portal/admin/import`: CSV uploader (columns `email,full_name,role`), client-side parse with `papaparse`, validation, and a simulated results table (added / skipped / errors). Imported rows land in the mock store so they appear in the directory — no email is sent.
+15. ✅ `/portal/admin/import`: CSV uploader (papaparse), column validation, "载入示例数据" demo, results table (已导入 / 跳过 / 错误). Imported people appear in the directory; no email sent. Admin-gated.
 
 #### Feature F — Admin progress tracker
-16. Build `/portal/admin/sessions`: form to log a session (mentor, mentee, date, notes), recent-logs table, and a summary aggregating counts per pair and per user. Edit/delete supported, all in the mock store.
-17. Add a read-only "My sessions" widget on `/portal/me`.
+16. ✅ `/portal/admin/sessions`: log form (导师, 学员, 日期, 备注), recent-logs table with edit dialog + delete, per-pair counts summary. Admin-gated.
+17. ✅ Read-only "我的辅导记录" widget on `/portal/me`.
 
+18. ✅ **Shipped.** `npm run lint` + `npm run build` pass; all `/portal/*` routes return 200. Push branch and share the Vercel preview for feedback.
 18. **Ship the prototype.** `npm run lint` + `npm run build`, push the branch, and share the Vercel preview URL with the team for feedback. Collect notes before starting Phase B.
 
 ### Phase B — Real auth & data wiring *(after prototype feedback; replaces the mock seam with Supabase)*

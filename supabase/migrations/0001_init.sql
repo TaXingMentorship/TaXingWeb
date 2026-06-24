@@ -1,5 +1,5 @@
 -- Mentorship Portal — Phase 1 schema
--- Tables: cohorts, profiles, roster_invites, bulletin_posts, sessions_log
+-- Tables: cohorts, profiles, roster_invites, bulletin_boards, bulletin_posts, sessions_log
 -- Includes indexes and Row Level Security (RLS) policies.
 
 -- ---------------------------------------------------------------------------
@@ -53,9 +53,19 @@ create table if not exists public.roster_invites (
   unique (cohort_id, email)
 );
 
+create table if not exists public.bulletin_boards (
+  id          uuid primary key default gen_random_uuid(),
+  cohort_id   uuid not null references public.cohorts (id) on delete cascade,
+  name        text not null,
+  description text,
+  is_open     boolean not null default true,
+  created_at  timestamptz not null default now()
+);
+
 create table if not exists public.bulletin_posts (
   id         uuid primary key default gen_random_uuid(),
   cohort_id  uuid not null references public.cohorts (id) on delete cascade,
+  board_id   uuid not null references public.bulletin_boards (id) on delete cascade,
   author_id  uuid not null references public.profiles (id) on delete cascade,
   category   bulletin_category not null default 'other',
   body       text not null,
@@ -78,6 +88,8 @@ create table if not exists public.sessions_log (
 -- Indexes
 -- ---------------------------------------------------------------------------
 create index if not exists idx_profiles_cohort_ids      on public.profiles using gin (cohort_ids);
+create index if not exists idx_boards_cohort            on public.bulletin_boards (cohort_id, created_at);
+create index if not exists idx_bulletin_board_created    on public.bulletin_posts (board_id, created_at desc);
 create index if not exists idx_bulletin_cohort_created   on public.bulletin_posts (cohort_id, created_at desc);
 create index if not exists idx_sessions_mentor_id        on public.sessions_log (mentor_id);
 create index if not exists idx_sessions_mentee_id        on public.sessions_log (mentee_id);
@@ -118,6 +130,7 @@ $$;
 alter table public.cohorts        enable row level security;
 alter table public.profiles       enable row level security;
 alter table public.roster_invites enable row level security;
+alter table public.bulletin_boards enable row level security;
 alter table public.bulletin_posts enable row level security;
 alter table public.sessions_log   enable row level security;
 
@@ -151,6 +164,17 @@ create policy profiles_admin_write on public.profiles
 -- roster_invites: admin only (service role bypasses RLS for the import handler).
 drop policy if exists roster_invites_admin_all on public.roster_invites;
 create policy roster_invites_admin_all on public.roster_invites
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- bulletin_boards: same-cohort members read; admins manage all.
+drop policy if exists boards_select_cohort on public.bulletin_boards;
+create policy boards_select_cohort on public.bulletin_boards
+  for select using (
+    public.is_admin() or cohort_id = any(public.current_cohort_ids())
+  );
+
+drop policy if exists boards_admin_all on public.bulletin_boards;
+create policy boards_admin_all on public.bulletin_boards
   for all using (public.is_admin()) with check (public.is_admin());
 
 -- bulletin_posts: same-cohort read of non-hidden rows; authenticated insert as self; author/admin update/delete.

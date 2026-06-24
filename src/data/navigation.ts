@@ -8,5 +8,6 @@ export const pagesItems: NavigationItem[] = [
   { name: 'About Us', path: '/about' },
   { name: 'Past Programs', path: '/past-programs' },
   { name: 'Podcast', path: '/podcast' },
+  { name: 'Log In', path: '/portal' },
   // { name: 'Join Us', path: '/join' },
 ];

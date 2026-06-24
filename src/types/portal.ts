@@ -2,6 +2,15 @@ export type UserRole = "admin" | "mentor" | "mentee";
 
 export type BulletinCategory = "wish" | "thanks" | "growth" | "other";
 
+export type BulletinBoard = {
+  id: string;
+  cohort_id: string;
+  name: string;
+  description: string | null;
+  is_open: boolean;
+  created_at: string;
+};
+
 export type Cohort = {
   id: string;
   name: string;
@@ -41,6 +50,7 @@ export type RosterInvite = {
 export type BulletinPost = {
   id: string;
   cohort_id: string;
+  board_id: string;
   author_id: string;
   category: BulletinCategory;
   body: string;
