@@ -23,6 +23,7 @@ import HomeIcon from "@mui/icons-material/Home";
 import GroupsIcon from "@mui/icons-material/Groups";
 import PersonIcon from "@mui/icons-material/Person";
 import ForumIcon from "@mui/icons-material/Forum";
+import EventIcon from "@mui/icons-material/Event";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import InsightsIcon from "@mui/icons-material/Insights";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -46,8 +47,9 @@ const navItems: NavItem[] = [
   { label: portalCopy.nav.directory, path: "/portal/directory", icon: <GroupsIcon />, roles: ["admin", "mentor", "mentee"] },
   { label: portalCopy.nav.me, path: "/portal/me", icon: <PersonIcon />, roles: ["admin", "mentor", "mentee"] },
   { label: portalCopy.nav.board, path: "/portal/board", icon: <ForumIcon />, roles: ["admin", "mentor", "mentee"] },
+  { label: portalCopy.nav.activities, path: "/portal/activities", icon: <EventIcon />, roles: ["admin", "mentor", "mentee"] },
   { label: portalCopy.nav.adminImport, path: "/portal/admin/import", icon: <UploadFileIcon />, roles: ["admin"] },
-  { label: portalCopy.nav.adminSessions, path: "/portal/admin/sessions", icon: <InsightsIcon />, roles: ["admin"] },
+  { label: portalCopy.nav.adminSessions, path: "/portal/admin/sessions", icon: <InsightsIcon />, roles: ["admin", "mentor"] },
 ];
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {

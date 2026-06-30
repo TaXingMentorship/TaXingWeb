@@ -15,6 +15,7 @@ import Alert from "@mui/material/Alert";
 import GroupsIcon from "@mui/icons-material/Groups";
 import PersonIcon from "@mui/icons-material/Person";
 import ForumIcon from "@mui/icons-material/Forum";
+import EventIcon from "@mui/icons-material/Event";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import InsightsIcon from "@mui/icons-material/Insights";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
@@ -53,6 +54,13 @@ const tiles: Tile[] = [
     roles: ["admin", "mentor", "mentee"],
   },
   {
+    label: "本期活动",
+    description: "查看重要文件、主线与支线活动安排。",
+    path: "/portal/activities",
+    icon: <EventIcon fontSize="large" color="secondary" />,
+    roles: ["admin", "mentor", "mentee"],
+  },
+  {
     label: "名单导入",
     description: "上传 CSV 批量导入导师与学员。",
     path: "/portal/admin/import",
@@ -64,7 +72,7 @@ const tiles: Tile[] = [
     description: "记录辅导场次，查看配对进度统计。",
     path: "/portal/admin/sessions",
     icon: <InsightsIcon fontSize="large" color="secondary" />,
-    roles: ["admin"],
+    roles: ["admin", "mentor"],
   },
 ];
 

@@ -43,6 +43,10 @@ export default function AdminSessionsPage() {
   const { currentUser } = usePortalSession();
   const queryClient = useQueryClient();
 
+  const role = currentUser?.role;
+  const isAdmin = role === "admin";
+  const isMentor = role === "mentor";
+
   const [cohortId, setCohortId] = React.useState("");
   const [mentorId, setMentorId] = React.useState("");
   const [menteeId, setMenteeId] = React.useState("");
@@ -51,20 +55,37 @@ export default function AdminSessionsPage() {
   const [editing, setEditing] = React.useState<SessionLog | null>(null);
 
   const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
+
+  // Mentors only see and log within their own cohorts.
+  const availableCohorts = React.useMemo(() => {
+    const all = cohorts ?? [];
+    if (isMentor) return all.filter((c) => currentUser?.cohort_ids.includes(c.id));
+    return all;
+  }, [cohorts, isMentor, currentUser]);
+
   React.useEffect(() => {
-    if (!cohortId && cohorts?.length) setCohortId(cohorts[0].id);
-  }, [cohorts, cohortId]);
+    if (!cohortId && availableCohorts.length) setCohortId(availableCohorts[0].id);
+  }, [availableCohorts, cohortId]);
 
   const { data: profiles } = useQuery({
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
   });
 
+  // Admins see every session in the cohort; mentors only see their own.
   const { data: sessions } = useQuery({
-    queryKey: ["portal", "sessions", cohortId],
-    queryFn: () => listSessions({ cohortId }),
+    queryKey: ["portal", "sessions", cohortId, isMentor ? currentUser?.id : "all"],
+    queryFn: () =>
+      listSessions(
+        isMentor ? { cohortId, mentorId: currentUser!.id } : { cohortId },
+      ),
     enabled: Boolean(cohortId),
   });
+
+  // Mentors always log themselves as the mentor.
+  React.useEffect(() => {
+    if (isMentor && currentUser) setMentorId(currentUser.id);
+  }, [isMentor, currentUser]);
 
   const mentors = (profiles ?? []).filter(
     (p) => p.role === "mentor" && p.cohort_ids.includes(cohortId),
@@ -102,7 +123,7 @@ export default function AdminSessionsPage() {
         created_by: currentUser!.id,
       }),
     onSuccess: () => {
-      setMentorId("");
+      if (!isMentor) setMentorId("");
       setMenteeId("");
       setNotes("");
       setDate(today());
@@ -129,8 +150,8 @@ export default function AdminSessionsPage() {
     },
   });
 
-  if (currentUser?.role !== "admin") {
-    return <Alert severity="error">仅管理员可访问进度跟踪。</Alert>;
+  if (!isAdmin && !isMentor) {
+    return <Alert severity="error">仅导师与管理员可访问进度跟踪。</Alert>;
   }
 
   const canSubmit = mentorId && menteeId && date;
@@ -141,7 +162,9 @@ export default function AdminSessionsPage() {
         进度跟踪
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        记录已完成的辅导场次，查看每对师友的进度统计。
+        {isMentor
+          ? "记录你与学员完成的辅导场次，查看你的辅导进度。"
+          : "记录已完成的辅导场次，查看每对师友的进度统计。"}
       </Typography>
 
       <TextField
@@ -152,7 +175,7 @@ export default function AdminSessionsPage() {
         onChange={(e) => setCohortId(e.target.value)}
         sx={{ mb: 3, minWidth: 240 }}
       >
-        {(cohorts ?? []).map((c) => (
+        {availableCohorts.map((c) => (
           <MenuItem key={c.id} value={c.id}>
             {c.name}
           </MenuItem>
@@ -172,6 +195,8 @@ export default function AdminSessionsPage() {
                 value={mentorId}
                 onChange={(e) => setMentorId(e.target.value)}
                 fullWidth
+                disabled={isMentor}
+                helperText={isMentor ? "导师只能记录自己的辅导场次" : undefined}
               >
                 {mentors.map((m) => (
                   <MenuItem key={m.id} value={m.id}>

@@ -33,8 +33,19 @@ export const portalCopy = {
     directory: "成员目录",
     me: "我的资料",
     board: "留言板",
+    activities: "本期活动",
     adminImport: "名单导入",
     adminSessions: "进度跟踪",
+  },
+  activities: {
+    title: "本期活动",
+    subtitle: "本期活动的重要文件与活动安排。",
+    sections: {
+      files: "重要文件",
+      main: "主线活动",
+      side: "支线活动",
+    },
+    empty: "内容即将上线，敬请期待。",
   },
   board: {
     title: "留言板",
