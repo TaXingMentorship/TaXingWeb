@@ -2,6 +2,7 @@ import type {
   BulletinBoard,
   BulletinPost,
   Cohort,
+  ParticipationRecord,
   Profile,
   RosterInvite,
   SessionLog,
@@ -42,6 +43,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring", "cohort-2024-fall"],
     full_name: "管理员·林夏",
     email: "admin@taxing.org",
+    wechat_number: "taxing_linxia",
     bio: "她行项目运营负责人，负责名单导入与进度跟踪。",
     background: "多年公益项目运营经验。",
     interests: ["项目管理", "社区运营"],
@@ -60,6 +62,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring", "cohort-2024-fall"],
     full_name: "王静",
     email: "wangjing@example.com",
+    wechat_number: "wangjing_pm",
     bio: "资深产品经理，专注于 B 端产品设计与团队管理。",
     background: "10 年互联网产品经验，现就职于一家头部科技公司。",
     interests: ["产品管理", "职业规划", "女性领导力"],
@@ -76,6 +79,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring"],
     full_name: "李梅",
     email: "limei@example.com",
+    wechat_number: "limei_data",
     bio: "数据科学家，热爱用数据讲故事。",
     background: "统计学博士，曾在金融与电商行业从事数据建模。",
     interests: ["数据科学", "机器学习", "求职面试"],
@@ -92,6 +96,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring"],
     full_name: "张晓琳",
     email: "zhangxiaolin@example.com",
+    wechat_number: "zxl_design",
     bio: "用户体验设计负责人，关注无障碍设计。",
     background: "设计专业出身，带过多支跨职能设计团队。",
     interests: ["用户体验", "设计思维", "作品集"],
@@ -108,6 +113,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring"],
     full_name: "陈安琪",
     email: "chenanqi@example.com",
+    wechat_number: "anqi_dev",
     bio: "软件工程师，开源项目贡献者。",
     background: "后端工程背景，热衷于技术分享与 mentorship。",
     interests: ["软件工程", "后端开发", "技术面试"],
@@ -124,6 +130,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2024-fall"],
     full_name: "刘洋",
     email: "liuyang@example.com",
+    wechat_number: "liuyang_mkt",
     bio: "市场营销总监，擅长品牌策略。",
     background: "消费品行业 12 年，主导过多个全国性营销活动。",
     interests: ["市场营销", "品牌策略", "职场沟通"],
@@ -142,6 +149,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring"],
     full_name: "赵欣怡",
     email: "zhaoxinyi@example.com",
+    wechat_number: "xinyi_pm2025",
     bio: "应届毕业生，希望进入产品经理岗位。",
     background: "计算机与商科双学位，做过两段产品实习。",
     interests: ["产品管理", "求职面试", "职业规划"],
@@ -158,6 +166,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring"],
     full_name: "孙佳",
     email: "sunjia@example.com",
+    wechat_number: "sunjia_data",
     bio: "转行中的数据分析爱好者。",
     background: "文科背景，自学 SQL 与 Python。",
     interests: ["数据科学", "机器学习", "转行"],
@@ -174,6 +183,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring", "cohort-2024-fall"],
     full_name: "周敏",
     email: "zhoumin@example.com",
+    wechat_number: "zhoumin_ux",
     bio: "设计在校生，正在准备作品集。",
     background: "视觉传达专业大三学生。",
     interests: ["用户体验", "设计思维", "作品集"],
@@ -190,6 +200,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring"],
     full_name: "吴雨桐",
     email: "wuyutong@example.com",
+    wechat_number: "yutong_be",
     bio: "计算机专业学生，目标后端开发工程师。",
     background: "刷题中，准备技术面试。",
     interests: ["软件工程", "后端开发", "技术面试"],
@@ -206,6 +217,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2025-spring"],
     full_name: "郑思源",
     email: "zhengsiyuan@example.com",
+    wechat_number: "siyuan_ops",
     bio: "希望提升职场沟通与领导力。",
     background: "工作两年的运营专员。",
     interests: ["女性领导力", "职场沟通", "职业规划"],
@@ -222,6 +234,7 @@ export const mockProfiles: Profile[] = [
     cohort_ids: ["cohort-2024-fall"],
     full_name: "黄丽",
     email: "huangli@example.com",
+    wechat_number: "huangli_mkt",
     bio: "市场方向求职者。",
     background: "广告学专业，做过社媒运营实习。",
     interests: ["市场营销", "品牌策略", "求职面试"],
@@ -367,12 +380,34 @@ export const mockSessions: SessionLog[] = [
 
 export const mockRosterInvites: RosterInvite[] = [];
 
+export const mockParticipationRecords: ParticipationRecord[] = [
+  {
+    id: "participation-1",
+    cohort_id: "cohort-2025-spring",
+    mentee_id: "mentee-1",
+    event_name: "产品经理职业分享会",
+    screenshot_name: null,
+    screenshot_url: null,
+    created_at: "2025-03-15T10:00:00Z",
+  },
+  {
+    id: "participation-2",
+    cohort_id: "cohort-2025-spring",
+    mentee_id: "mentee-2",
+    event_name: "数据分析实战工作坊",
+    screenshot_name: null,
+    screenshot_url: null,
+    created_at: "2025-03-18T13:30:00Z",
+  },
+];
+
 export type MockDb = {
   cohorts: Cohort[];
   profiles: Profile[];
   bulletin_boards: BulletinBoard[];
   bulletin_posts: BulletinPost[];
   sessions_log: SessionLog[];
+  participation_records: ParticipationRecord[];
   roster_invites: RosterInvite[];
 };
 
@@ -383,6 +418,7 @@ export function seedDb(): MockDb {
     bulletin_boards: structuredClone(mockBoards),
     bulletin_posts: structuredClone(mockBulletinPosts),
     sessions_log: structuredClone(mockSessions),
+    participation_records: structuredClone(mockParticipationRecords),
     roster_invites: structuredClone(mockRosterInvites),
   };
 }

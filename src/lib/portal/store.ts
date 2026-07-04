@@ -5,6 +5,7 @@ import type {
   BulletinCategory,
   BulletinPost,
   Cohort,
+  ParticipationRecord,
   Profile,
   RosterInvite,
   SessionLog,
@@ -21,7 +22,7 @@ import { seedDb, type MockDb } from "@/lib/portal/mockData";
  */
 
 const STORAGE_KEY = "taxing-portal-demo-db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const VERSION_KEY = "taxing-portal-demo-db-version";
 
 let memoryDb: MockDb | null = null;
@@ -273,6 +274,46 @@ export async function deleteSession(id: string): Promise<void> {
   await delay(null);
 }
 
+// --- Participation records (mentee) ----------------------------------------
+
+export async function listParticipation(filter?: {
+  cohortId?: string;
+  menteeId?: string;
+}): Promise<ParticipationRecord[]> {
+  let rows = load().participation_records;
+  if (filter?.cohortId)
+    rows = rows.filter((r) => r.cohort_id === filter.cohortId);
+  if (filter?.menteeId)
+    rows = rows.filter((r) => r.mentee_id === filter.menteeId);
+  rows = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return delay(rows);
+}
+
+export async function createParticipation(input: {
+  cohort_id: string;
+  mentee_id: string;
+  event_name: string;
+  screenshot_name: string | null;
+  screenshot_url: string | null;
+}): Promise<ParticipationRecord> {
+  const db = load();
+  const record: ParticipationRecord = {
+    id: uid("participation"),
+    ...input,
+    created_at: new Date().toISOString(),
+  };
+  db.participation_records.push(record);
+  save(db);
+  return delay(record);
+}
+
+export async function deleteParticipation(id: string): Promise<void> {
+  const db = load();
+  db.participation_records = db.participation_records.filter((r) => r.id !== id);
+  save(db);
+  await delay(null);
+}
+
 // --- Roster import ---------------------------------------------------------
 
 export type RosterRowInput = {
@@ -342,6 +383,7 @@ export async function importRoster(
       cohort_ids: [cohortId],
       full_name: invite.full_name,
       email,
+      wechat_number: null,
       bio: null,
       background: null,
       interests: [],

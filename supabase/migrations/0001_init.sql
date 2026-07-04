@@ -1,5 +1,5 @@
 -- Mentorship Portal — Phase 1 schema
--- Tables: cohorts, profiles, roster_invites, bulletin_boards, bulletin_posts, sessions_log
+-- Tables: cohorts, profiles, roster_invites, bulletin_boards, bulletin_posts, sessions_log, participation_records
 -- Includes indexes and Row Level Security (RLS) policies.
 
 -- ---------------------------------------------------------------------------
@@ -31,6 +31,7 @@ create table if not exists public.profiles (
   cohort_ids  uuid[] not null default '{}',
   full_name   text,
   email       text,
+  wechat_number text,
   bio         text,
   background  text,
   interests   text[] not null default '{}',
@@ -84,6 +85,16 @@ create table if not exists public.sessions_log (
   created_at   timestamptz not null default now()
 );
 
+create table if not exists public.participation_records (
+  id              uuid primary key default gen_random_uuid(),
+  cohort_id       uuid not null references public.cohorts (id) on delete cascade,
+  mentee_id       uuid not null references public.profiles (id) on delete cascade,
+  event_name      text not null,
+  screenshot_name text,
+  screenshot_url  text,
+  created_at      timestamptz not null default now()
+);
+
 -- ---------------------------------------------------------------------------
 -- Indexes
 -- ---------------------------------------------------------------------------
@@ -93,6 +104,8 @@ create index if not exists idx_bulletin_board_created    on public.bulletin_post
 create index if not exists idx_bulletin_cohort_created   on public.bulletin_posts (cohort_id, created_at desc);
 create index if not exists idx_sessions_mentor_id        on public.sessions_log (mentor_id);
 create index if not exists idx_sessions_mentee_id        on public.sessions_log (mentee_id);
+create index if not exists idx_participation_cohort      on public.participation_records (cohort_id);
+create index if not exists idx_participation_mentee      on public.participation_records (mentee_id);
 create index if not exists idx_roster_invites_email      on public.roster_invites (lower(email));
 
 -- ---------------------------------------------------------------------------
@@ -133,6 +146,7 @@ alter table public.roster_invites enable row level security;
 alter table public.bulletin_boards enable row level security;
 alter table public.bulletin_posts enable row level security;
 alter table public.sessions_log   enable row level security;
+alter table public.participation_records enable row level security;
 
 -- cohorts: members can read their own cohort; admins manage all.
 drop policy if exists cohorts_select_member on public.cohorts;
@@ -201,7 +215,8 @@ drop policy if exists bulletin_delete_author_admin on public.bulletin_posts;
 create policy bulletin_delete_author_admin on public.bulletin_posts
   for delete using (author_id = auth.uid() or public.is_admin());
 
--- sessions_log: read by the involved mentor/mentee or admin; writes only by admins (service role for handler).
+-- sessions_log: read by the involved mentor/mentee or admin; mentors may write
+-- their own sessions, admins write anything.
 drop policy if exists sessions_select_involved on public.sessions_log;
 create policy sessions_select_involved on public.sessions_log
   for select using (
@@ -210,7 +225,28 @@ create policy sessions_select_involved on public.sessions_log
 
 drop policy if exists sessions_admin_write on public.sessions_log;
 create policy sessions_admin_write on public.sessions_log
-  for all using (public.is_admin()) with check (public.is_admin());
+  for all using (public.is_admin() or mentor_id = auth.uid())
+  with check (public.is_admin() or mentor_id = auth.uid());
+
+-- participation_records: mentees manage their own; admins read all.
+drop policy if exists participation_select on public.participation_records;
+create policy participation_select on public.participation_records
+  for select using (public.is_admin() or mentee_id = auth.uid());
+
+drop policy if exists participation_insert_self on public.participation_records;
+create policy participation_insert_self on public.participation_records
+  for insert with check (
+    mentee_id = auth.uid() and cohort_id = any(public.current_cohort_ids())
+  );
+
+drop policy if exists participation_modify_own on public.participation_records;
+create policy participation_modify_own on public.participation_records
+  for update using (mentee_id = auth.uid() or public.is_admin())
+  with check (mentee_id = auth.uid() or public.is_admin());
+
+drop policy if exists participation_delete_own on public.participation_records;
+create policy participation_delete_own on public.participation_records
+  for delete using (mentee_id = auth.uid() or public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- updated_at trigger for profiles

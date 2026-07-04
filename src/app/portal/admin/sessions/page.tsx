@@ -26,10 +26,14 @@ import Chip from "@mui/material/Chip";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
-import type { Profile, SessionLog } from "@/types/portal";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import type { ParticipationRecord, Profile, SessionLog } from "@/types/portal";
 import {
+  createParticipation,
+  deleteParticipation,
   deleteSession,
   listCohorts,
+  listParticipation,
   listProfiles,
   listSessions,
   logSession,
@@ -39,53 +43,329 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export default function AdminSessionsPage() {
+export default function ProgressPage() {
   const { currentUser } = usePortalSession();
-  const queryClient = useQueryClient();
-
   const role = currentUser?.role;
-  const isAdmin = role === "admin";
-  const isMentor = role === "mentor";
+
+  const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
+
+  // Non-admins are limited to their own cohorts.
+  const availableCohorts = React.useMemo(() => {
+    const all = cohorts ?? [];
+    if (role === "admin") return all;
+    return all.filter((c) => currentUser?.cohort_ids.includes(c.id));
+  }, [cohorts, role, currentUser]);
 
   const [cohortId, setCohortId] = React.useState("");
-  const [mentorId, setMentorId] = React.useState("");
+  React.useEffect(() => {
+    if (!cohortId && availableCohorts.length) setCohortId(availableCohorts[0].id);
+  }, [availableCohorts, cohortId]);
+
+  if (!role) {
+    return <Typography color="text.secondary">加载中…</Typography>;
+  }
+
+  return (
+    <Box sx={{ maxWidth: 1000 }}>
+      <Typography variant="h4" fontWeight={800} gutterBottom>
+        进度跟踪
+      </Typography>
+      <Typography color="text.secondary" sx={{ mb: 3 }}>
+        {role === "mentee"
+          ? "查看你参与的辅导记录，并提交你的活动参与记录。"
+          : role === "mentor"
+            ? "记录你与学员完成的辅导场次，查看你的辅导进度。"
+            : "记录已完成的辅导场次，查看每对师友的进度统计。"}
+      </Typography>
+
+      <TextField
+        select
+        size="small"
+        label="项目"
+        value={cohortId}
+        onChange={(e) => setCohortId(e.target.value)}
+        sx={{ mb: 3, minWidth: 240 }}
+      >
+        {availableCohorts.map((c) => (
+          <MenuItem key={c.id} value={c.id}>
+            {c.name}
+          </MenuItem>
+        ))}
+      </TextField>
+
+      {cohortId &&
+        (role === "mentee" ? (
+          <MenteeView cohortId={cohortId} currentUser={currentUser!} />
+        ) : (
+          <StaffView cohortId={cohortId} role={role} currentUser={currentUser!} />
+        ))}
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mentee view: own session history (read-only) + participation submission.
+// ---------------------------------------------------------------------------
+
+function MenteeView({
+  cohortId,
+  currentUser,
+}: {
+  cohortId: string;
+  currentUser: Profile;
+}) {
+  const queryClient = useQueryClient();
+
+  const { data: sessions } = useQuery({
+    queryKey: ["portal", "sessions", cohortId, "mentee", currentUser.id],
+    queryFn: () => listSessions({ cohortId, menteeId: currentUser.id }),
+    enabled: Boolean(cohortId),
+  });
+
+  const { data: profiles } = useQuery({
+    queryKey: ["portal", "profiles"],
+    queryFn: () => listProfiles(),
+  });
+  const nameOf = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? "未知";
+
+  const { data: records } = useQuery({
+    queryKey: ["portal", "participation", cohortId, currentUser.id],
+    queryFn: () => listParticipation({ cohortId, menteeId: currentUser.id }),
+    enabled: Boolean(cohortId),
+  });
+
+  const [eventName, setEventName] = React.useState("");
+  const [screenshotName, setScreenshotName] = React.useState<string | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = React.useState<string | null>(null);
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["portal", "participation"] });
+
+  const submitMutation = useMutation({
+    mutationFn: () =>
+      createParticipation({
+        cohort_id: cohortId,
+        mentee_id: currentUser.id,
+        event_name: eventName.trim(),
+        screenshot_name: screenshotName,
+        screenshot_url: screenshotUrl,
+      }),
+    onSuccess: () => {
+      setEventName("");
+      setScreenshotName(null);
+      setScreenshotUrl(null);
+      invalidate();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteParticipation(id),
+    onSuccess: invalidate,
+  });
+
+  const handleFile = (file: File | undefined) => {
+    if (!file) return;
+    setScreenshotName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => setScreenshotUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <Grid container spacing={3}>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <Paper sx={{ p: 3, borderRadius: 3 }}>
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            我的辅导记录（{sessions?.length ?? 0}）
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            由导师或管理员录入，展示你参与的所有辅导场次。
+          </Typography>
+          {sessions && sessions.length > 0 ? (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>日期</TableCell>
+                  <TableCell>导师</TableCell>
+                  <TableCell>备注</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sessions.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell>{s.session_date}</TableCell>
+                    <TableCell>{nameOf(s.mentor_id)}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" title={s.notes ?? ""}>
+                        {s.notes ?? "—"}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <Alert severity="info">暂时还没有辅导记录。</Alert>
+          )}
+        </Paper>
+      </Grid>
+
+      <Grid size={{ xs: 12, md: 6 }}>
+        <Paper sx={{ p: 3, borderRadius: 3 }}>
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            提交活动记录
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            填写你参与的活动名称，并上传截图作为参与证明。
+          </Typography>
+          <Stack spacing={2}>
+            <TextField
+              label="活动名称"
+              value={eventName}
+              onChange={(e) => setEventName(e.target.value)}
+              fullWidth
+            />
+            <Button
+              component="label"
+              variant="outlined"
+              startIcon={<UploadFileIcon />}
+            >
+              {screenshotName ? "重新选择截图" : "上传截图"}
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => handleFile(e.target.files?.[0])}
+              />
+            </Button>
+            {screenshotName && (
+              <Typography variant="caption" color="text.secondary">
+                已选择：{screenshotName}
+              </Typography>
+            )}
+            <Box>
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={<AddIcon />}
+                disabled={!eventName.trim() || submitMutation.isPending}
+                onClick={() => submitMutation.mutate()}
+              >
+                提交记录
+              </Button>
+            </Box>
+          </Stack>
+
+          <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 3, mb: 1 }}>
+            已提交的活动记录（{records?.length ?? 0}）
+          </Typography>
+          {records && records.length > 0 ? (
+            <Stack spacing={1.5}>
+              {records.map((r) => (
+                <ParticipationRow
+                  key={r.id}
+                  record={r}
+                  onDelete={() => deleteMutation.mutate(r.id)}
+                />
+              ))}
+            </Stack>
+          ) : (
+            <Alert severity="info">还没有提交任何活动记录。</Alert>
+          )}
+        </Paper>
+      </Grid>
+    </Grid>
+  );
+}
+
+function ParticipationRow({
+  record,
+  onDelete,
+}: {
+  record: ParticipationRecord;
+  onDelete: () => void;
+}) {
+  return (
+    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+      <Stack direction="row" spacing={1.5} alignItems="center">
+        {record.screenshot_url ? (
+          <Box
+            component="img"
+            src={record.screenshot_url}
+            alt={record.event_name}
+            sx={{ width: 48, height: 48, objectFit: "cover", borderRadius: 1 }}
+          />
+        ) : (
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: 1,
+              bgcolor: "action.hover",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <UploadFileIcon fontSize="small" color="disabled" />
+          </Box>
+        )}
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography fontWeight={600} noWrap>
+            {record.event_name}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {new Date(record.created_at).toLocaleDateString("zh-CN")}
+            {record.screenshot_name ? ` · ${record.screenshot_name}` : "（无截图）"}
+          </Typography>
+        </Box>
+        <Tooltip title="删除">
+          <IconButton size="small" onClick={onDelete}>
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    </Paper>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Admin / mentor view: log sessions + stats + recent sessions table.
+// ---------------------------------------------------------------------------
+
+function StaffView({
+  cohortId,
+  role,
+  currentUser,
+}: {
+  cohortId: string;
+  role: "admin" | "mentor";
+  currentUser: Profile;
+}) {
+  const queryClient = useQueryClient();
+  const isMentor = role === "mentor";
+
+  const [mentorId, setMentorId] = React.useState(isMentor ? currentUser.id : "");
   const [menteeId, setMenteeId] = React.useState("");
   const [date, setDate] = React.useState(today());
   const [notes, setNotes] = React.useState("");
   const [editing, setEditing] = React.useState<SessionLog | null>(null);
 
-  const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
-
-  // Mentors only see and log within their own cohorts.
-  const availableCohorts = React.useMemo(() => {
-    const all = cohorts ?? [];
-    if (isMentor) return all.filter((c) => currentUser?.cohort_ids.includes(c.id));
-    return all;
-  }, [cohorts, isMentor, currentUser]);
-
   React.useEffect(() => {
-    if (!cohortId && availableCohorts.length) setCohortId(availableCohorts[0].id);
-  }, [availableCohorts, cohortId]);
+    if (isMentor) setMentorId(currentUser.id);
+  }, [isMentor, currentUser]);
 
   const { data: profiles } = useQuery({
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
   });
 
-  // Admins see every session in the cohort; mentors only see their own.
   const { data: sessions } = useQuery({
-    queryKey: ["portal", "sessions", cohortId, isMentor ? currentUser?.id : "all"],
+    queryKey: ["portal", "sessions", cohortId, isMentor ? currentUser.id : "all"],
     queryFn: () =>
-      listSessions(
-        isMentor ? { cohortId, mentorId: currentUser!.id } : { cohortId },
-      ),
+      listSessions(isMentor ? { cohortId, mentorId: currentUser.id } : { cohortId }),
     enabled: Boolean(cohortId),
   });
-
-  // Mentors always log themselves as the mentor.
-  React.useEffect(() => {
-    if (isMentor && currentUser) setMentorId(currentUser.id);
-  }, [isMentor, currentUser]);
 
   const mentors = (profiles ?? []).filter(
     (p) => p.role === "mentor" && p.cohort_ids.includes(cohortId),
@@ -95,7 +375,6 @@ export default function AdminSessionsPage() {
   );
   const nameOf = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? "未知";
 
-  // Per-pair counts.
   const pairCounts = React.useMemo(() => {
     const map = new Map<string, { mentor: string; mentee: string; count: number }>();
     (sessions ?? []).forEach((s) => {
@@ -120,7 +399,7 @@ export default function AdminSessionsPage() {
         mentee_id: menteeId,
         session_date: date,
         notes: notes.trim() || null,
-        created_by: currentUser!.id,
+        created_by: currentUser.id,
       }),
     onSuccess: () => {
       if (!isMentor) setMentorId("");
@@ -150,38 +429,10 @@ export default function AdminSessionsPage() {
     },
   });
 
-  if (!isAdmin && !isMentor) {
-    return <Alert severity="error">仅导师与管理员可访问进度跟踪。</Alert>;
-  }
-
   const canSubmit = mentorId && menteeId && date;
 
   return (
-    <Box sx={{ maxWidth: 1000 }}>
-      <Typography variant="h4" fontWeight={800} gutterBottom>
-        进度跟踪
-      </Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>
-        {isMentor
-          ? "记录你与学员完成的辅导场次，查看你的辅导进度。"
-          : "记录已完成的辅导场次，查看每对师友的进度统计。"}
-      </Typography>
-
-      <TextField
-        select
-        size="small"
-        label="项目"
-        value={cohortId}
-        onChange={(e) => setCohortId(e.target.value)}
-        sx={{ mb: 3, minWidth: 240 }}
-      >
-        {availableCohorts.map((c) => (
-          <MenuItem key={c.id} value={c.id}>
-            {c.name}
-          </MenuItem>
-        ))}
-      </TextField>
-
+    <>
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 5 }}>
           <Paper sx={{ p: 3, borderRadius: 3 }}>
@@ -337,7 +588,7 @@ export default function AdminSessionsPage() {
         onSave={(s) => editMutation.mutate(s)}
         saving={editMutation.isPending}
       />
-    </Box>
+    </>
   );
 }
 

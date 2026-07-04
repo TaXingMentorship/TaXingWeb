@@ -34,6 +34,8 @@ export const portalCopy = {
     me: "我的资料",
     board: "留言板",
     activities: "本期活动",
+    progress: "进度跟踪",
+    roster: "成员名单",
     adminImport: "名单导入",
     adminSessions: "进度跟踪",
   },

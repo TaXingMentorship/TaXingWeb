@@ -16,6 +16,7 @@ import GroupsIcon from "@mui/icons-material/Groups";
 import PersonIcon from "@mui/icons-material/Person";
 import ForumIcon from "@mui/icons-material/Forum";
 import EventIcon from "@mui/icons-material/Event";
+import ListAltIcon from "@mui/icons-material/ListAlt";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import InsightsIcon from "@mui/icons-material/Insights";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
@@ -33,24 +34,10 @@ type Tile = {
 
 const tiles: Tile[] = [
   {
-    label: "成员目录",
-    description: "浏览本期的导师与学员，按兴趣搜索。",
-    path: "/portal/directory",
-    icon: <GroupsIcon fontSize="large" color="secondary" />,
-    roles: ["admin", "mentor", "mentee"],
-  },
-  {
     label: "我的资料",
-    description: "完善个人资料，查看我的辅导记录。",
+    description: "完善个人资料，填写微信号方便联系。",
     path: "/portal/me",
     icon: <PersonIcon fontSize="large" color="secondary" />,
-    roles: ["admin", "mentor", "mentee"],
-  },
-  {
-    label: "留言板",
-    description: "发布求助、感谢与成长打卡。",
-    path: "/portal/board",
-    icon: <ForumIcon fontSize="large" color="secondary" />,
     roles: ["admin", "mentor", "mentee"],
   },
   {
@@ -61,18 +48,39 @@ const tiles: Tile[] = [
     roles: ["admin", "mentor", "mentee"],
   },
   {
+    label: "成员目录",
+    description: "浏览本期的导师与学员，按兴趣搜索。",
+    path: "/portal/directory",
+    icon: <GroupsIcon fontSize="large" color="secondary" />,
+    roles: ["admin", "mentor", "mentee"],
+  },
+  {
+    label: "进度跟踪",
+    description: "记录辅导场次，学员可提交活动记录。",
+    path: "/portal/admin/sessions",
+    icon: <InsightsIcon fontSize="large" color="secondary" />,
+    roles: ["admin", "mentor", "mentee"],
+  },
+  {
+    label: "留言板",
+    description: "发布求助、感谢与成长打卡。",
+    path: "/portal/board",
+    icon: <ForumIcon fontSize="large" color="secondary" />,
+    roles: ["admin", "mentor", "mentee"],
+  },
+  {
+    label: "成员名单",
+    description: "查看成员信息、辅导场次与活动记录。",
+    path: "/portal/admin/roster",
+    icon: <ListAltIcon fontSize="large" color="secondary" />,
+    roles: ["admin"],
+  },
+  {
     label: "名单导入",
     description: "上传 CSV 批量导入导师与学员。",
     path: "/portal/admin/import",
     icon: <UploadFileIcon fontSize="large" color="secondary" />,
     roles: ["admin"],
-  },
-  {
-    label: "进度跟踪",
-    description: "记录辅导场次，查看配对进度统计。",
-    path: "/portal/admin/sessions",
-    icon: <InsightsIcon fontSize="large" color="secondary" />,
-    roles: ["admin", "mentor"],
   },
 ];
 

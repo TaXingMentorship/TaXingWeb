@@ -26,6 +26,7 @@ export type Profile = {
   cohort_ids: string[];
   full_name: string | null;
   email: string | null;
+  wechat_number: string | null;
   bio: string | null;
   background: string | null;
   interests: string[];
@@ -66,5 +67,15 @@ export type SessionLog = {
   session_date: string;
   notes: string | null;
   created_by: string | null;
+  created_at: string;
+};
+
+export type ParticipationRecord = {
+  id: string;
+  cohort_id: string;
+  mentee_id: string;
+  event_name: string;
+  screenshot_name: string | null;
+  screenshot_url: string | null;
   created_at: string;
 };

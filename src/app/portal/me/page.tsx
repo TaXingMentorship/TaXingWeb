@@ -17,15 +17,10 @@ import Divider from "@mui/material/Divider";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemAvatar from "@mui/material/ListItemAvatar";
-import ListItemText from "@mui/material/ListItemText";
 import CasinoIcon from "@mui/icons-material/Casino";
 import SaveIcon from "@mui/icons-material/Save";
-import EventNoteIcon from "@mui/icons-material/EventNote";
 import type { Profile } from "@/types/portal";
-import { getProfile, listProfiles, listSessions, updateProfile } from "@/lib/portal/store";
+import { getProfile, updateProfile } from "@/lib/portal/store";
 import { roleLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
@@ -94,6 +89,7 @@ export default function MyProfilePage() {
   const handleSave = () => {
     mutation.mutate({
       full_name: form.full_name,
+      wechat_number: form.wechat_number,
       bio: form.bio,
       background: form.background,
       interests: form.interests,
@@ -114,7 +110,7 @@ export default function MyProfilePage() {
       </Typography>
 
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 7 }}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3, borderRadius: 3 }}>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
               <Avatar src={form.avatar_url ?? undefined} sx={{ width: 72, height: 72 }} />
@@ -137,6 +133,13 @@ export default function MyProfilePage() {
                 value={form.full_name ?? ""}
                 onChange={(e) => set("full_name", e.target.value)}
                 fullWidth
+              />
+              <TextField
+                label="微信号"
+                value={form.wechat_number ?? ""}
+                onChange={(e) => set("wechat_number", e.target.value)}
+                fullWidth
+                placeholder="方便导师或学员与你联系"
               />
               <TextField
                 label="一句话简介"
@@ -203,10 +206,6 @@ export default function MyProfilePage() {
             </Stack>
           </Paper>
         </Grid>
-
-        <Grid size={{ xs: 12, md: 5 }}>
-          <MySessionsWidget profile={form} />
-        </Grid>
       </Grid>
 
       <Snackbar
@@ -220,70 +219,5 @@ export default function MyProfilePage() {
         </Alert>
       </Snackbar>
     </Box>
-  );
-}
-
-function MySessionsWidget({ profile }: { profile: Profile }) {
-  const { data: sessions } = useQuery({
-    queryKey: ["portal", "mySessions", profile.id],
-    queryFn: async () => {
-      const asMentor = await listSessions({ mentorId: profile.id });
-      const asMentee = await listSessions({ menteeId: profile.id });
-      return [...asMentor, ...asMentee].sort((a, b) =>
-        b.session_date.localeCompare(a.session_date),
-      );
-    },
-  });
-
-  const { data: profiles } = useQuery({
-    queryKey: ["portal", "profiles"],
-    queryFn: () => listProfiles(),
-  });
-
-  const nameOf = (id: string) =>
-    profiles?.find((p) => p.id === id)?.full_name ?? "未知";
-
-  return (
-    <Paper sx={{ p: 3, borderRadius: 3 }}>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-        <EventNoteIcon color="secondary" />
-        <Typography variant="h6" fontWeight={700}>
-          我的辅导记录
-        </Typography>
-      </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        共 {sessions?.length ?? 0} 次记录（由管理员录入）。
-      </Typography>
-      {profile.role === "admin" ? (
-        <Alert severity="info">管理员账号没有个人辅导记录。</Alert>
-      ) : sessions && sessions.length > 0 ? (
-        <List dense>
-          {sessions.map((s) => {
-            const partnerId =
-              s.mentor_id === profile.id ? s.mentee_id : s.mentor_id;
-            const partnerRole =
-              s.mentor_id === profile.id ? "学员" : "导师";
-            return (
-              <ListItem key={s.id} disableGutters>
-                <ListItemAvatar>
-                  <Avatar
-                    src={
-                      profiles?.find((p) => p.id === partnerId)?.avatar_url ??
-                      undefined
-                    }
-                  />
-                </ListItemAvatar>
-                <ListItemText
-                  primary={`${s.session_date} · 与${partnerRole} ${nameOf(partnerId)}`}
-                  secondary={s.notes ?? undefined}
-                />
-              </ListItem>
-            );
-          })}
-        </List>
-      ) : (
-        <Alert severity="info">暂时还没有辅导记录。</Alert>
-      )}
-    </Paper>
   );
 }
