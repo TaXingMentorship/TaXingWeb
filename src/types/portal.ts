@@ -2,6 +2,8 @@ export type UserRole = "admin" | "mentor" | "mentee";
 
 export type BulletinCategory = "wish" | "thanks" | "growth" | "other";
 
+export type SessionType = "mentorship" | "gratitude";
+
 export type BulletinBoard = {
   id: string;
   cohort_id: string;
@@ -64,6 +66,7 @@ export type SessionLog = {
   cohort_id: string;
   mentor_id: string;
   mentee_id: string;
+  session_type: SessionType;
   session_date: string;
   notes: string | null;
   created_by: string | null;

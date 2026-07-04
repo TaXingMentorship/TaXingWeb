@@ -27,7 +27,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
-import type { ParticipationRecord, Profile, SessionLog } from "@/types/portal";
+import type { ParticipationRecord, Profile, SessionLog, SessionType } from "@/types/portal";
 import {
   createParticipation,
   deleteParticipation,
@@ -39,9 +39,12 @@ import {
   logSession,
   updateSession,
 } from "@/lib/portal/store";
+import { sessionTypeColors, sessionTypeLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+const sessionTypes: SessionType[] = ["mentorship", "gratitude"];
 
 export default function ProgressPage() {
   const { currentUser } = usePortalSession();
@@ -187,6 +190,7 @@ function MenteeView({
                 <TableRow>
                   <TableCell>日期</TableCell>
                   <TableCell>导师</TableCell>
+                  <TableCell>类型</TableCell>
                   <TableCell>备注</TableCell>
                 </TableRow>
               </TableHead>
@@ -195,6 +199,14 @@ function MenteeView({
                   <TableRow key={s.id}>
                     <TableCell>{s.session_date}</TableCell>
                     <TableCell>{nameOf(s.mentor_id)}</TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        color={sessionTypeColors[s.session_type]}
+                        label={sessionTypeLabels[s.session_type]}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body2" title={s.notes ?? ""}>
                         {s.notes ?? "—"}
@@ -347,6 +359,7 @@ function StaffView({
 
   const [mentorId, setMentorId] = React.useState(isMentor ? currentUser.id : "");
   const [menteeId, setMenteeId] = React.useState("");
+  const [sessionType, setSessionType] = React.useState<SessionType>("mentorship");
   const [date, setDate] = React.useState(today());
   const [notes, setNotes] = React.useState("");
   const [editing, setEditing] = React.useState<SessionLog | null>(null);
@@ -397,6 +410,7 @@ function StaffView({
         cohort_id: cohortId,
         mentor_id: mentorId,
         mentee_id: menteeId,
+        session_type: sessionType,
         session_date: date,
         notes: notes.trim() || null,
         created_by: currentUser.id,
@@ -404,6 +418,7 @@ function StaffView({
     onSuccess: () => {
       if (!isMentor) setMentorId("");
       setMenteeId("");
+      setSessionType("mentorship");
       setNotes("");
       setDate(today());
       invalidate();
@@ -420,6 +435,7 @@ function StaffView({
       updateSession(s.id, {
         mentor_id: s.mentor_id,
         mentee_id: s.mentee_id,
+        session_type: s.session_type,
         session_date: s.session_date,
         notes: s.notes,
       }),
@@ -437,7 +453,7 @@ function StaffView({
         <Grid size={{ xs: 12, md: 5 }}>
           <Paper sx={{ p: 3, borderRadius: 3 }}>
             <Typography variant="h6" fontWeight={700} gutterBottom>
-              记录一次辅导
+              活动纪录
             </Typography>
             <Stack spacing={2}>
               <TextField
@@ -465,6 +481,19 @@ function StaffView({
                 {mentees.map((m) => (
                   <MenuItem key={m.id} value={m.id}>
                     {m.full_name}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="类型"
+                value={sessionType}
+                onChange={(e) => setSessionType(e.target.value as SessionType)}
+                fullWidth
+              >
+                {sessionTypes.map((t) => (
+                  <MenuItem key={t} value={t}>
+                    {sessionTypeLabels[t]}
                   </MenuItem>
                 ))}
               </TextField>
@@ -539,6 +568,7 @@ function StaffView({
                     <TableCell>日期</TableCell>
                     <TableCell>导师</TableCell>
                     <TableCell>学员</TableCell>
+                    <TableCell>类型</TableCell>
                     <TableCell>备注</TableCell>
                     <TableCell align="right">操作</TableCell>
                   </TableRow>
@@ -549,6 +579,14 @@ function StaffView({
                       <TableCell>{s.session_date}</TableCell>
                       <TableCell>{nameOf(s.mentor_id)}</TableCell>
                       <TableCell>{nameOf(s.mentee_id)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color={sessionTypeColors[s.session_type]}
+                          label={sessionTypeLabels[s.session_type]}
+                        />
+                      </TableCell>
                       <TableCell sx={{ maxWidth: 200 }}>
                         <Typography variant="body2" noWrap title={s.notes ?? ""}>
                           {s.notes ?? "—"}
@@ -639,6 +677,21 @@ function EditSessionDialog({
               {mentees.map((m) => (
                 <MenuItem key={m.id} value={m.id}>
                   {m.full_name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="类型"
+              value={draft.session_type}
+              onChange={(e) =>
+                setDraft({ ...draft, session_type: e.target.value as SessionType })
+              }
+              fullWidth
+            >
+              {sessionTypes.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {sessionTypeLabels[t]}
                 </MenuItem>
               ))}
             </TextField>

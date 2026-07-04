@@ -9,6 +9,7 @@ import type {
   Profile,
   RosterInvite,
   SessionLog,
+  SessionType,
   UserRole,
 } from "@/types/portal";
 import { seedDb, type MockDb } from "@/lib/portal/mockData";
@@ -22,7 +23,7 @@ import { seedDb, type MockDb } from "@/lib/portal/mockData";
  */
 
 const STORAGE_KEY = "taxing-portal-demo-db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const VERSION_KEY = "taxing-portal-demo-db-version";
 
 let memoryDb: MockDb | null = null;
@@ -240,6 +241,7 @@ export async function logSession(input: {
   cohort_id: string;
   mentor_id: string;
   mentee_id: string;
+  session_type: SessionType;
   session_date: string;
   notes: string | null;
   created_by: string | null;

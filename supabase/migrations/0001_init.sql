@@ -13,6 +13,10 @@ do $$ begin
   create type bulletin_category as enum ('wish', 'thanks', 'growth', 'other');
 exception when duplicate_object then null; end $$;
 
+do $$ begin
+  create type session_type as enum ('mentorship', 'gratitude');
+exception when duplicate_object then null; end $$;
+
 -- ---------------------------------------------------------------------------
 -- Tables
 -- ---------------------------------------------------------------------------
@@ -79,6 +83,7 @@ create table if not exists public.sessions_log (
   cohort_id    uuid not null references public.cohorts (id) on delete cascade,
   mentor_id    uuid not null references public.profiles (id) on delete cascade,
   mentee_id    uuid not null references public.profiles (id) on delete cascade,
+  session_type session_type not null default 'mentorship',
   session_date date not null,
   notes        text,
   created_by   uuid references public.profiles (id) on delete set null,

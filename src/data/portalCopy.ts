@@ -1,4 +1,4 @@
-import type { BulletinCategory, UserRole } from "@/types/portal";
+import type { BulletinCategory, SessionType, UserRole } from "@/types/portal";
 
 /** Centralized Simplified-Chinese copy for the portal prototype. */
 
@@ -6,6 +6,16 @@ export const roleLabels: Record<UserRole, string> = {
   admin: "管理员",
   mentor: "导师",
   mentee: "学员",
+};
+
+export const sessionTypeLabels: Record<SessionType, string> = {
+  mentorship: "Mentorship 交流",
+  gratitude: "感谢赠言",
+};
+
+export const sessionTypeColors: Record<SessionType, "primary" | "secondary"> = {
+  mentorship: "primary",
+  gratitude: "secondary",
 };
 
 export const categoryLabels: Record<BulletinCategory, string> = {
