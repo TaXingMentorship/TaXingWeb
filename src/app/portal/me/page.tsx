@@ -86,17 +86,27 @@ export default function MyProfilePage() {
         .slice(2)}`,
     );
 
+  const isMentor = form.role === "mentor";
+  const isMentee = form.role === "mentee";
+
   const handleSave = () => {
     mutation.mutate({
       full_name: form.full_name,
       wechat_number: form.wechat_number,
       bio: form.bio,
+      field: form.field,
       background: form.background,
       interests: form.interests,
       goals: form.goals,
       linkedin: form.linkedin,
       avatar_url: form.avatar_url,
-      visible: form.visible,
+      // Mentors are always public so learners can find and match with them.
+      visible: isMentor ? true : form.visible,
+      years_experience: form.years_experience,
+      mentee_capacity: form.mentee_capacity,
+      mentee_expectations: form.mentee_expectations,
+      topics: form.topics,
+      help_needed: form.help_needed,
     });
   };
 
@@ -129,7 +139,7 @@ export default function MyProfilePage() {
 
             <Stack spacing={2.5}>
               <TextField
-                label="姓名"
+                label="昵称"
                 value={form.full_name ?? ""}
                 onChange={(e) => set("full_name", e.target.value)}
                 fullWidth
@@ -150,21 +160,66 @@ export default function MyProfilePage() {
                 minRows={2}
               />
               <TextField
-                label="背景经历"
+                label="领域"
+                value={form.field ?? ""}
+                onChange={(e) => set("field", e.target.value)}
+                fullWidth
+                placeholder="例如：互联网 · 产品管理"
+              />
+              <TextField
+                label="学术经历 / 行业经历"
                 value={form.background ?? ""}
                 onChange={(e) => set("background", e.target.value)}
                 fullWidth
                 multiline
                 minRows={2}
               />
-              <TextField
-                label="目标"
-                value={form.goals ?? ""}
-                onChange={(e) => set("goals", e.target.value)}
-                fullWidth
-                multiline
-                minRows={2}
-              />
+              {isMentor && (
+                <>
+                  <TextField
+                    label="工作年限"
+                    value={form.years_experience ?? ""}
+                    onChange={(e) => set("years_experience", e.target.value)}
+                    fullWidth
+                    placeholder="例如：8 年"
+                  />
+                  <TextField
+                    label="可以帮助的 mentee 数量"
+                    value={form.mentee_capacity ?? ""}
+                    onChange={(e) => set("mentee_capacity", e.target.value)}
+                    fullWidth
+                    placeholder="可以提供大致范围，例如：2–3 名"
+                  />
+                  <TextField
+                    label="对 mentee 的期望"
+                    value={form.mentee_expectations ?? ""}
+                    onChange={(e) => set("mentee_expectations", e.target.value)}
+                    fullWidth
+                    multiline
+                    minRows={2}
+                  />
+                  <TextField
+                    label="擅长与不擅长的话题"
+                    value={form.topics ?? ""}
+                    onChange={(e) => set("topics", e.target.value)}
+                    fullWidth
+                    multiline
+                    minRows={2}
+                    placeholder="例如：擅长产品面试；不太擅长算法"
+                  />
+                </>
+              )}
+              {isMentee && (
+                <TextField
+                  label="问题 / 想获得的帮助"
+                  value={form.help_needed ?? ""}
+                  onChange={(e) => set("help_needed", e.target.value)}
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  placeholder="描述你希望从导师那里获得的帮助"
+                />
+              )}
               <Autocomplete
                 multiple
                 freeSolo
@@ -182,15 +237,27 @@ export default function MyProfilePage() {
                 fullWidth
                 placeholder="https://www.linkedin.com/in/..."
               />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={form.visible}
-                    onChange={(e) => set("visible", e.target.checked)}
+              {isMentor ? (
+                <FormControlLabel
+                  control={<Switch checked disabled />}
+                  label="导师资料默认公开，方便学员了解并与你匹配"
+                />
+              ) : isMentee ? (
+                <Box>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.visible}
+                        onChange={(e) => set("visible", e.target.checked)}
+                      />
+                    }
+                    label="在成员目录中公开我的资料"
                   />
-                }
-                label="在成员目录中公开我的资料"
-              />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    推荐公开信息，方便与 mentor 匹配。
+                  </Typography>
+                </Box>
+              ) : null}
               <Divider />
               <Box>
                 <Button

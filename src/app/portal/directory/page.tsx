@@ -193,9 +193,20 @@ function ProfileDialog({
             </IconButton>
           </DialogTitle>
           <DialogContent dividers>
+            <Field label="领域" value={profile.field} />
             <Field label="简介" value={profile.bio} />
-            <Field label="背景" value={profile.background} />
-            <Field label="目标" value={profile.goals} />
+            <Field label="学术经历 / 行业经历" value={profile.background} />
+            {profile.role === "mentor" && (
+              <>
+                <Field label="工作年限" value={profile.years_experience} />
+                <Field label="可以帮助的 mentee 数量" value={profile.mentee_capacity} />
+                <Field label="对 mentee 的期望" value={profile.mentee_expectations} />
+                <Field label="擅长与不擅长的话题" value={profile.topics} />
+              </>
+            )}
+            {profile.role === "mentee" && (
+              <Field label="问题 / 想获得的帮助" value={profile.help_needed} />
+            )}
             {profile.interests.length > 0 && (
               <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>

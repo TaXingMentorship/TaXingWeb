@@ -30,14 +30,32 @@ export type Profile = {
   email: string | null;
   wechat_number: string | null;
   bio: string | null;
+  field: string | null;
   background: string | null;
   interests: string[];
   goals: string | null;
   linkedin: string | null;
   avatar_url: string | null;
   visible: boolean;
+  // Mentor-only fields
+  years_experience: string | null;
+  mentee_capacity: string | null;
+  mentee_expectations: string | null;
+  topics: string | null;
+  // Mentee-only field
+  help_needed: string | null;
+  // Admin roster note (only field editable directly on the website)
+  admin_notes: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type Match = {
+  id: string;
+  cohort_id: string;
+  mentor_id: string;
+  mentee_id: string;
+  created_at: string;
 };
 
 export type RosterInvite = {

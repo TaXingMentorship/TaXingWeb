@@ -33,6 +33,7 @@ import {
   deleteParticipation,
   deleteSession,
   listCohorts,
+  listMatches,
   listParticipation,
   listProfiles,
   listSessions,
@@ -75,10 +76,10 @@ export default function ProgressPage() {
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
         {role === "mentee"
-          ? "查看你参与的辅导记录，并提交你的活动参与记录。"
+          ? "查看你参与的交流记录，并提交你的活动参与记录。"
           : role === "mentor"
-            ? "记录你与学员完成的辅导场次，查看你的辅导进度。"
-            : "记录已完成的辅导场次，查看每对师友的进度统计。"}
+            ? "记录你与学员完成的交流，查看你的交流进度。"
+            : "记录已完成的交流场次，管理师友的交流进度。"}
       </Typography>
 
       <TextField
@@ -179,10 +180,10 @@ function MenteeView({
       <Grid size={{ xs: 12, md: 6 }}>
         <Paper sx={{ p: 3, borderRadius: 3 }}>
           <Typography variant="h6" fontWeight={700} gutterBottom>
-            我的辅导记录（{sessions?.length ?? 0}）
+            我的交流记录（{sessions?.length ?? 0}）
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            由导师或管理员录入，展示你参与的所有辅导场次。
+            由导师或管理员录入，展示你参与的所有交流场次。
           </Typography>
           {sessions && sessions.length > 0 ? (
             <Table size="small">
@@ -217,7 +218,7 @@ function MenteeView({
               </TableBody>
             </Table>
           ) : (
-            <Alert severity="info">暂时还没有辅导记录。</Alert>
+            <Alert severity="info">暂时还没有交流记录。</Alert>
           )}
         </Paper>
       </Grid>
@@ -380,24 +381,34 @@ function StaffView({
     enabled: Boolean(cohortId),
   });
 
+  const { data: matches } = useQuery({
+    queryKey: ["portal", "matches", cohortId],
+    queryFn: () => listMatches({ cohortId }),
+    enabled: Boolean(cohortId),
+  });
+
   const mentors = (profiles ?? []).filter(
     (p) => p.role === "mentor" && p.cohort_ids.includes(cohortId),
   );
-  const mentees = (profiles ?? []).filter(
+  const allMentees = (profiles ?? []).filter(
     (p) => p.role === "mentee" && p.cohort_ids.includes(cohortId),
   );
+  // Mentors may only log records for their matched mentees; admins see everyone.
+  const matchedMenteeIds = React.useMemo(
+    () =>
+      new Set(
+        (matches ?? [])
+          .filter((m) => (isMentor ? m.mentor_id === currentUser.id : true))
+          .map((m) => m.mentee_id),
+      ),
+    [matches, isMentor, currentUser.id],
+  );
+  const mentees = isMentor
+    ? allMentees.filter((m) => matchedMenteeIds.has(m.id))
+    : allMentees;
+  // A mentor with no uploaded matches cannot submit any records yet.
+  const mentorBlocked = isMentor && mentees.length === 0;
   const nameOf = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? "未知";
-
-  const pairCounts = React.useMemo(() => {
-    const map = new Map<string, { mentor: string; mentee: string; count: number }>();
-    (sessions ?? []).forEach((s) => {
-      const key = `${s.mentor_id}__${s.mentee_id}`;
-      const cur = map.get(key) ?? { mentor: s.mentor_id, mentee: s.mentee_id, count: 0 };
-      cur.count += 1;
-      map.set(key, cur);
-    });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [sessions]);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["portal", "sessions"] }).then(() =>
@@ -445,7 +456,7 @@ function StaffView({
     },
   });
 
-  const canSubmit = mentorId && menteeId && date;
+  const canSubmit = mentorId && menteeId && date && !mentorBlocked;
 
   return (
     <>
@@ -455,6 +466,11 @@ function StaffView({
             <Typography variant="h6" fontWeight={700} gutterBottom>
               活动纪录
             </Typography>
+            {mentorBlocked && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                管理员尚未上传本项目的配对结果，暂时无法记录交流。
+              </Alert>
+            )}
             <Stack spacing={2}>
               <TextField
                 select
@@ -477,6 +493,8 @@ function StaffView({
                 value={menteeId}
                 onChange={(e) => setMenteeId(e.target.value)}
                 fullWidth
+                disabled={mentorBlocked}
+                helperText={isMentor ? "仅显示与你配对的学员" : undefined}
               >
                 {mentees.map((m) => (
                   <MenuItem key={m.id} value={m.id}>
@@ -524,42 +542,12 @@ function StaffView({
               </Button>
             </Stack>
           </Paper>
-
-          <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
-            <Typography variant="h6" fontWeight={700} gutterBottom>
-              配对进度统计
-            </Typography>
-            {pairCounts.length === 0 ? (
-              <Alert severity="info">还没有任何辅导记录。</Alert>
-            ) : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>导师</TableCell>
-                    <TableCell>学员</TableCell>
-                    <TableCell align="right">次数</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {pairCounts.map((p) => (
-                    <TableRow key={`${p.mentor}-${p.mentee}`}>
-                      <TableCell>{nameOf(p.mentor)}</TableCell>
-                      <TableCell>{nameOf(p.mentee)}</TableCell>
-                      <TableCell align="right">
-                        <Chip size="small" color="secondary" label={p.count} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Paper>
         </Grid>
 
         <Grid size={{ xs: 12, md: 7 }}>
           <Paper sx={{ p: 3, borderRadius: 3 }}>
             <Typography variant="h6" fontWeight={700} gutterBottom>
-              最近的辅导记录（{sessions?.length ?? 0}）
+              最近的交流记录（{sessions?.length ?? 0}）
             </Typography>
             {sessions && sessions.length > 0 ? (
               <Table size="small">
@@ -612,7 +600,7 @@ function StaffView({
                 </TableBody>
               </Table>
             ) : (
-              <Alert severity="info">还没有任何辅导记录。</Alert>
+              <Alert severity="info">还没有任何交流记录。</Alert>
             )}
           </Paper>
         </Grid>
@@ -650,7 +638,7 @@ function EditSessionDialog({
 
   return (
     <Dialog open={Boolean(session)} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>编辑辅导记录</DialogTitle>
+      <DialogTitle>编辑交流记录</DialogTitle>
       {draft && (
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>

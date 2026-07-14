@@ -36,7 +36,7 @@ export const categoryColors: Record<
 };
 
 export const portalCopy = {
-  brand: "她行 · 师友计划",
+  brand: "她行 · Mentorship",
   prototypeBadge: "原型演示（示例数据）",
   nav: {
     home: "首页",

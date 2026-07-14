@@ -5,6 +5,7 @@ import type {
   BulletinCategory,
   BulletinPost,
   Cohort,
+  Match,
   ParticipationRecord,
   Profile,
   RosterInvite,
@@ -23,7 +24,7 @@ import { seedDb, type MockDb } from "@/lib/portal/mockData";
  */
 
 const STORAGE_KEY = "taxing-portal-demo-db";
-const DB_VERSION = 4;
+const DB_VERSION = 6;
 const VERSION_KEY = "taxing-portal-demo-db-version";
 
 let memoryDb: MockDb | null = null;
@@ -387,6 +388,7 @@ export async function importRoster(
       email,
       wechat_number: null,
       bio: null,
+      field: null,
       background: null,
       interests: [],
       goals: null,
@@ -395,6 +397,12 @@ export async function importRoster(
         email,
       )}`,
       visible: true,
+      years_experience: null,
+      mentee_capacity: null,
+      mentee_expectations: null,
+      topics: null,
+      help_needed: null,
+      admin_notes: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -414,6 +422,84 @@ export async function listRosterInvites(
   let rows = load().roster_invites;
   if (cohortId) rows = rows.filter((r) => r.cohort_id === cohortId);
   return delay(rows);
+}
+
+// --- Matching --------------------------------------------------------------
+
+export async function listMatches(filter?: {
+  cohortId?: string;
+  mentorId?: string;
+  menteeId?: string;
+}): Promise<Match[]> {
+  let rows = load().matches;
+  if (filter?.cohortId) rows = rows.filter((m) => m.cohort_id === filter.cohortId);
+  if (filter?.mentorId) rows = rows.filter((m) => m.mentor_id === filter.mentorId);
+  if (filter?.menteeId) rows = rows.filter((m) => m.mentee_id === filter.menteeId);
+  return delay(rows);
+}
+
+export type MatchRowInput = {
+  mentor_id: string;
+  mentee_id: string;
+};
+
+export type MatchImportResult = {
+  added: Match[];
+  skipped: { row: MatchRowInput; reason: string }[];
+  errors: { row: MatchRowInput; reason: string }[];
+};
+
+export async function importMatches(
+  cohortId: string,
+  rows: MatchRowInput[],
+): Promise<MatchImportResult> {
+  const db = load();
+  const result: MatchImportResult = { added: [], skipped: [], errors: [] };
+  const profileById = new Map(db.profiles.map((p) => [p.id, p]));
+  const existingPairs = new Set(
+    db.matches
+      .filter((m) => m.cohort_id === cohortId)
+      .map((m) => `${m.mentor_id}__${m.mentee_id}`),
+  );
+
+  for (const row of rows) {
+    const mentorId = row.mentor_id?.trim() ?? "";
+    const menteeId = row.mentee_id?.trim() ?? "";
+
+    if (!mentorId || !menteeId) {
+      result.errors.push({ row, reason: "mentor_id 或 mentee_id 为空" });
+      continue;
+    }
+    const mentor = profileById.get(mentorId);
+    const mentee = profileById.get(menteeId);
+    if (!mentor || mentor.role !== "mentor" || !mentor.cohort_ids.includes(cohortId)) {
+      result.errors.push({ row, reason: `导师 ID 无效或不属于该项目：${mentorId}` });
+      continue;
+    }
+    if (!mentee || mentee.role !== "mentee" || !mentee.cohort_ids.includes(cohortId)) {
+      result.errors.push({ row, reason: `学员 ID 无效或不属于该项目：${menteeId}` });
+      continue;
+    }
+    const key = `${mentorId}__${menteeId}`;
+    if (existingPairs.has(key)) {
+      result.skipped.push({ row, reason: "该配对已存在" });
+      continue;
+    }
+
+    const match: Match = {
+      id: uid("match"),
+      cohort_id: cohortId,
+      mentor_id: mentorId,
+      mentee_id: menteeId,
+      created_at: new Date().toISOString(),
+    };
+    db.matches.push(match);
+    existingPairs.add(key);
+    result.added.push(match);
+  }
+
+  save(db);
+  return delay(result);
 }
 
 // --- Demo controls ---------------------------------------------------------
