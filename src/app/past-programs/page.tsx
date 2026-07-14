@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Chip, Divider, Link, Stack, Typography } from '@mui/material';
+import { Box, Chip, Divider, Link, Stack, Tooltip, Typography } from '@mui/material';
 import Card from '@/components/common/Card';
 import SectionContainer from '@/components/common/SectionContainer';
 
@@ -27,6 +27,14 @@ const programs = [
     url: 'https://mp.weixin.qq.com/s/oM5o0hvfkN5hfT31Gzg9Iw',
     description:
       '在这个夏天，我们致力于打造一个女性互助的可持续生态。我们新增了 Mentor Office Hour 的活动形式，支持 Mentor 自由组织答疑活动。通过 20+ 场 Mentor Office Hour、7 场圆桌分享与 6 期播客，我们链接了 62 名 Mentor 与 112 名 Mentee，让经验流动不仅限于 1v1，更在社群中活跃。本期活动更加注重社群文化的沉淀，推出了五周年特别策划、专属表情包以及完善的 Wiki 资料库。同时，我们坚持财务公开透明，依靠志愿者的高效协作与社群支持，让这艘承载女性经验与智慧的“行舟”行稳致远，让 Girls help girls 的方向更加清晰。'
+  },
+  {
+    icon: '🌱',
+    title: '2026 春季活动：女性互助沃土中的春和景明',
+    keywords: '多元 Tech 社群 | 干货分享 | 精神小天地',
+    url: 'https://mp.weixin.qq.com/s/JT96_V3jQkuCe9iGjcHGpw',
+    description:
+      '在这个春意盎然的季节，「她行」汇聚了 188 位 Mentee、74 位 Mentor 与 45 位志愿者，共同交织出一个跨越学生与职场的多元女性 Tech 社群。本期项目不仅落地了 73 组核心 1v1 深度交流，更开展了 19 场分组集体答疑与 12 场主题丰富的“圆桌”或“她分享”，内容全面覆盖 AI 技术前沿、跨界转行突破、全球求职升学及职场生存等等。从“搞钱搞事业”的探索到“身心向内求”的自我觉醒，Mentor们帮助姐妹们在充满不确定性的大环境中稳住“个人的小气候”。在这片“Girls Help Girls”的沃土上，我们在共鸣中沉淀思考，让每一次交流都萌发出生机勃勃的可能性。'
   }
 ];
 
@@ -61,41 +69,80 @@ const PastProgramsPage: React.FC = () => {
         <Divider sx={{ my: { xs: 1, md: 2 } }} />
 
         <Stack spacing={{ xs: 3, md: 3.5 }}>
-          {programs.map((program) => (
-            <Box
+          {[...programs].reverse().map((program) => (
+            <Tooltip
               key={program.title}
-              component="a"
-              href={program.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{
-                textDecoration: 'none',
-                color: 'inherit',
-                display: 'block'
+              title="了解更多"
+              arrow
+              followCursor
+              placement="bottom-start"
+              slotProps={{
+                popper: {
+                  modifiers: [
+                    {
+                      name: 'offset',
+                      options: {
+                        offset: [12, 12]
+                      }
+                    }
+                  ]
+                },
+                tooltip: {
+                  sx: {
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    px: 1.5,
+                    py: 1,
+                    bgcolor: '#fff',
+                    color: 'text.primary',
+                    border: '1px solid',
+                    borderColor: 'primary.main',
+                    boxShadow: 2,
+                    '& .MuiTooltip-arrow': {
+                      color: '#fff',
+                      '&::before': {
+                        border: '1px solid',
+                        borderColor: 'primary.main'
+                      }
+                    }
+                  }
+                }
               }}
             >
-              <Card sx={{ p: 1.5, cursor: 'pointer' }}>
-                <Stack spacing={1.5}>
-                  <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Typography fontSize={24} aria-hidden>
-                      {program.icon}
-                    </Typography>
-                    <Typography variant="h6" fontWeight={700} lineHeight={1.4}>
-                      {program.title}
+              <Box
+                component="a"
+                href={program.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  display: 'block'
+                }}
+              >
+                <Card sx={{ p: 1.5, cursor: 'pointer' }}>
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Typography fontSize={24} aria-hidden>
+                        {program.icon}
+                      </Typography>
+                      <Typography variant="h6" fontWeight={700} lineHeight={1.4}>
+                        {program.title}
+                      </Typography>
+                    </Stack>
+                    <Chip
+                      label={program.keywords}
+                      color="primary"
+                      variant="outlined"
+                      sx={{ alignSelf: 'flex-start', fontWeight: 600 }}
+                    />
+                    <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.8 }}>
+                      {program.description}
                     </Typography>
                   </Stack>
-                  <Chip
-                    label={program.keywords}
-                    color="primary"
-                    variant="outlined"
-                    sx={{ alignSelf: 'flex-start', fontWeight: 600 }}
-                  />
-                  <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.8 }}>
-                    {program.description}
-                  </Typography>
-                </Stack>
-              </Card>
-            </Box>
+                </Card>
+              </Box>
+            </Tooltip>
           ))}
         </Stack>
       </Stack>
