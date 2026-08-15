@@ -33,7 +33,6 @@ export type Profile = {
   field: string | null;
   background: string | null;
   interests: string[];
-  goals: string | null;
   linkedin: string | null;
   avatar_url: string | null;
   visible: boolean;
@@ -98,5 +97,6 @@ export type ParticipationRecord = {
   event_name: string;
   screenshot_name: string | null;
   screenshot_url: string | null;
+  screenshot_path: string | null;
   created_at: string;
 };

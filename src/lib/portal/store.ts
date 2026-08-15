@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import type {
   BulletinBoard,
   BulletinCategory,
@@ -13,71 +14,73 @@ import type {
   SessionType,
   UserRole,
 } from "@/types/portal";
-import { seedDb, type MockDb } from "@/lib/portal/mockData";
 
-/**
- * Prototype data-access layer.
- *
- * Backed by localStorage so demo edits persist across reloads. Every function
- * is async and shaped like the eventual Supabase call so Phase B can swap the
- * implementation without changing the UI. No network, no auth.
- */
+type SupabaseError = {
+  message: string;
+};
 
-const STORAGE_KEY = "taxing-portal-demo-db";
-const DB_VERSION = 6;
-const VERSION_KEY = "taxing-portal-demo-db-version";
-
-let memoryDb: MockDb | null = null;
-
-function hasWindow(): boolean {
-  return typeof window !== "undefined";
+function throwQueryError(operation: string, error: SupabaseError | null): void {
+  if (error) throw new Error(`${operation}失败：${error.message}`);
 }
 
-function load(): MockDb {
-  if (!hasWindow()) {
-    memoryDb ??= seedDb();
-    return memoryDb;
+async function adminJson<T>(
+  endpoint: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body: unknown,
+  operation: string,
+): Promise<T> {
+  const response = await fetch(endpoint, {
+    method,
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
+        ? payload.error
+        : `${response.status} ${response.statusText}`;
+    throw new Error(`${operation}失败：${message}`);
   }
-  try {
-    const storedVersion = Number(window.localStorage.getItem(VERSION_KEY));
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw || storedVersion !== DB_VERSION) {
-      const fresh = seedDb();
-      save(fresh);
-      return fresh;
-    }
-    return JSON.parse(raw) as MockDb;
-  } catch {
-    const fresh = seedDb();
-    save(fresh);
-    return fresh;
+
+  if (payload === null) {
+    throw new Error(`${operation}失败：管理接口返回了空响应`);
   }
+  return payload as T;
 }
 
-function save(db: MockDb): void {
-  memoryDb = db;
-  if (!hasWindow()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-  window.localStorage.setItem(VERSION_KEY, String(DB_VERSION));
-}
-
-/** Simulate a little network latency so loading states are visible in the demo. */
-function delay<T>(value: T, ms = 120): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms));
-}
-
-function uid(prefix: string): string {
-  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+function postAdminJson<T>(
+  endpoint: string,
+  body: unknown,
+  operation: string,
+): Promise<T> {
+  return adminJson(endpoint, "POST", body, operation);
 }
 
 // --- Cohorts ---------------------------------------------------------------
 
 export async function listCohorts(): Promise<Cohort[]> {
-  return delay(load().cohorts);
+  const { data, error } = await createClient()
+    .from("cohorts")
+    .select("*")
+    .order("created_at", { ascending: true });
+  throwQueryError("读取项目", error);
+  return (data ?? []) as Cohort[];
 }
 
 export async function getCohort(id: string): Promise<Cohort | null> {
-  return delay(load().cohorts.find((c) => c.id === id) ?? null);
+  const { data, error } = await createClient()
+    .from("cohorts")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  throwQueryError("读取项目", error);
+  return data as Cohort | null;
 }
 
 // --- Profiles --------------------------------------------------------------
@@ -86,32 +89,39 @@ export async function listProfiles(filter?: {
   role?: UserRole;
   cohortId?: string;
 }): Promise<Profile[]> {
-  let rows = load().profiles;
-  if (filter?.role) rows = rows.filter((p) => p.role === filter.role);
-  if (filter?.cohortId)
-    rows = rows.filter((p) => p.cohort_ids.includes(filter.cohortId!));
-  return delay(rows);
+  let query = createClient().from("profiles").select("*");
+  if (filter?.role) query = query.eq("role", filter.role);
+  if (filter?.cohortId) {
+    query = query.contains("cohort_ids", [filter.cohortId]);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: true });
+  throwQueryError("读取用户资料", error);
+  return (data ?? []) as Profile[];
 }
 
 export async function getProfile(id: string): Promise<Profile | null> {
-  return delay(load().profiles.find((p) => p.id === id) ?? null);
+  const { data, error } = await createClient()
+    .from("profiles")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  throwQueryError("读取用户资料", error);
+  return data as Profile | null;
 }
 
 export async function updateProfile(
   id: string,
   patch: Partial<Omit<Profile, "id" | "role" | "created_at">>,
 ): Promise<Profile> {
-  const db = load();
-  const idx = db.profiles.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error(`找不到用户：${id}`);
-  const updated: Profile = {
-    ...db.profiles[idx],
-    ...patch,
-    updated_at: new Date().toISOString(),
-  };
-  db.profiles[idx] = updated;
-  save(db);
-  return delay(updated);
+  const { data, error } = await createClient()
+    .from("profiles")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  throwQueryError("更新用户资料", error);
+  return data as Profile;
 }
 
 // --- Bulletin boards -------------------------------------------------------
@@ -119,17 +129,26 @@ export async function updateProfile(
 export async function listBoards(filter?: {
   cohortIds?: string[];
 }): Promise<BulletinBoard[]> {
-  let rows = load().bulletin_boards;
+  if (filter?.cohortIds?.length === 0) return [];
+
+  let query = createClient().from("bulletin_boards").select("*");
   if (filter?.cohortIds) {
-    const set = new Set(filter.cohortIds);
-    rows = rows.filter((b) => set.has(b.cohort_id));
+    query = query.in("cohort_id", filter.cohortIds);
   }
-  rows = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
-  return delay(rows);
+
+  const { data, error } = await query.order("created_at", { ascending: true });
+  throwQueryError("读取留言板", error);
+  return (data ?? []) as BulletinBoard[];
 }
 
 export async function getBoard(id: string): Promise<BulletinBoard | null> {
-  return delay(load().bulletin_boards.find((b) => b.id === id) ?? null);
+  const { data, error } = await createClient()
+    .from("bulletin_boards")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  throwQueryError("读取留言板", error);
+  return data as BulletinBoard | null;
 }
 
 export async function createBoard(input: {
@@ -138,30 +157,30 @@ export async function createBoard(input: {
   description: string | null;
   is_open: boolean;
 }): Promise<BulletinBoard> {
-  const db = load();
-  const board: BulletinBoard = {
-    id: uid("board"),
-    cohort_id: input.cohort_id,
-    name: input.name,
-    description: input.description,
-    is_open: input.is_open,
-    created_at: new Date().toISOString(),
-  };
-  db.bulletin_boards.push(board);
-  save(db);
-  return delay(board);
+  const { data, error } = await createClient()
+    .from("bulletin_boards")
+    .insert(input)
+    .select("*")
+    .single();
+  throwQueryError("创建留言板", error);
+  return data as BulletinBoard;
 }
 
-/** Number of visible posts per board, keyed by board id. */
+/** Number of RLS-visible posts per board, keyed by board id. */
 export async function countPostsByBoard(
   includeHidden = false,
 ): Promise<Record<string, number>> {
-  const rows = load().bulletin_posts.filter(
-    (p) => includeHidden || !p.hidden,
-  );
+  let query = createClient().from("bulletin_posts").select("board_id");
+  if (!includeHidden) query = query.eq("hidden", false);
+
+  const { data, error } = await query;
+  throwQueryError("统计留言", error);
+
   const counts: Record<string, number> = {};
-  for (const p of rows) counts[p.board_id] = (counts[p.board_id] ?? 0) + 1;
-  return delay(counts);
+  for (const post of data ?? []) {
+    counts[post.board_id] = (counts[post.board_id] ?? 0) + 1;
+  }
+  return counts;
 }
 
 // --- Bulletin posts --------------------------------------------------------
@@ -171,13 +190,14 @@ export async function listPosts(filter?: {
   cohortId?: string;
   includeHidden?: boolean;
 }): Promise<BulletinPost[]> {
-  let rows = load().bulletin_posts;
-  if (filter?.boardId) rows = rows.filter((p) => p.board_id === filter.boardId);
-  if (filter?.cohortId)
-    rows = rows.filter((p) => p.cohort_id === filter.cohortId);
-  if (!filter?.includeHidden) rows = rows.filter((p) => !p.hidden);
-  rows = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return delay(rows);
+  let query = createClient().from("bulletin_posts").select("*");
+  if (filter?.boardId) query = query.eq("board_id", filter.boardId);
+  if (filter?.cohortId) query = query.eq("cohort_id", filter.cohortId);
+  if (!filter?.includeHidden) query = query.eq("hidden", false);
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+  throwQueryError("读取留言", error);
+  return (data ?? []) as BulletinPost[];
 }
 
 export async function createPost(input: {
@@ -187,39 +207,33 @@ export async function createPost(input: {
   category: BulletinCategory;
   body: string;
 }): Promise<BulletinPost> {
-  const db = load();
-  const post: BulletinPost = {
-    id: uid("post"),
-    cohort_id: input.cohort_id,
-    board_id: input.board_id,
-    author_id: input.author_id,
-    category: input.category,
-    body: input.body,
-    hidden: false,
-    created_at: new Date().toISOString(),
-  };
-  db.bulletin_posts.push(post);
-  save(db);
-  return delay(post);
+  const { data, error } = await createClient()
+    .from("bulletin_posts")
+    .insert(input)
+    .select("*")
+    .single();
+  throwQueryError("发布留言", error);
+  return data as BulletinPost;
 }
 
 export async function setPostHidden(
   id: string,
   hidden: boolean,
 ): Promise<BulletinPost> {
-  const db = load();
-  const idx = db.bulletin_posts.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error(`找不到帖子：${id}`);
-  db.bulletin_posts[idx] = { ...db.bulletin_posts[idx], hidden };
-  save(db);
-  return delay(db.bulletin_posts[idx]);
+  return adminJson<BulletinPost>(
+    "/api/admin/moderation",
+    "PATCH",
+    { id, hidden },
+    "更新留言状态",
+  );
 }
 
 export async function deletePost(id: string): Promise<void> {
-  const db = load();
-  db.bulletin_posts = db.bulletin_posts.filter((p) => p.id !== id);
-  save(db);
-  await delay(null);
+  const { error } = await createClient()
+    .from("bulletin_posts")
+    .delete()
+    .eq("id", id);
+  throwQueryError("删除留言", error);
 }
 
 // --- Sessions log ----------------------------------------------------------
@@ -229,13 +243,16 @@ export async function listSessions(filter?: {
   mentorId?: string;
   menteeId?: string;
 }): Promise<SessionLog[]> {
-  let rows = load().sessions_log;
-  if (filter?.cohortId)
-    rows = rows.filter((s) => s.cohort_id === filter.cohortId);
-  if (filter?.mentorId) rows = rows.filter((s) => s.mentor_id === filter.mentorId);
-  if (filter?.menteeId) rows = rows.filter((s) => s.mentee_id === filter.menteeId);
-  rows = [...rows].sort((a, b) => b.session_date.localeCompare(a.session_date));
-  return delay(rows);
+  let query = createClient().from("sessions_log").select("*");
+  if (filter?.cohortId) query = query.eq("cohort_id", filter.cohortId);
+  if (filter?.mentorId) query = query.eq("mentor_id", filter.mentorId);
+  if (filter?.menteeId) query = query.eq("mentee_id", filter.menteeId);
+
+  const { data, error } = await query.order("session_date", {
+    ascending: false,
+  });
+  throwQueryError("读取活动记录", error);
+  return (data ?? []) as SessionLog[];
 }
 
 export async function logSession(input: {
@@ -247,34 +264,43 @@ export async function logSession(input: {
   notes: string | null;
   created_by: string | null;
 }): Promise<SessionLog> {
-  const db = load();
-  const session: SessionLog = {
-    id: uid("session"),
-    ...input,
-    created_at: new Date().toISOString(),
-  };
-  db.sessions_log.push(session);
-  save(db);
-  return delay(session);
+  return postAdminJson<SessionLog>(
+    "/api/admin/sessions",
+    input,
+    "新增活动记录",
+  );
 }
 
 export async function updateSession(
   id: string,
   patch: Partial<Omit<SessionLog, "id" | "created_at">>,
 ): Promise<SessionLog> {
-  const db = load();
-  const idx = db.sessions_log.findIndex((s) => s.id === id);
-  if (idx === -1) throw new Error(`找不到记录：${id}`);
-  db.sessions_log[idx] = { ...db.sessions_log[idx], ...patch };
-  save(db);
-  return delay(db.sessions_log[idx]);
+  return adminJson<SessionLog>(
+    "/api/admin/sessions",
+    "PATCH",
+    { id, patch },
+    "更新活动记录",
+  );
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  const db = load();
-  db.sessions_log = db.sessions_log.filter((s) => s.id !== id);
-  save(db);
-  await delay(null);
+  const response = await fetch("/api/admin/sessions", {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
+        ? payload.error
+        : `${response.status} ${response.statusText}`;
+    throw new Error(`删除活动记录失败：${message}`);
+  }
 }
 
 // --- Participation records (mentee) ----------------------------------------
@@ -283,13 +309,13 @@ export async function listParticipation(filter?: {
   cohortId?: string;
   menteeId?: string;
 }): Promise<ParticipationRecord[]> {
-  let rows = load().participation_records;
-  if (filter?.cohortId)
-    rows = rows.filter((r) => r.cohort_id === filter.cohortId);
-  if (filter?.menteeId)
-    rows = rows.filter((r) => r.mentee_id === filter.menteeId);
-  rows = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return delay(rows);
+  let query = createClient().from("participation_records").select("*");
+  if (filter?.cohortId) query = query.eq("cohort_id", filter.cohortId);
+  if (filter?.menteeId) query = query.eq("mentee_id", filter.menteeId);
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+  throwQueryError("读取参与记录", error);
+  return (data ?? []) as ParticipationRecord[];
 }
 
 export async function createParticipation(input: {
@@ -297,24 +323,38 @@ export async function createParticipation(input: {
   mentee_id: string;
   event_name: string;
   screenshot_name: string | null;
-  screenshot_url: string | null;
+  screenshot_path: string | null;
 }): Promise<ParticipationRecord> {
-  const db = load();
-  const record: ParticipationRecord = {
-    id: uid("participation"),
-    ...input,
-    created_at: new Date().toISOString(),
-  };
-  db.participation_records.push(record);
-  save(db);
-  return delay(record);
+  const { data, error } = await createClient()
+    .from("participation_records")
+    .insert({ ...input, screenshot_url: null })
+    .select("*")
+    .single();
+  throwQueryError("新增参与记录", error);
+  return data as ParticipationRecord;
 }
 
 export async function deleteParticipation(id: string): Promise<void> {
-  const db = load();
-  db.participation_records = db.participation_records.filter((r) => r.id !== id);
-  save(db);
-  await delay(null);
+  const supabase = createClient();
+  const { data: record, error: readError } = await supabase
+    .from("participation_records")
+    .select("screenshot_path")
+    .eq("id", id)
+    .maybeSingle();
+  throwQueryError("读取参与记录", readError);
+
+  if (record?.screenshot_path) {
+    const { error: storageError } = await supabase.storage
+      .from("participation")
+      .remove([record.screenshot_path]);
+    throwQueryError("删除参与截图", storageError);
+  }
+
+  const { error } = await supabase
+    .from("participation_records")
+    .delete()
+    .eq("id", id);
+  throwQueryError("删除参与记录", error);
 }
 
 // --- Roster import ---------------------------------------------------------
@@ -331,97 +371,26 @@ export type ImportResult = {
   errors: { row: RosterRowInput; reason: string }[];
 };
 
-const VALID_ROLES: UserRole[] = ["admin", "mentor", "mentee"];
-
 export async function importRoster(
   cohortId: string,
   rows: RosterRowInput[],
 ): Promise<ImportResult> {
-  const db = load();
-  const result: ImportResult = { added: [], skipped: [], errors: [] };
-  const existingEmails = new Set(
-    db.profiles.map((p) => (p.email ?? "").toLowerCase()),
+  return postAdminJson<ImportResult>(
+    "/api/admin/import",
+    { cohortId, rows },
+    "导入名单",
   );
-  const invitedEmails = new Set(
-    db.roster_invites
-      .filter((r) => r.cohort_id === cohortId)
-      .map((r) => r.email.toLowerCase()),
-  );
-
-  for (const row of rows) {
-    const email = row.email?.trim().toLowerCase() ?? "";
-    const fullName = row.full_name?.trim() ?? "";
-    const role = row.role?.trim().toLowerCase() ?? "";
-
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      result.errors.push({ row, reason: "邮箱格式无效" });
-      continue;
-    }
-    if (!VALID_ROLES.includes(role as UserRole)) {
-      result.errors.push({ row, reason: `角色无效（应为 mentor 或 mentee）` });
-      continue;
-    }
-    if (existingEmails.has(email) || invitedEmails.has(email)) {
-      result.skipped.push({ row, reason: "该邮箱已在名单中" });
-      continue;
-    }
-
-    const invite: RosterInvite = {
-      id: uid("invite"),
-      cohort_id: cohortId,
-      email,
-      full_name: fullName || null,
-      role: role as UserRole,
-      invited_at: new Date().toISOString(),
-      claimed_user_id: null,
-    };
-    db.roster_invites.push(invite);
-    invitedEmails.add(email);
-
-    // In the prototype we also materialize a profile so imported people show
-    // up immediately in the directory (Phase B creates this on first login).
-    const profile: Profile = {
-      id: uid("user"),
-      role: invite.role,
-      cohort_ids: [cohortId],
-      full_name: invite.full_name,
-      email,
-      wechat_number: null,
-      bio: null,
-      field: null,
-      background: null,
-      interests: [],
-      goals: null,
-      linkedin: null,
-      avatar_url: `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
-        email,
-      )}`,
-      visible: true,
-      years_experience: null,
-      mentee_capacity: null,
-      mentee_expectations: null,
-      topics: null,
-      help_needed: null,
-      admin_notes: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    db.profiles.push(profile);
-    existingEmails.add(email);
-
-    result.added.push(invite);
-  }
-
-  save(db);
-  return delay(result);
 }
 
 export async function listRosterInvites(
   cohortId?: string,
 ): Promise<RosterInvite[]> {
-  let rows = load().roster_invites;
-  if (cohortId) rows = rows.filter((r) => r.cohort_id === cohortId);
-  return delay(rows);
+  let query = createClient().from("roster_invites").select("*");
+  if (cohortId) query = query.eq("cohort_id", cohortId);
+
+  const { data, error } = await query.order("invited_at", { ascending: false });
+  throwQueryError("读取邀请名单", error);
+  return (data ?? []) as RosterInvite[];
 }
 
 // --- Matching --------------------------------------------------------------
@@ -431,11 +400,14 @@ export async function listMatches(filter?: {
   mentorId?: string;
   menteeId?: string;
 }): Promise<Match[]> {
-  let rows = load().matches;
-  if (filter?.cohortId) rows = rows.filter((m) => m.cohort_id === filter.cohortId);
-  if (filter?.mentorId) rows = rows.filter((m) => m.mentor_id === filter.mentorId);
-  if (filter?.menteeId) rows = rows.filter((m) => m.mentee_id === filter.menteeId);
-  return delay(rows);
+  let query = createClient().from("matches").select("*");
+  if (filter?.cohortId) query = query.eq("cohort_id", filter.cohortId);
+  if (filter?.mentorId) query = query.eq("mentor_id", filter.mentorId);
+  if (filter?.menteeId) query = query.eq("mentee_id", filter.menteeId);
+
+  const { data, error } = await query.order("created_at", { ascending: true });
+  throwQueryError("读取配对", error);
+  return (data ?? []) as Match[];
 }
 
 export type MatchRowInput = {
@@ -453,57 +425,14 @@ export async function importMatches(
   cohortId: string,
   rows: MatchRowInput[],
 ): Promise<MatchImportResult> {
-  const db = load();
-  const result: MatchImportResult = { added: [], skipped: [], errors: [] };
-  const profileById = new Map(db.profiles.map((p) => [p.id, p]));
-  const existingPairs = new Set(
-    db.matches
-      .filter((m) => m.cohort_id === cohortId)
-      .map((m) => `${m.mentor_id}__${m.mentee_id}`),
+  return postAdminJson<MatchImportResult>(
+    "/api/admin/matches",
+    { cohortId, rows },
+    "导入配对",
   );
-
-  for (const row of rows) {
-    const mentorId = row.mentor_id?.trim() ?? "";
-    const menteeId = row.mentee_id?.trim() ?? "";
-
-    if (!mentorId || !menteeId) {
-      result.errors.push({ row, reason: "mentor_id 或 mentee_id 为空" });
-      continue;
-    }
-    const mentor = profileById.get(mentorId);
-    const mentee = profileById.get(menteeId);
-    if (!mentor || mentor.role !== "mentor" || !mentor.cohort_ids.includes(cohortId)) {
-      result.errors.push({ row, reason: `导师 ID 无效或不属于该项目：${mentorId}` });
-      continue;
-    }
-    if (!mentee || mentee.role !== "mentee" || !mentee.cohort_ids.includes(cohortId)) {
-      result.errors.push({ row, reason: `学员 ID 无效或不属于该项目：${menteeId}` });
-      continue;
-    }
-    const key = `${mentorId}__${menteeId}`;
-    if (existingPairs.has(key)) {
-      result.skipped.push({ row, reason: "该配对已存在" });
-      continue;
-    }
-
-    const match: Match = {
-      id: uid("match"),
-      cohort_id: cohortId,
-      mentor_id: mentorId,
-      mentee_id: menteeId,
-      created_at: new Date().toISOString(),
-    };
-    db.matches.push(match);
-    existingPairs.add(key);
-    result.added.push(match);
-  }
-
-  save(db);
-  return delay(result);
 }
 
-// --- Demo controls ---------------------------------------------------------
-
+// Kept for compatibility with the prototype store API.
 export function resetDemoData(): void {
-  save(seedDb());
+  throw new Error("真实数据模式不支持重置演示数据");
 }

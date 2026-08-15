@@ -27,6 +27,7 @@ import EventIcon from "@mui/icons-material/Event";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import InsightsIcon from "@mui/icons-material/Insights";
+import LogoutIcon from "@mui/icons-material/Logout";
 import CircularProgress from "@mui/material/CircularProgress";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -59,7 +60,16 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const pathname = usePathname();
-  const { currentUser, loading } = usePortalSession();
+  const { currentUser, loading, signOut } = usePortalSession();
+
+  if (
+    pathname === "/portal/login" ||
+    pathname === "/portal/auth/callback" ||
+    pathname === "/portal/onboarding" ||
+    pathname.startsWith("/portal/password/")
+  ) {
+    return <>{children}</>;
+  }
 
   const role = currentUser?.role;
   const visibleItems = navItems.filter((item) => role && item.roles.includes(role));
@@ -114,6 +124,17 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             </ListItem>
           );
         })}
+      </List>
+      <Divider />
+      <List sx={{ px: 1 }}>
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => void signOut()} sx={{ borderRadius: 2 }}>
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <LogoutIcon />
+            </ListItemIcon>
+            <ListItemText primary="退出登录" />
+          </ListItemButton>
+        </ListItem>
       </List>
     </Box>
   );

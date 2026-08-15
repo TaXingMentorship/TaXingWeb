@@ -17,10 +17,16 @@ import Divider from "@mui/material/Divider";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
-import CasinoIcon from "@mui/icons-material/Casino";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import SaveIcon from "@mui/icons-material/Save";
 import type { Profile } from "@/types/portal";
 import { getProfile, updateProfile } from "@/lib/portal/store";
+import {
+  AVATAR_MAX_BYTES,
+  IMAGE_ACCEPT,
+  uploadAvatar,
+  validateImageFile,
+} from "@/lib/portal/uploads";
 import { roleLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
@@ -56,6 +62,8 @@ export default function MyProfilePage() {
 
   const [form, setForm] = React.useState<Profile | null>(null);
   const [toast, setToast] = React.useState(false);
+  const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null);
+  const [avatarError, setAvatarError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (profile) setForm(profile);
@@ -71,6 +79,29 @@ export default function MyProfilePage() {
     },
   });
 
+  const avatarMutation = useMutation({
+    mutationFn: (file: File) => uploadAvatar(userId!, file),
+    onSuccess: (url) => {
+      setForm((current) =>
+        current ? { ...current, avatar_url: url } : current,
+      );
+      setAvatarError(null);
+    },
+    onError: (uploadError) => {
+      setAvatarPreview(null);
+      setAvatarError(
+        uploadError instanceof Error ? uploadError.message : "头像上传失败。",
+      );
+    },
+  });
+
+  React.useEffect(
+    () => () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    },
+    [avatarPreview],
+  );
+
   if (!form) {
     return <Typography color="text.secondary">加载中…</Typography>;
   }
@@ -78,13 +109,18 @@ export default function MyProfilePage() {
   const set = <K extends keyof Profile>(key: K, value: Profile[K]) =>
     setForm({ ...form, [key]: value });
 
-  const randomizeAvatar = () =>
-    set(
-      "avatar_url",
-      `https://api.dicebear.com/9.x/avataaars/svg?seed=${Math.random()
-        .toString(36)
-        .slice(2)}`,
-    );
+  const handleAvatar = (file: File | undefined) => {
+    if (!file) return;
+    const validationError = validateImageFile(file, AVATAR_MAX_BYTES);
+    if (validationError) {
+      setAvatarError(validationError);
+      return;
+    }
+
+    setAvatarError(null);
+    setAvatarPreview(URL.createObjectURL(file));
+    avatarMutation.mutate(file);
+  };
 
   const isMentor = form.role === "mentor";
   const isMentee = form.role === "mentee";
@@ -97,7 +133,6 @@ export default function MyProfilePage() {
       field: form.field,
       background: form.background,
       interests: form.interests,
-      goals: form.goals,
       linkedin: form.linkedin,
       avatar_url: form.avatar_url,
       // Mentors are always public so learners can find and match with them.
@@ -123,21 +158,49 @@ export default function MyProfilePage() {
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3, borderRadius: 3 }}>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
-              <Avatar src={form.avatar_url ?? undefined} sx={{ width: 72, height: 72 }} />
+              <Avatar
+                src={avatarPreview ?? form.avatar_url ?? undefined}
+                sx={{ width: 72, height: 72 }}
+              />
               <Box>
                 <Typography variant="h6" fontWeight={700}>
                   {form.full_name}
                 </Typography>
                 <Chip size="small" label={roleLabels[form.role]} color="secondary" sx={{ mb: 1 }} />
                 <Box>
-                  <Button size="small" startIcon={<CasinoIcon />} onClick={randomizeAvatar}>
-                    随机更换头像
+                  <Button
+                    component="label"
+                    size="small"
+                    startIcon={<UploadFileIcon />}
+                    disabled={avatarMutation.isPending}
+                  >
+                    {avatarMutation.isPending ? "上传中…" : "上传头像"}
+                    <input
+                      type="file"
+                      accept={IMAGE_ACCEPT}
+                      hidden
+                      onChange={(event) => {
+                        handleAvatar(event.target.files?.[0]);
+                        event.target.value = "";
+                      }}
+                    />
                   </Button>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    JPEG、PNG 或 WebP，最大 2 MB
+                  </Typography>
                 </Box>
               </Box>
             </Stack>
 
             <Stack spacing={2.5}>
+              {avatarError && <Alert severity="error">{avatarError}</Alert>}
+              {mutation.isError && (
+                <Alert severity="error">
+                  {mutation.error instanceof Error
+                    ? mutation.error.message
+                    : "资料保存失败。"}
+                </Alert>
+              )}
               <TextField
                 label="昵称"
                 value={form.full_name ?? ""}
@@ -265,7 +328,7 @@ export default function MyProfilePage() {
                   color="secondary"
                   startIcon={<SaveIcon />}
                   onClick={handleSave}
-                  disabled={mutation.isPending}
+                  disabled={mutation.isPending || avatarMutation.isPending}
                 >
                   保存资料
                 </Button>

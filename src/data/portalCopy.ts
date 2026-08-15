@@ -1,6 +1,6 @@
 import type { BulletinCategory, SessionType, UserRole } from "@/types/portal";
 
-/** Centralized Simplified-Chinese copy for the portal prototype. */
+/** Centralized Simplified-Chinese copy for the portal. */
 
 export const roleLabels: Record<UserRole, string> = {
   admin: "管理员",
@@ -37,7 +37,7 @@ export const categoryColors: Record<
 
 export const portalCopy = {
   brand: "她行 · Mentorship",
-  prototypeBadge: "原型演示（示例数据）",
+  prototypeBadge: "2026 Autumn",
   nav: {
     home: "首页",
     directory: "成员目录",

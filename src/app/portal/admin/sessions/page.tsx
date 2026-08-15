@@ -40,6 +40,14 @@ import {
   logSession,
   updateSession,
 } from "@/lib/portal/store";
+import {
+  getParticipationSignedUrl,
+  IMAGE_ACCEPT,
+  PARTICIPATION_MAX_BYTES,
+  removeParticipationScreenshot,
+  uploadParticipationScreenshot,
+  validateImageFile,
+} from "@/lib/portal/uploads";
 import { sessionTypeColors, sessionTypeLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
@@ -139,25 +147,36 @@ function MenteeView({
   });
 
   const [eventName, setEventName] = React.useState("");
-  const [screenshotName, setScreenshotName] = React.useState<string | null>(null);
-  const [screenshotUrl, setScreenshotUrl] = React.useState<string | null>(null);
+  const [screenshot, setScreenshot] = React.useState<File | null>(null);
+  const [fileError, setFileError] = React.useState<string | null>(null);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["portal", "participation"] });
 
   const submitMutation = useMutation({
-    mutationFn: () =>
-      createParticipation({
-        cohort_id: cohortId,
-        mentee_id: currentUser.id,
-        event_name: eventName.trim(),
-        screenshot_name: screenshotName,
-        screenshot_url: screenshotUrl,
-      }),
+    mutationFn: async () => {
+      const screenshotPath = screenshot
+        ? await uploadParticipationScreenshot(currentUser.id, screenshot)
+        : null;
+      try {
+        return await createParticipation({
+          cohort_id: cohortId,
+          mentee_id: currentUser.id,
+          event_name: eventName.trim(),
+          screenshot_name: screenshot?.name ?? null,
+          screenshot_path: screenshotPath,
+        });
+      } catch (error) {
+        if (screenshotPath) {
+          await removeParticipationScreenshot(screenshotPath).catch(() => {});
+        }
+        throw error;
+      }
+    },
     onSuccess: () => {
       setEventName("");
-      setScreenshotName(null);
-      setScreenshotUrl(null);
+      setScreenshot(null);
+      setFileError(null);
       invalidate();
     },
   });
@@ -169,10 +188,14 @@ function MenteeView({
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
-    setScreenshotName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => setScreenshotUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    const validationError = validateImageFile(file, PARTICIPATION_MAX_BYTES);
+    if (validationError) {
+      setScreenshot(null);
+      setFileError(validationError);
+      return;
+    }
+    setFileError(null);
+    setScreenshot(file);
   };
 
   return (
@@ -232,6 +255,14 @@ function MenteeView({
             填写你参与的活动名称，并上传截图作为参与证明。
           </Typography>
           <Stack spacing={2}>
+            {(fileError || submitMutation.isError) && (
+              <Alert severity="error">
+                {fileError ??
+                  (submitMutation.error instanceof Error
+                    ? submitMutation.error.message
+                    : "活动记录提交失败。")}
+              </Alert>
+            )}
             <TextField
               label="活动名称"
               value={eventName}
@@ -243,17 +274,23 @@ function MenteeView({
               variant="outlined"
               startIcon={<UploadFileIcon />}
             >
-              {screenshotName ? "重新选择截图" : "上传截图"}
+              {screenshot ? "重新选择截图" : "上传截图"}
               <input
                 type="file"
-                accept="image/*"
+                accept={IMAGE_ACCEPT}
                 hidden
-                onChange={(e) => handleFile(e.target.files?.[0])}
+                onChange={(e) => {
+                  handleFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
               />
             </Button>
-            {screenshotName && (
+            <Typography variant="caption" color="text.secondary">
+              JPEG、PNG 或 WebP，最大 5 MB
+            </Typography>
+            {screenshot && (
               <Typography variant="caption" color="text.secondary">
-                已选择：{screenshotName}
+                已选择：{screenshot.name}
               </Typography>
             )}
             <Box>
@@ -298,13 +335,21 @@ function ParticipationRow({
   record: ParticipationRecord;
   onDelete: () => void;
 }) {
+  const { data: signedUrl } = useQuery({
+    queryKey: ["portal", "participation-signed-url", record.screenshot_path],
+    queryFn: () => getParticipationSignedUrl(record.screenshot_path!),
+    enabled: Boolean(record.screenshot_path),
+    staleTime: 50 * 60 * 1000,
+  });
+  const screenshotUrl = signedUrl ?? record.screenshot_url;
+
   return (
     <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
       <Stack direction="row" spacing={1.5} alignItems="center">
-        {record.screenshot_url ? (
+        {screenshotUrl ? (
           <Box
             component="img"
-            src={record.screenshot_url}
+            src={screenshotUrl}
             alt={record.event_name}
             sx={{ width: 48, height: 48, objectFit: "cover", borderRadius: 1 }}
           />

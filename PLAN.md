@@ -1,10 +1,11 @@
-# Mentorship Portal — Phase 1 Plan
+# Mentorship Portal — Plan
 
-Add a role-based mentorship portal on top of the existing TaXing Web site with three identities: **admin**, **mentor**, **mentee**. Phase 1 covers admin roster import, login, profile setup, a mentor/mentee directory board, a bulletin board, and an admin progress tracker.
+A role-based mentorship portal ("她行 · Mentorship") on top of the existing TaXing Web site, with three identities: **admin**, **mentor**, **mentee**. Covers roster import, invite-only email/password login, profile setup, a mentor/mentee directory, multi-board bulletins, mentor↔mentee matching, activity resources, participation records, and progress tracking.
 
-**Build order:** We build an **interactive hi-fi prototype first** — features C/D/E/F (directory, profiles, bulletin board, admin import, progress tracker) on mock data with a fake account switcher, no auth — so the team can click through and give feedback. **Auth + magic-link login and live Supabase data come afterward** (Phase B), swapping the mock layer for real queries.
+**Build strategy:** an **interactive hi-fi prototype first** (features on mock data with a fake account switcher, no auth, all copy in Simplified Chinese) so the team can click through and give feedback — **done**. **Phase B** now swaps the mock data-access seam for real Supabase auth + Postgres so we can do manual testing with real accounts.
 
-**Mentor↔mentee matching is intentionally deferred** to a later phase, because first-come-first-serve under concurrency needs an atomic, server-enforced flow that we want to design carefully.
+**Prototype branch:** `agents/portal-prototype` (prototype, pushed, auto-deploys a Vercel preview).
+**Current branch:** `agents/portal-production` (Phase B real-data wiring) — see below.
 
 ---
 
@@ -12,172 +13,141 @@ Add a role-based mentorship portal on top of the existing TaXing Web site with t
 
 | Concern | Choice | Why |
 |---|---|---|
-| Frontend | Existing Next.js 15 + MUI + React Query | No change |
-| Hosting | **Vercel** (move from GitHub Pages) | Needed for server routes, auth callbacks, secrets |
-| Auth | Supabase Auth — magic-link email | No passwords to manage; admin pre-creates accounts |
-| Database | Supabase Postgres + Row Level Security (RLS) | One service for auth + DB; free tier fits our scale |
-| Storage | Supabase Storage (bucket: `avatars`) | Keeps Postgres lean |
-| Email (invites) | Supabase default SMTP, with Resend free tier for bulk invite blast | Avoids throttling on the one-time 600-person send |
+| Frontend | Next.js 15 + MUI v7 + React Query | Existing |
+| Hosting | **Vercel** | Server routes, auth callbacks, secrets |
+| Auth | Supabase Auth — invite-only email/password | No self-registration; email is used for invitations and recovery |
+| Database | Supabase Postgres + Row Level Security | One service for auth + DB; free tier fits scale |
+| Storage | Supabase Storage (buckets: `avatars`, `participation`) | Avatar images + participation screenshots |
+| Email | Supabase default SMTP (Resend for bulk invite blast) | Avoids throttling on the one-time large send |
 
-**Estimated cost at ~300 mentors + ~300 mentees per program: $0/month.** Only optional spend is a custom domain (~$10–15/year).
+**Estimated cost at ~300 mentors + ~300 mentees: $0/month** (optional custom domain ~$10–15/yr).
 
 ---
 
-## Data model (Postgres)
+## Data model (Postgres) — as built in `supabase/migrations/0001_init.sql`
 
-1. **`profiles`** — one row per user.
-   - `id` (uuid, FK `auth.users`), `role` ('admin'|'mentor'|'mentee'), `cohort_ids` (uuid[] — a user can belong to multiple cohorts across program runs), `full_name`, `email`, `bio`, `background`, `interests` (text[]), `goals`, `linkedin`, `avatar_url`, `visible` (bool), `created_at`, `updated_at`.
-2. **`cohorts`** — one row per program run.
-   - `id`, `name`, `starts_at`, `ends_at`, `bulletin_open` (bool), `created_at`.
-3. **`roster_invites`** — pending imports before first login.
-   - `id`, `cohort_id`, `email`, `full_name`, `role`, `invited_at`, `claimed_user_id` (nullable). Maps magic-link signups back to the imported role.
-4. **`bulletin_posts`**
-   - `id`, `cohort_id`, `author_id`, `category` ('wish'|'thanks'|'growth'|'other'), `body`, `created_at`, `hidden` (bool, admin moderation).
-5. **`sessions_log`** — admin-tracked completed mentorship sessions.
-   - `id`, `cohort_id`, `mentor_id`, `mentee_id`, `session_date`, `notes`, `created_by` (admin id), `created_at`.
+Eight tables:
 
-### RLS summary
-- `profiles`: a user in a **shared cohort** (array overlap) can `SELECT` rows where `visible = true`; users `UPDATE` only their own row; admins can do anything.
-- `bulletin_posts`: same-cohort `SELECT` of non-hidden rows; authenticated users `INSERT` as themselves; only author or admin can `UPDATE`/`DELETE`; admins toggle `hidden`.
-- `sessions_log`: read by mentor/mentee involved; write only by admins (enforced server-side via service role).
+1. **`cohorts`** — one row per program run. `id, name, starts_at, ends_at, bulletin_open, created_at`.
+2. **`profiles`** — one row per user. `id (FK auth.users), role ('admin'|'mentor'|'mentee'), cohort_ids (uuid[])`, plus:
+   - Shared: `full_name` (昵称), `email`, `wechat_number`, `bio`, `background` (学术/行业经历), `field` (领域), `interests (text[])`, `linkedin`, `avatar_url`, `visible`.
+   - Mentor-only: `years_experience`, `mentee_capacity`, `mentee_expectations`, `topics` (擅长与不擅长的话题).
+   - Mentee-only: `help_needed` (问题/想获得的帮助).
+   - Admin-editable: `admin_notes` (备注).
+   - `created_at, updated_at`.
+   - **Note:** `goals` (目标) was removed from the UI; drop the column from the migration if still present.
+3. **`roster_invites`** — pending imports before first login. `id, cohort_id, email, full_name, role, invited_at, claimed_user_id`.
+4. **`bulletin_boards`** — multiple boards per cohort (活动初期交友、毕业留言板🎓…). `id, cohort_id, title, description, created_by, created_at`.
+5. **`bulletin_posts`** — `id, board_id, cohort_id, author_id, category, body, created_at, hidden`.
+6. **`sessions_log`** — mentor/volunteer/admin-logged records. `id, cohort_id, mentor_id, mentee_id, session_type ('mentorship'|'gratitude'), session_date, notes, created_by, created_at`.
+7. **`participation_records`** — mentee-submitted activity proof. `id, cohort_id, mentee_id, event_name, screenshot_url, created_at`.
+8. **`matches`** — admin-uploaded mentor↔mentee pairing. `id, cohort_id, mentor_id, mentee_id, created_at`, `unique(cohort_id, mentor_id, mentee_id)`.
+
+### RLS summary (in migration)
+- `profiles`: shared-cohort users `SELECT` where `visible = true`; users `UPDATE` own row; admins anything.
+- `bulletin_boards` / `bulletin_posts`: same-cohort `SELECT`; authenticated `INSERT` as self; author/admin `UPDATE`/`DELETE`; admins toggle `hidden`; board create gated to admin.
+- `sessions_log`: read by involved mentor/mentee; write by admin **or** the mentor **only for a matched pair** (`matches` existence check enforced in the policy).
+- `participation_records`: mentee reads/writes own; admin all.
+- `matches`: involved users `SELECT`; admin-only write.
 - `roster_invites`: admin only.
 
 ---
 
 ## Routes & UI surface
 
-| Route | Purpose |
-|---|---|
-| `/portal/login` | Magic-link email form |
-| `/portal/onboarding` | First-login profile setup, prefilled from `roster_invites` |
-| `/portal/me` | Edit own profile + "My sessions" widget |
-| `/portal/directory` | Paginated, filterable board with Mentors / Mentees tabs |
-| `/portal/board` | Bulletin board: list + composer, filter by category |
-| `/portal/admin` | Admin home (gated by `role = 'admin'`) |
-| `/portal/admin/import` | CSV upload for mentor/mentee roster |
-| `/portal/admin/sessions` | Log/edit completed sessions, per-pair counters |
-| `/portal/admin/moderation` | Hide/unhide bulletin posts |
+Nav order: **首页 · 我的资料 · 本期活动 · 成员目录 · 进度跟踪 · 留言板 · 成员名单(admin) · 名单导入(admin)**.
 
-Server-only Next.js Route Handlers under `src/app/api/admin/*` for actions that require the service-role key (CSV import, session logging, moderation toggle). All other reads/writes use the browser Supabase client gated by RLS.
+| Route | Purpose | Status |
+|---|---|---|
+| `/portal` | Role-aware landing tiles | ✅ prototype |
+| `/portal/me` | Edit own profile (昵称, 领域, 经历, role fields, 公开开关) | ✅ |
+| `/portal/activities` | 本期活动: 重要文件 / 主线活动 / 支线活动 (links TBD) | ✅ (placeholder) |
+| `/portal/directory` | 成员目录: 导师/学员 tabs, search + interest filter, detail dialog | ✅ |
+| `/portal/board` | 留言板 list of boards; admin can create | ✅ |
+| `/portal/board/[boardId]` | Single board: posts + composer, category filter, admin hide | ✅ |
+| `/portal/admin/sessions` | 进度跟踪: mentor/mentee views, log 交流记录 (type), participation submit, matched-pair gating | ✅ |
+| `/portal/admin/roster` | 成员名单: read-only auto-pulled sheet + 配对关系 nested view; only 备注 editable | ✅ |
+| `/portal/admin/import` | 名单导入: roster CSV + match CSV upload | ✅ |
+| `/portal/login` | Magic-link email form | ⏳ Phase B |
+| `/portal/onboarding` | First-login profile setup, prefilled from `roster_invites` | ⏳ Phase B |
 
-AppBar gains a **Portal** link and a sign-in/avatar menu when authenticated.
-
----
-
-## Steps (phased)
-
-### Phase 0 — Move hosting to Vercel ✅ *(done — site live on Vercel)*
-1. ✅ Remove GitHub Pages–specific settings from `next.config.ts` (`output: 'export'`, `basePath`, `images.unoptimized`). Config is now empty; image components fall back to `NEXT_PUBLIC_BASE_PATH || ''`, which is correct for a root-domain Vercel deploy.
-2. ✅ Imported `TaXingWeb` into Vercel; deployed.
-3. ✅ Verified the `*.vercel.app` URL renders the site.
-4. GitHub Pages: disable once Vercel is fully verified. Re-point DNS later if a custom domain is added. *(user follow-up)*
-5. Preview deploys confirmed via branch pushes. *(user follow-up)*
-
-### Phase A — Backend foundation ✅ *(code complete; live Supabase deferred until after the prototype)*
-6. ⏳ **Deferred until Phase B (real-data wiring):** Create a Supabase project and set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in Vercel + `.env.local`. Template in `.env.example`. **Not needed for the prototype** — the prototype runs entirely on mock data with no backend.
-7. ✅ SQL migration written: `supabase/migrations/0001_init.sql` — five tables, enums, indexes (GIN on `profiles.cohort_ids`, `bulletin_posts(cohort_id, created_at)`, `sessions_log.mentor_id`, `sessions_log.mentee_id`, `roster_invites(lower(email))`), `is_admin()`/`current_cohort_ids()` helpers, RLS policies, and an `updated_at` trigger. Ready to run when we wire real data.
-8. ✅ Installed `@supabase/supabase-js`, `@supabase/ssr`, `zod`, `papaparse` (+ `@types/papaparse`). Added `src/lib/supabase/client.ts` (browser), `src/lib/supabase/server.ts` (cookie-scoped + service-role), `src/lib/auth.ts` (`getCurrentUser()` + `requireRole()`), and `src/types/portal.ts` (shared types).
-
-### Phase P — Interactive hi-fi prototype ✅ *(built on branch `agents/portal-prototype`; mock data, no auth)*
-
-**Why first:** Validate the C/D/E/F feature set with the team before investing in auth, magic-link email, and live data. The prototype is fully interactive but backed by an in-browser mock store, so there's nothing to log into and no secrets to configure. Everything is built against a thin **data-access layer** so Phase B can swap mocks for Supabase without rewriting the UI. **All user-facing copy is Simplified Chinese.**
-
-9. ✅ **Mock data + data-access seam.** `src/lib/portal/mockData.ts` (two cohorts, admin + mentors + mentees, bulletin posts across all categories, logged sessions — all in Simplified Chinese). `src/lib/portal/store.ts` — `localStorage`-backed store, versioned + reseedable ("重置演示数据"), exposing async Supabase-shaped CRUD (`listProfiles`, `updateProfile`, `listPosts`, `createPost`, `setPostHidden`, `listSessions`, `logSession`, `updateSession`, `deleteSession`, `importRoster`, …).
-10. ✅ **Fake account switcher + `<PortalShell>`.** `PortalSessionProvider` (context) holds the "当前身份" and renders a floating **演示身份** switcher (Admin / Mentor / Mentee, persisted to `localStorage`, with reset). `PortalShell` is a responsive sidebar with role-gated nav. `/portal` landing page with role-aware tiles.
-11. ✅ **AppBar entry.** Added a **师友门户** link via `data/navigation.ts`.
-
-#### Feature D — Profiles & directory
-12. ✅ `/portal/directory`: 导师/学员 tabs, search + interest `Autocomplete` filter, profile detail dialog. Same-cohort visibility (admins see all).
-13. ✅ `/portal/me` profile editor (姓名, 简介, 背景, 目标, 兴趣, LinkedIn, avatar randomizer, 公开开关) writing back to the store; success toast.
-
-#### Feature E — Bulletin board
-14. ✅ `/portal/board`: composer + category select, category filter chips, author info, admin 隐藏/取消隐藏, honors `bulletin_open` (closed cohort shows a notice), multi-cohort selector.
-
-#### Feature C — Admin roster import
-15. ✅ `/portal/admin/import`: CSV uploader (papaparse), column validation, "载入示例数据" demo, results table (已导入 / 跳过 / 错误). Imported people appear in the directory; no email sent. Admin-gated.
-
-#### Feature F — Admin progress tracker
-16. ✅ `/portal/admin/sessions`: log form (导师, 学员, 日期, 备注), recent-logs table with edit dialog + delete, per-pair counts summary. Admin-gated.
-17. ✅ Read-only "我的辅导记录" widget on `/portal/me`.
-
-18. ✅ **Shipped.** `npm run lint` + `npm run build` pass; all `/portal/*` routes return 200. Push branch and share the Vercel preview for feedback.
-18. **Ship the prototype.** `npm run lint` + `npm run build`, push the branch, and share the Vercel preview URL with the team for feedback. Collect notes before starting Phase B.
-
-### Phase B — Real auth & data wiring *(after prototype feedback; replaces the mock seam with Supabase)*
-19. Create the Supabase project and run `0001_init.sql` (Phase A step 6/7). Wire env vars.
-20. Build `/portal/login` with Supabase magic link. On callback, look up `roster_invites` by email; if found, create the `profiles` row with the imported role and link `claimed_user_id`.
-21. Replace `src/lib/portal/store.ts` mock implementations with real Supabase queries (same function signatures), and swap `PortalSessionProvider` for a real session/role context. Remove the dev account switcher (or gate it to non-prod).
-22. Make `/portal/onboarding` (first-login profile setup, prefilled from `roster_invites`) and move avatar upload to Supabase Storage.
-23. Move admin write actions (import, session logging, moderation) into server-only Route Handlers under `src/app/api/admin/*` using the service-role key. Add a real sign-in/avatar control to the AppBar.
-
-### Phase G — Hardening
-24. Zod-validate every Route Handler input.
-25. Rate-limit bulletin posts (per user per minute).
-26. Add CSV import dry-run mode.
-27. Manual QA pass + `npm run lint` + `npm run build`.
+Server-only Route Handlers under `src/app/api/admin/*` for service-role actions (roster import, match import, session logging, moderation). Other reads/writes use the browser Supabase client gated by RLS.
 
 ---
 
-## Files to add or modify
+## Status
 
-**Prototype (Phase P) — mock data, no backend:**
-- `src/lib/portal/mockData.ts` — seed cohort, mentors, mentees, posts, sessions *(new)*.
-- `src/lib/portal/store.ts` — `localStorage`-backed data-access layer with Supabase-shaped function signatures *(new)*.
-- `src/components/portal/PortalSessionProvider.tsx` — fake "logged-in as" context + dev account switcher *(new)*.
-- `src/components/portal/PortalShell.tsx` — portal layout + role-gated nav *(new)*.
-- `src/app/portal/**` — portal routes: `/portal`, `/portal/directory`, `/portal/me`, `/portal/board`, `/portal/admin/import`, `/portal/admin/sessions` *(new)*.
-- `src/components/common/AppBar.tsx` and `src/data/navigation.ts` — add Portal entry.
+### Phase 0 — Vercel hosting ✅ *(site live on Vercel)*
 
-**Already done (Phase A):**
-- `package.json` — added `@supabase/supabase-js`, `@supabase/ssr`, `zod`, `papaparse`. ✅
-- `next.config.ts` — stripped GitHub Pages settings. ✅
-- `supabase/migrations/0001_init.sql` — schema + RLS. ✅
-- `src/lib/supabase/{client,server}.ts` — Supabase clients. ✅
-- `src/lib/auth.ts` — `getCurrentUser`, `requireRole`. ✅
-- `src/types/portal.ts` — shared TS types. ✅
-- `.env.example` — Supabase key template. ✅
+### Phase A — Backend foundation ✅ *(code complete; live Supabase deferred to Phase B)*
+- ✅ `supabase/migrations/0001_init.sql` — 8 tables, enums, indexes, `is_admin()`/`current_cohort_ids()` helpers, RLS, `updated_at` trigger.
+- ✅ Installed `@supabase/supabase-js`, `@supabase/ssr`, `zod`, `papaparse`.
+- ✅ `src/lib/supabase/{client,server}.ts`, `src/lib/auth.ts` (`getCurrentUser`, `requireRole`), `src/types/portal.ts`, `.env.example`.
 
-**Real-data wiring (Phase B):**
-- `.env.local` (gitignored) — Supabase keys.
-- `src/app/portal/login` + `onboarding` — magic-link auth and first-login setup *(new)*.
-- `src/app/api/admin/{import,sessions,moderation}/route.ts` — service-role route handlers *(new)*.
-- Swap `src/lib/portal/store.ts` internals to Supabase; replace fake session provider with real session/role context; add sign-in/avatar control to AppBar.
+### Phase P — Interactive hi-fi prototype ✅ *(branch `agents/portal-prototype`, mock data, no auth, Simplified Chinese)*
+- ✅ Mock data + `localStorage` data-access seam (`src/lib/portal/{mockData,store.ts}`), versioned/reseedable (`DB_VERSION = 6`). Store exposes async, Supabase-shaped CRUD for all 8 tables (profiles, boards, posts, sessions, participation, roster import, matches, cohorts).
+- ✅ Fake account switcher + `PortalShell` (role-gated nav), AppBar 师友门户 → Log In entry.
+- ✅ Feature D (profiles & directory), E (multi-board bulletins), C (roster import), F (progress tracker + participation), matching (import + nested roster view + matched-pair gating on session logging), 本期活动 tab.
+- ✅ `npm run lint` + `npm run build` pass; all `/portal/*` routes return 200; branch pushed; Vercel preview shared.
 
 ---
 
-## Verification
+## Phase B — Real auth & data wiring  ← WE ARE HERE
 
-**Prototype (Phase P) — clickable demo, mock data:**
-1. Use the dev account switcher to view the portal as Admin, Mentor, and Mentee; nav items are role-gated.
-2. Directory: browse Mentors/Mentees tabs, search/filter, open a profile dialog.
-3. Edit own profile on `/portal/me`; reload and confirm the change persisted (localStorage).
-4. Bulletin board: post in each category; as Admin, hide a post and confirm it disappears for non-admin accounts; unhide restores it.
-5. Admin import: upload a small CSV (`email,full_name,role`); confirm the results table and that imported people appear in the directory. (No email sent.)
-6. Admin sessions: log a session; confirm the per-pair/per-user summary updates and the "My sessions" widget reflects it for those users.
-7. `npm run lint` and `npm run build` pass; share the Vercel preview URL.
+Goal: connect the existing UI to a real Supabase project so we can do manual testing with real accounts. The UI is built against the `store.ts` seam, so this is mostly (1) external Supabase setup by the user and (2) swapping the seam internals + adding auth on the app side.
 
-**Real-data wiring (Phase B):**
-8. Seed one admin in Supabase; CSV-import a 300+300 fake roster; verify `roster_invites` rows and queued invite emails.
-9. Log in as a mentor and a mentee via magic link; confirm `profiles` is auto-created with the right role.
-10. RLS check: as a mentee, attempt to update another user's profile or `sessions_log` — must fail.
+### Are we ready?
+**Yes on the app side** — the prototype is feature-complete and feedback is incorporated. The only blockers are external Supabase setup steps that only the account owner (you) can do. Recommended: create a **new branch `agents/portal-production`** off `agents/portal-prototype` so the clickable prototype stays intact while we wire real data.
+
+### B0 — Branch
+- [x] Created `agents/portal-production` from the pushed `agents/portal-prototype` branch.
+
+### B1 — External setup *(you; app can't do these)*
+- [x] Create a Supabase project; copy `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+- [ ] Put them in `.env.local` (done, gitignored) and in Vercel project env vars (Production + Preview).
+- [x] Apply `supabase/migrations/0001_init.sql`, `0002_onboarding_uploads.sql`, and `0003_admin_operations.sql`.
+- [x] Create Storage buckets: `avatars` (public, 2 MB) and `participation` (private, 5 MB).
+- [x] Auth settings: enable magic-link (email OTP); set Site URL + local/production callback redirect URLs.
+- [x] Seed the `2026 Autumn` cohort and one admin profile.
+
+### B2 — App-side wiring *(me)*
+- [x] `middleware.ts` using `@supabase/ssr` to refresh the session cookie and protect `/portal/*` (redirect unauthenticated → `/portal/login`).
+- [x] `/portal/login` password form, invitation/password-recovery callback, and password setup/update pages.
+- [x] Real Supabase session/profile context preserving `usePortalSession()`; demo switcher removed.
+- [x] Real Supabase-backed `store.ts` with existing UI-facing function signatures.
+- [x] Secure invite-based `/portal/onboarding`.
+- [x] Avatar and private participation screenshot uploads.
+- [x] Zod-validated admin import, matching, session, and moderation handlers.
+- [x] Real avatar/role display and sign-out in the portal shell.
+
+### B3 — Verify (manual testing)
+- [ ] Seed admin; CSV-import a small roster; confirm `roster_invites` rows.
+- [ ] Log in via magic link as a mentor and a mentee; confirm `profiles` auto-created with the right role via onboarding.
+- [ ] Upload a match CSV; confirm 成员名单 配对关系 nesting and that a mentor can log 交流记录 only for matched mentees; unmatched mentor is blocked; admin unrestricted.
+- [ ] Mentee submits a participation record with a screenshot; admin sees it in 成员名单.
+- [ ] RLS negative checks: as a mentee, attempt to update another user's profile or `sessions_log` — must fail.
+- [ ] `npm run lint` + `npm run build` pass; deploy preview and smoke-test.
+
+### Phase G — Hardening *(after B verified)*
+- [ ] Rate-limit bulletin posts (per user per minute).
+- [ ] CSV import dry-run mode.
+- [ ] Finalize "全部完成本期活动" requirements definition (currently a placeholder heuristic in the roster view).
+- [ ] Wire real 本期活动 resource links once provided.
 
 ---
 
 ## Key decisions
 
-- **Prototype-first.** Build a clickable hi-fi prototype of features C/D/E/F on mock data (no auth, no backend) to gather team feedback before committing to auth + live data. UI is built against a data-access seam so the swap to Supabase is low-risk.
-- **Vercel** for hosting (GitHub Pages can't run server code or hold secrets).
-- **Supabase** over a custom auth/DB stack to stay on a free tier and avoid running our own server.
-- **Magic-link login** only — no passwords. *(deferred to Phase B)*
-- **Admin import** is the only account-creation path; users cannot self-register.
-- **Matching is out of scope** for Phase 1; will be designed later as an atomic server-enforced flow.
-- **Multi-cohort from day one** via `cohort_id` so the system is reusable across programs.
-
----
+- **Prototype-first**, then swap the data-access seam for Supabase — low-risk because the UI only depends on `store.ts` signatures and `usePortalSession()`.
+- **Vercel** for hosting (server code + secrets); **Supabase** for auth + DB on the free tier.
+- **Invite-only email/password login**, with email reserved for invitations and password recovery. **Admin import is the only account-creation path** — no self-registration.
+- **Multi-cohort from day one** via `cohort_ids` (a user can be in several program runs).
+- **Matching** is admin-uploaded by ID; session logging by mentors is gated to matched pairs (admins unrestricted).
+- **Roster is read-only** on the site (auto-pulled from records); only `admin_notes` (备注) is editable — avoids concurrent-edit conflicts.
+- All portal copy is **Simplified Chinese**; brand is **她行 · Mentorship**.
 
 ## Open questions
-
-1. Bilingual UI (EN/ZH) — keep portal copy in `src/data/portalCopy.ts` for Phase 1, defer i18n framework?
-2. Is the directory visible to logged-out users? Recommended: **no**, login required.
-3. Avatar upload size cap (suggest 1 MB) and accepted MIME types.
-4. Bulletin board scope: single channel for the whole cohort, or split into mentor-only / mentee-only / mixed channels?
+1. Directory visible to logged-out users? Recommended: **no**, login required.
+2. Avatar / screenshot size caps and accepted MIME types.
+3. Exact definition of "全部完成本期活动" (which requirements count).
+4. 本期活动 resource links (重要文件 / 主线活动 / 支线活动) — pending from you.

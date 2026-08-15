@@ -40,7 +40,6 @@ create table if not exists public.profiles (
   field       text,
   background  text,
   interests   text[] not null default '{}',
-  goals       text,
   linkedin    text,
   avatar_url  text,
   visible     boolean not null default true,
