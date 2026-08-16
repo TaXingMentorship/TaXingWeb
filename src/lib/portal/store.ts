@@ -8,11 +8,11 @@ import type {
   Cohort,
   Match,
   ParticipationRecord,
+  ParticipantRole,
   Profile,
   RosterInvite,
   SessionLog,
   SessionType,
-  UserRole,
 } from "@/types/portal";
 
 type SupabaseError = {
@@ -86,11 +86,13 @@ export async function getCohort(id: string): Promise<Cohort | null> {
 // --- Profiles --------------------------------------------------------------
 
 export async function listProfiles(filter?: {
-  role?: UserRole;
+  participantRole?: ParticipantRole;
   cohortId?: string;
 }): Promise<Profile[]> {
   let query = createClient().from("profiles").select("*");
-  if (filter?.role) query = query.eq("role", filter.role);
+  if (filter?.participantRole) {
+    query = query.eq("participant_role", filter.participantRole);
+  }
   if (filter?.cohortId) {
     query = query.contains("cohort_ids", [filter.cohortId]);
   }
@@ -112,7 +114,18 @@ export async function getProfile(id: string): Promise<Profile | null> {
 
 export async function updateProfile(
   id: string,
-  patch: Partial<Omit<Profile, "id" | "role" | "created_at">>,
+  patch: Partial<
+    Omit<
+      Profile,
+      | "id"
+      | "participant_role"
+      | "is_admin"
+      | "is_volunteer"
+      | "cohort_ids"
+      | "email"
+      | "created_at"
+    >
+  >,
 ): Promise<Profile> {
   const { data, error } = await createClient()
     .from("profiles")
@@ -362,7 +375,9 @@ export async function deleteParticipation(id: string): Promise<void> {
 export type RosterRowInput = {
   email: string;
   full_name: string;
-  role: string;
+  participant_role: ParticipantRole | null;
+  is_admin: boolean;
+  is_volunteer: boolean;
 };
 
 export type ImportResult = {

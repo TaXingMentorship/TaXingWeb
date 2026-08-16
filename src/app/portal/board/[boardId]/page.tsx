@@ -38,7 +38,8 @@ export default function BoardDetailPage() {
   const boardId = params.boardId;
   const { currentUser } = usePortalSession();
   const queryClient = useQueryClient();
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.is_admin ?? false;
+  const canPost = isAdmin || Boolean(currentUser?.participant_role);
 
   const [filter, setFilter] = React.useState<BulletinCategory | "all">("all");
   const [body, setBody] = React.useState("");
@@ -132,7 +133,7 @@ export default function BoardDetailPage() {
       )}
 
       <Paper sx={{ p: 2.5, borderRadius: 3, mb: 3, mt: 2 }}>
-        {bulletinOpen ? (
+        {bulletinOpen && canPost ? (
           <Stack spacing={1.5}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Avatar src={currentUser?.avatar_url ?? undefined} />
@@ -172,7 +173,11 @@ export default function BoardDetailPage() {
             </Box>
           </Stack>
         ) : (
-          <Alert severity="warning">该留言板当前已关闭，仅可浏览。</Alert>
+          <Alert severity="warning">
+            {bulletinOpen
+              ? "志愿者账号可浏览留言，但不能发布内容。"
+              : "该留言板当前已关闭，仅可浏览。"}
+          </Alert>
         )}
       </Paper>
 

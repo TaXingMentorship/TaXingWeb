@@ -10,8 +10,13 @@ const schema = z.object({
       z.object({
         email: z.email().max(320).transform((value) => value.trim().toLowerCase()),
         full_name: z.string().trim().min(1).max(200),
-        role: z.enum(["mentor", "mentee"]),
-      }),
+        participant_role: z.enum(["mentor", "mentee"]).nullable(),
+        is_admin: z.boolean(),
+        is_volunteer: z.boolean(),
+      }).refine(
+        (row) => row.participant_role || row.is_admin || row.is_volunteer,
+        { message: "每位成员至少需要一种身份。" },
+      ),
     )
     .min(1)
     .max(1000),
@@ -44,6 +49,10 @@ export async function POST(request: Request) {
     }
     const row = error.message.match(/ROW_(\d+)_ROLE_CONFLICT/);
     if (row) return invalidBody(`名单第 ${row[1]} 行的邮箱存在身份冲突。`);
+    const emptyIdentity = error.message.match(/ROW_(\d+)_EMPTY_IDENTITY/);
+    if (emptyIdentity) {
+      return invalidBody(`名单第 ${emptyIdentity[1]} 行至少需要一种身份。`);
+    }
     return databaseError("导入名单", error.message);
   }
 

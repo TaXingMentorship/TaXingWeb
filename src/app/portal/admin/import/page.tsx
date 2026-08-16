@@ -28,6 +28,28 @@ import type {
 } from "@/lib/portal/store";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
+function parseParticipantRole(value: string): RosterRowInput["participant_role"] {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "mentor" || normalized === "mentee" ? normalized : null;
+}
+
+function parseBoolean(value: string): boolean {
+  return ["true", "1", "yes"].includes(value.trim().toLowerCase());
+}
+
+function identityLabel(
+  row: Pick<
+    RosterRowInput,
+    "participant_role" | "is_admin" | "is_volunteer"
+  >,
+): string {
+  return [
+    row.participant_role,
+    row.is_admin ? "admin" : null,
+    row.is_volunteer ? "volunteer" : null,
+  ].filter(Boolean).join(" + ");
+}
+
 export default function AdminImportPage() {
   const { currentUser } = usePortalSession();
   const queryClient = useQueryClient();
@@ -111,7 +133,7 @@ export default function AdminImportPage() {
     ]);
   };
 
-  if (currentUser?.role !== "admin") {
+  if (!currentUser?.is_admin) {
     return <Alert severity="error">仅管理员可访问名单导入。</Alert>;
   }
 
@@ -124,7 +146,13 @@ export default function AdminImportPage() {
       skipEmptyLines: true,
       complete: (res) => {
         const fields = (res.meta.fields ?? []).map((f) => f.toLowerCase());
-        const required = ["email", "full_name", "role"];
+        const required = [
+          "email",
+          "full_name",
+          "participant_role",
+          "is_admin",
+          "is_volunteer",
+        ];
         const missing = required.filter((c) => !fields.includes(c));
         if (missing.length) {
           setParseError(`CSV 缺少必需的列：${missing.join("、")}`);
@@ -137,7 +165,9 @@ export default function AdminImportPage() {
           return {
             email: lower.email ?? "",
             full_name: lower.full_name ?? "",
-            role: lower.role ?? "",
+            participant_role: parseParticipantRole(lower.participant_role ?? ""),
+            is_admin: parseBoolean(lower.is_admin ?? ""),
+            is_volunteer: parseBoolean(lower.is_volunteer ?? ""),
           };
         });
         setRows(parsed);
@@ -151,11 +181,10 @@ export default function AdminImportPage() {
     importMutation.reset();
     setFileName("示例数据.csv");
     setRows([
-      { email: "new.mentor@example.com", full_name: "新导师·韩雪", role: "mentor" },
-      { email: "new.mentee@example.com", full_name: "新学员·许文", role: "mentee" },
-      { email: "bad-email", full_name: "格式错误", role: "mentee" },
-      { email: "wrong.role@example.com", full_name: "角色错误", role: "teacher" },
-      { email: "wangjing@example.com", full_name: "王静", role: "mentor" },
+      { email: "new.mentor@example.com", full_name: "新导师·韩雪", participant_role: "mentor", is_admin: false, is_volunteer: false },
+      { email: "new.mentee@example.com", full_name: "新学员·许文", participant_role: "mentee", is_admin: false, is_volunteer: false },
+      { email: "new.admin@example.com", full_name: "新管理员", participant_role: null, is_admin: true, is_volunteer: false },
+      { email: "new.volunteer@example.com", full_name: "新志愿者", participant_role: null, is_admin: false, is_volunteer: true },
     ]);
   };
 
@@ -165,8 +194,9 @@ export default function AdminImportPage() {
         名单导入
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        上传 CSV 文件批量导入导师与学员。文件需包含列：
-        <code> email, full_name, role</code>（role 为 mentor 或 mentee）。
+        上传 CSV 文件批量导入成员。文件需包含列：
+        <code> email, full_name, participant_role, is_admin, is_volunteer</code>。
+        participant_role 可填写 mentor、mentee 或留空；两个标记填写 true 或 false。
         <br />
         原型演示中不会真正发送邮件，导入的成员会直接出现在成员目录里。
       </Typography>
@@ -255,7 +285,7 @@ export default function AdminImportPage() {
                 <TableRow key={`a-${r.id}`}>
                   <TableCell>{r.email}</TableCell>
                   <TableCell>{r.full_name}</TableCell>
-                  <TableCell>{r.role}</TableCell>
+                  <TableCell>{identityLabel(r)}</TableCell>
                   <TableCell>
                     <Chip size="small" color="success" label="已导入" />
                   </TableCell>
@@ -265,7 +295,7 @@ export default function AdminImportPage() {
                 <TableRow key={`s-${i}`}>
                   <TableCell>{s.row.email}</TableCell>
                   <TableCell>{s.row.full_name}</TableCell>
-                  <TableCell>{s.row.role}</TableCell>
+                  <TableCell>{identityLabel(s.row)}</TableCell>
                   <TableCell>
                     <Chip size="small" color="warning" label={`跳过：${s.reason}`} />
                   </TableCell>
@@ -275,7 +305,7 @@ export default function AdminImportPage() {
                 <TableRow key={`e-${i}`}>
                   <TableCell>{e.row.email}</TableCell>
                   <TableCell>{e.row.full_name}</TableCell>
-                  <TableCell>{e.row.role}</TableCell>
+                  <TableCell>{identityLabel(e.row)}</TableCell>
                   <TableCell>
                     <Chip size="small" color="error" label={`错误：${e.reason}`} />
                   </TableCell>

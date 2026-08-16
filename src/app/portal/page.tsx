@@ -21,15 +21,14 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import InsightsIcon from "@mui/icons-material/Insights";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import { listCohorts } from "@/lib/portal/store";
-import { roleLabels } from "@/data/portalCopy";
-import type { UserRole } from "@/types/portal";
+import { profileLabels } from "@/data/portalCopy";
 
 type Tile = {
   label: string;
   description: string;
   path: string;
   icon: React.ReactNode;
-  roles: UserRole[];
+  access: "all" | "participant" | "admin";
 };
 
 const tiles: Tile[] = [
@@ -38,49 +37,49 @@ const tiles: Tile[] = [
     description: "完善个人资料，填写微信号方便联系。",
     path: "/portal/me",
     icon: <PersonIcon fontSize="large" color="secondary" />,
-    roles: ["admin", "mentor", "mentee"],
+    access: "all",
   },
   {
     label: "本期活动",
     description: "查看重要文件、主线与支线活动安排。",
     path: "/portal/activities",
     icon: <EventIcon fontSize="large" color="secondary" />,
-    roles: ["admin", "mentor", "mentee"],
+    access: "all",
   },
   {
     label: "成员目录",
     description: "浏览本期的导师与学员，按兴趣搜索。",
     path: "/portal/directory",
     icon: <GroupsIcon fontSize="large" color="secondary" />,
-    roles: ["admin", "mentor", "mentee"],
+    access: "all",
   },
   {
     label: "进度跟踪",
     description: "记录辅导场次，学员可提交活动记录。",
     path: "/portal/admin/sessions",
     icon: <InsightsIcon fontSize="large" color="secondary" />,
-    roles: ["admin", "mentor", "mentee"],
+    access: "participant",
   },
   {
     label: "留言板",
     description: "发布求助、感谢与成长打卡。",
     path: "/portal/board",
     icon: <ForumIcon fontSize="large" color="secondary" />,
-    roles: ["admin", "mentor", "mentee"],
+    access: "all",
   },
   {
     label: "成员名单",
     description: "查看成员信息、辅导场次与活动记录。",
     path: "/portal/admin/roster",
     icon: <ListAltIcon fontSize="large" color="secondary" />,
-    roles: ["admin"],
+    access: "admin",
   },
   {
     label: "名单导入",
     description: "上传 CSV 批量导入导师与学员。",
     path: "/portal/admin/import",
     icon: <UploadFileIcon fontSize="large" color="secondary" />,
-    roles: ["admin"],
+    access: "admin",
   },
 ];
 
@@ -88,11 +87,17 @@ export default function PortalHomePage() {
   const { currentUser } = usePortalSession();
   const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
 
-  const role = currentUser?.role;
   const myCohorts = (cohorts ?? []).filter((c) =>
     currentUser?.cohort_ids.includes(c.id),
   );
-  const visibleTiles = tiles.filter((t) => role && t.roles.includes(role));
+  const visibleTiles = tiles.filter(
+    (tile) =>
+      currentUser &&
+      (tile.access === "all" ||
+        (tile.access === "admin" && currentUser.is_admin) ||
+        (tile.access === "participant" &&
+          (currentUser.is_admin || currentUser.participant_role))),
+  );
 
   return (
     <Box>
@@ -103,7 +108,7 @@ export default function PortalHomePage() {
             欢迎回来，{currentUser?.full_name}
           </Typography>
           <Typography color="text.secondary">
-            身份：{role ? roleLabels[role] : ""}
+            身份：{currentUser ? profileLabels(currentUser).join(" · ") : ""}
           </Typography>
         </Box>
       </Stack>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import type { Profile, UserRole } from "@/types/portal";
+import type { ParticipantRole, Profile } from "@/types/portal";
 import { createClient } from "@/lib/supabase/client";
 
 export type PortalAuthUser = {
@@ -19,7 +19,9 @@ export type PortalSession = {
 type PortalSessionContextValue = {
   currentUser: Profile | null;
   authUser: PortalAuthUser | null;
-  role: UserRole | null;
+  role: ParticipantRole | null;
+  isAdmin: boolean;
+  isVolunteer: boolean;
   loading: boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -85,7 +87,9 @@ export function PortalSessionProvider({
     () => ({
       currentUser: session?.profile ?? null,
       authUser: session?.user ?? null,
-      role: session?.profile?.role ?? null,
+      role: session?.profile?.participant_role ?? null,
+      isAdmin: session?.profile?.is_admin ?? false,
+      isVolunteer: session?.profile?.is_volunteer ?? false,
       loading: isLoading,
       refresh: async () => {
         await queryClient.invalidateQueries({

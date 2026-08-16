@@ -47,7 +47,14 @@ export async function requireRole(
   if (!user) {
     throw new Error("UNAUTHENTICATED");
   }
-  if (!user.profile || !allowed.includes(user.profile.role)) {
+  const authorized =
+    user.profile &&
+    allowed.some((role) =>
+      role === "admin"
+        ? user.profile?.is_admin
+        : user.profile?.participant_role === role,
+    );
+  if (!authorized || !user.profile) {
     throw new Error("FORBIDDEN");
   }
 

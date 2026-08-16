@@ -1,4 +1,5 @@
-export type UserRole = "admin" | "mentor" | "mentee";
+export type ParticipantRole = "mentor" | "mentee";
+export type UserRole = "admin" | ParticipantRole;
 
 export type BulletinCategory = "wish" | "thanks" | "growth" | "other";
 
@@ -24,7 +25,9 @@ export type Cohort = {
 
 export type Profile = {
   id: string;
-  role: UserRole;
+  participant_role: ParticipantRole | null;
+  is_admin: boolean;
+  is_volunteer: boolean;
   cohort_ids: string[];
   full_name: string | null;
   email: string | null;
@@ -62,7 +65,9 @@ export type RosterInvite = {
   cohort_id: string;
   email: string;
   full_name: string | null;
-  role: UserRole;
+  participant_role: ParticipantRole | null;
+  is_admin: boolean;
+  is_volunteer: boolean;
   invited_at: string;
   claimed_user_id: string | null;
 };

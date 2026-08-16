@@ -11,6 +11,7 @@ import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import InputAdornment from "@mui/material/InputAdornment";
 import Autocomplete from "@mui/material/Autocomplete";
 import Avatar from "@mui/material/Avatar";
@@ -25,14 +26,15 @@ import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import Alert from "@mui/material/Alert";
-import type { Profile, UserRole } from "@/types/portal";
-import { listProfiles } from "@/lib/portal/store";
-import { roleLabels } from "@/data/portalCopy";
+import type { ParticipantRole, Profile } from "@/types/portal";
+import { listCohorts, listProfiles } from "@/lib/portal/store";
+import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 export default function DirectoryPage() {
   const { currentUser } = usePortalSession();
-  const [tab, setTab] = React.useState<UserRole>("mentor");
+  const [tab, setTab] = React.useState<ParticipantRole | "volunteer">("mentor");
+  const [cohortId, setCohortId] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [interests, setInterests] = React.useState<string[]>([]);
   const [selected, setSelected] = React.useState<Profile | null>(null);
@@ -41,18 +43,29 @@ export default function DirectoryPage() {
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
   });
+  const { data: cohorts } = useQuery({
+    queryKey: ["portal", "cohorts"],
+    queryFn: listCohorts,
+  });
 
-  // Same-cohort, visible profiles (admins see everyone), matching RLS intent.
+  React.useEffect(() => {
+    if (!currentUser?.is_admin || cohortId || !cohorts?.length) return;
+    setCohortId(cohorts[0].id);
+  }, [cohortId, cohorts, currentUser?.is_admin]);
+
   const visible = React.useMemo(() => {
     if (!profiles || !currentUser) return [];
-    if (currentUser.role === "admin") return profiles.filter((p) => p.role !== "admin");
+    if (currentUser.is_admin) {
+      return cohortId
+        ? profiles.filter((profile) => profile.cohort_ids.includes(cohortId))
+        : [];
+    }
     return profiles.filter(
       (p) =>
-        p.role !== "admin" &&
         p.visible &&
         p.cohort_ids.some((c) => currentUser.cohort_ids.includes(c)),
     );
-  }, [profiles, currentUser]);
+  }, [profiles, currentUser, cohortId]);
 
   const allInterests = React.useMemo(
     () => Array.from(new Set(visible.flatMap((p) => p.interests))).sort(),
@@ -62,7 +75,11 @@ export default function DirectoryPage() {
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     return visible
-      .filter((p) => p.role === tab)
+      .filter((p) =>
+        tab === "volunteer"
+          ? p.is_admin || p.is_volunteer
+          : p.participant_role === tab,
+      )
       .filter((p) =>
         q
           ? [p.full_name, p.bio, p.background, ...p.interests]
@@ -83,12 +100,30 @@ export default function DirectoryPage() {
         成员目录
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
-        浏览本期的导师与学员，按姓名、简介或兴趣筛选。
+        浏览导师、学员、管理员与志愿者，按姓名、简介或兴趣筛选。
       </Typography>
 
+      {currentUser?.is_admin && (
+        <TextField
+         select
+         size="small"
+         label="选择项目"
+         value={cohortId}
+         onChange={(event) => setCohortId(event.target.value)}
+         sx={{ minWidth: 240, mb: 2 }}
+        >
+         {(cohorts ?? []).map((cohort) => (
+           <MenuItem key={cohort.id} value={cohort.id}>
+             {cohort.name}
+           </MenuItem>
+         ))}
+        </TextField>
+      )}
+
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-        <Tab value="mentor" label={`导师（${visible.filter((p) => p.role === "mentor").length}）`} />
-        <Tab value="mentee" label={`学员（${visible.filter((p) => p.role === "mentee").length}）`} />
+        <Tab value="mentor" label={`导师（${visible.filter((p) => p.participant_role === "mentor").length}）`} />
+        <Tab value="mentee" label={`学员（${visible.filter((p) => p.participant_role === "mentee").length}）`} />
+        <Tab value="volunteer" label={`志愿者（${visible.filter((p) => p.is_admin || p.is_volunteer).length}）`} />
       </Tabs>
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 3 }}>
@@ -135,7 +170,11 @@ export default function DirectoryPage() {
                         <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
                           {p.full_name}
                         </Typography>
-                        <Chip size="small" label={roleLabels[p.role]} color="secondary" variant="outlined" />
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {profileLabels(p).map((label) => (
+                            <Chip key={label} size="small" label={label} color="secondary" variant="outlined" />
+                          ))}
+                        </Stack>
                       </Box>
                     </Stack>
                     <Typography
@@ -186,7 +225,11 @@ function ProfileDialog({
               <Typography variant="h6" fontWeight={800}>
                 {profile.full_name}
               </Typography>
-              <Chip size="small" label={roleLabels[profile.role]} color="secondary" />
+              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                {profileLabels(profile).map((label) => (
+                  <Chip key={label} size="small" label={label} color="secondary" />
+                ))}
+              </Stack>
             </Box>
             <IconButton onClick={onClose} aria-label="关闭">
               <CloseIcon />
@@ -196,7 +239,7 @@ function ProfileDialog({
             <Field label="领域" value={profile.field} />
             <Field label="简介" value={profile.bio} />
             <Field label="学术经历 / 行业经历" value={profile.background} />
-            {profile.role === "mentor" && (
+            {profile.participant_role === "mentor" && (
               <>
                 <Field label="工作年限" value={profile.years_experience} />
                 <Field label="可以帮助的 mentee 数量" value={profile.mentee_capacity} />
@@ -204,7 +247,7 @@ function ProfileDialog({
                 <Field label="擅长与不擅长的话题" value={profile.topics} />
               </>
             )}
-            {profile.role === "mentee" && (
+            {profile.participant_role === "mentee" && (
               <Field label="问题 / 想获得的帮助" value={profile.help_needed} />
             )}
             {profile.interests.length > 0 && (

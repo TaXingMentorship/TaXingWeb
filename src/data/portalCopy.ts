@@ -1,4 +1,10 @@
-import type { BulletinCategory, SessionType, UserRole } from "@/types/portal";
+import type {
+  BulletinCategory,
+  ParticipantRole,
+  Profile,
+  SessionType,
+  UserRole,
+} from "@/types/portal";
 
 /** Centralized Simplified-Chinese copy for the portal. */
 
@@ -7,6 +13,23 @@ export const roleLabels: Record<UserRole, string> = {
   mentor: "导师",
   mentee: "学员",
 };
+
+export const participantRoleLabels: Record<ParticipantRole, string> = {
+  mentor: "导师",
+  mentee: "学员",
+};
+
+export function profileLabels(
+  profile: Pick<Profile, "participant_role" | "is_admin" | "is_volunteer">,
+): string[] {
+  return [
+    profile.participant_role
+      ? participantRoleLabels[profile.participant_role]
+      : null,
+    profile.is_admin ? roleLabels.admin : null,
+    profile.is_volunteer ? "志愿者" : null,
+  ].filter((label): label is string => Boolean(label));
+}
 
 export const sessionTypeLabels: Record<SessionType, string> = {
   mentorship: "Mentorship 交流",

@@ -31,8 +31,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import CircularProgress from "@mui/material/CircularProgress";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import type { UserRole } from "@/types/portal";
-import { portalCopy, roleLabels } from "@/data/portalCopy";
+import { portalCopy, profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 const DRAWER_WIDTH = 248;
@@ -41,18 +40,18 @@ type NavItem = {
   label: string;
   path: string;
   icon: React.ReactNode;
-  roles: UserRole[];
+  access: "all" | "participant" | "admin";
 };
 
 const navItems: NavItem[] = [
-  { label: portalCopy.nav.home, path: "/portal", icon: <HomeIcon />, roles: ["admin", "mentor", "mentee"] },
-  { label: portalCopy.nav.me, path: "/portal/me", icon: <PersonIcon />, roles: ["admin", "mentor", "mentee"] },
-  { label: portalCopy.nav.activities, path: "/portal/activities", icon: <EventIcon />, roles: ["admin", "mentor", "mentee"] },
-  { label: portalCopy.nav.directory, path: "/portal/directory", icon: <GroupsIcon />, roles: ["admin", "mentor", "mentee"] },
-  { label: portalCopy.nav.progress, path: "/portal/admin/sessions", icon: <InsightsIcon />, roles: ["admin", "mentor", "mentee"] },
-  { label: portalCopy.nav.board, path: "/portal/board", icon: <ForumIcon />, roles: ["admin", "mentor", "mentee"] },
-  { label: portalCopy.nav.roster, path: "/portal/admin/roster", icon: <ListAltIcon />, roles: ["admin"] },
-  { label: portalCopy.nav.adminImport, path: "/portal/admin/import", icon: <UploadFileIcon />, roles: ["admin"] },
+  { label: portalCopy.nav.home, path: "/portal", icon: <HomeIcon />, access: "all" },
+  { label: portalCopy.nav.me, path: "/portal/me", icon: <PersonIcon />, access: "all" },
+  { label: portalCopy.nav.activities, path: "/portal/activities", icon: <EventIcon />, access: "all" },
+  { label: portalCopy.nav.directory, path: "/portal/directory", icon: <GroupsIcon />, access: "all" },
+  { label: portalCopy.nav.progress, path: "/portal/admin/sessions", icon: <InsightsIcon />, access: "participant" },
+  { label: portalCopy.nav.board, path: "/portal/board", icon: <ForumIcon />, access: "all" },
+  { label: portalCopy.nav.roster, path: "/portal/admin/roster", icon: <ListAltIcon />, access: "admin" },
+  { label: portalCopy.nav.adminImport, path: "/portal/admin/import", icon: <UploadFileIcon />, access: "admin" },
 ];
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
@@ -71,8 +70,14 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     return <>{children}</>;
   }
 
-  const role = currentUser?.role;
-  const visibleItems = navItems.filter((item) => role && item.roles.includes(role));
+  const visibleItems = navItems.filter(
+    (item) =>
+      currentUser &&
+      (item.access === "all" ||
+        (item.access === "admin" && currentUser.is_admin) ||
+        (item.access === "participant" &&
+          (currentUser.is_admin || currentUser.participant_role))),
+  );
 
   const drawerContent = (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -97,7 +102,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               {currentUser.full_name}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {portalCopy.account.loggedInAs}：{roleLabels[currentUser.role]}
+              {portalCopy.account.loggedInAs}：{profileLabels(currentUser).join(" · ")}
             </Typography>
           </Box>
         </Stack>

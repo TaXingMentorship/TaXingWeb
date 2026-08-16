@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import type { Profile, UserRole } from "@/types/portal";
+import type { ParticipantRole, Profile } from "@/types/portal";
 
 type OnboardingInvite = {
   fullName: string | null;
-  role: UserRole;
+  participantRole: ParticipantRole | null;
+  isAdmin: boolean;
+  isVolunteer: boolean;
   cohortIds: string[];
   cohortNames: string[];
 };

@@ -27,7 +27,7 @@ import {
   uploadAvatar,
   validateImageFile,
 } from "@/lib/portal/uploads";
-import { roleLabels } from "@/data/portalCopy";
+import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 const interestSuggestions = [
@@ -70,7 +70,8 @@ export default function MyProfilePage() {
   }, [profile]);
 
   const mutation = useMutation({
-    mutationFn: (patch: Partial<Profile>) => updateProfile(userId!, patch),
+    mutationFn: (patch: Parameters<typeof updateProfile>[1]) =>
+      updateProfile(userId!, patch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portal", "profile", userId] });
       queryClient.invalidateQueries({ queryKey: ["portal", "profiles"] });
@@ -122,8 +123,8 @@ export default function MyProfilePage() {
     avatarMutation.mutate(file);
   };
 
-  const isMentor = form.role === "mentor";
-  const isMentee = form.role === "mentee";
+  const isMentor = form.participant_role === "mentor";
+  const isMentee = form.participant_role === "mentee";
 
   const handleSave = () => {
     mutation.mutate({
@@ -166,7 +167,11 @@ export default function MyProfilePage() {
                 <Typography variant="h6" fontWeight={700}>
                   {form.full_name}
                 </Typography>
-                <Chip size="small" label={roleLabels[form.role]} color="secondary" sx={{ mb: 1 }} />
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                  {profileLabels(form).map((label) => (
+                    <Chip key={label} size="small" label={label} color="secondary" />
+                  ))}
+                </Stack>
                 <Box>
                   <Button
                     component="label"

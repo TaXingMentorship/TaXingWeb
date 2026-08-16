@@ -28,7 +28,7 @@ import {
   listSessions,
   updateProfile,
 } from "@/lib/portal/store";
-import { roleLabels } from "@/data/portalCopy";
+import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 export default function RosterPage() {
@@ -68,7 +68,7 @@ export default function RosterPage() {
   const [view, setView] = React.useState<"table" | "pairs">("table");
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<Profile> }) =>
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof updateProfile>[1] }) =>
       updateProfile(id, patch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portal", "profiles"] });
@@ -77,26 +77,28 @@ export default function RosterPage() {
 
   const rows = React.useMemo(() => {
     const members = (profiles ?? []).filter(
-      (p) => p.role !== "admin" && p.cohort_ids.includes(cohortId),
+      (p) => p.participant_role !== null && p.cohort_ids.includes(cohortId),
     );
     return members.map((p) => {
       const sessionCount = (sessions ?? []).filter((s) =>
-        p.role === "mentor" ? s.mentor_id === p.id : s.mentee_id === p.id,
+        p.participant_role === "mentor"
+          ? s.mentor_id === p.id
+          : s.mentee_id === p.id,
       ).length;
       const submitted =
-        p.role === "mentee"
+        p.participant_role === "mentee"
           ? (participation ?? []).some((r) => r.mentee_id === p.id)
           : null;
       // A mentee "provided a gratitude note" if a mentor logged a 感谢赠言 session for them.
       const gaveGratitude =
-        p.role === "mentee"
+        p.participant_role === "mentee"
           ? (sessions ?? []).some(
               (s) => s.mentee_id === p.id && s.session_type === "gratitude",
             )
           : null;
       // "全部完成" is derived from submitted records, not editable on the site.
       const completedAll =
-        p.role === "mentee"
+        p.participant_role === "mentee"
           ? Boolean(submitted) && Boolean(gaveGratitude)
           : sessionCount > 0;
       return { profile: p, sessionCount, submitted, gaveGratitude, completedAll };
@@ -111,7 +113,7 @@ export default function RosterPage() {
   // Nested view: each mentor with their matched mentees (from uploaded matches).
   const pairGroups = React.useMemo(() => {
     const mentors = (profiles ?? [])
-      .filter((p) => p.role === "mentor" && p.cohort_ids.includes(cohortId))
+      .filter((p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId))
       .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""));
     const cohortMatches = (matches ?? []).filter((m) => m.cohort_id === cohortId);
     const matchedMenteeIds = new Set(cohortMatches.map((m) => m.mentee_id));
@@ -126,14 +128,14 @@ export default function RosterPage() {
     });
     const unmatched = (profiles ?? []).filter(
       (p) =>
-        p.role === "mentee" &&
+        p.participant_role === "mentee" &&
         p.cohort_ids.includes(cohortId) &&
         !matchedMenteeIds.has(p.id),
     );
     return { groups, unmatched, hasMatches: cohortMatches.length > 0 };
   }, [profiles, matches, cohortId]);
 
-  if (currentUser?.role !== "admin") {
+  if (!currentUser?.is_admin) {
     return <Alert severity="error">仅管理员可访问成员名单。</Alert>;
   }
 
@@ -220,8 +222,8 @@ export default function RosterPage() {
                       <TableCell>
                         <Chip
                           size="small"
-                          label={roleLabels[profile.role]}
-                          color={profile.role === "mentor" ? "primary" : "default"}
+                          label={profileLabels(profile).join(" · ")}
+                          color={profile.participant_role === "mentor" ? "primary" : "default"}
                           variant="outlined"
                         />
                       </TableCell>

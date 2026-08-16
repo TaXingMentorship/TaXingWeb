@@ -41,19 +41,22 @@ async function validateParticipants(
     service.from("cohorts").select("id").eq("id", session.cohort_id).maybeSingle(),
     service
       .from("profiles")
-      .select("id, role, cohort_ids")
+      .select("id, participant_role, cohort_ids")
       .in("id", [session.mentor_id, session.mentee_id]),
   ]);
   if (!cohort) return "所选项目不存在。";
   if (error || people?.length !== 2) return "导师或学员不存在。";
 
   const mentor = people.find((person) => person.id === session.mentor_id) as
-    | Pick<Profile, "id" | "role" | "cohort_ids">
+    | Pick<Profile, "id" | "participant_role" | "cohort_ids">
     | undefined;
   const mentee = people.find((person) => person.id === session.mentee_id) as
-    | Pick<Profile, "id" | "role" | "cohort_ids">
+    | Pick<Profile, "id" | "participant_role" | "cohort_ids">
     | undefined;
-  if (mentor?.role !== "mentor" || mentee?.role !== "mentee") {
+  if (
+    mentor?.participant_role !== "mentor" ||
+    mentee?.participant_role !== "mentee"
+  ) {
     return "配对成员身份不正确。";
   }
   if (
@@ -63,7 +66,7 @@ async function validateParticipants(
     return "导师和学员必须属于所选项目。";
   }
 
-  if (actor.profile.role === "mentor") {
+  if (!actor.profile.is_admin && actor.profile.participant_role === "mentor") {
     if (session.mentor_id !== actor.id) return "导师只能管理自己的交流记录。";
     const { data: match } = await service
       .from("matches")
@@ -87,7 +90,10 @@ export async function POST(request: Request) {
   const service = createServiceRoleClient();
   const input = {
     ...parsed.data,
-    mentor_id: actor.profile.role === "mentor" ? actor.id : parsed.data.mentor_id,
+    mentor_id:
+      !actor.profile.is_admin && actor.profile.participant_role === "mentor"
+        ? actor.id
+        : parsed.data.mentor_id,
     created_by: actor.id,
   };
   const validationError = await validateParticipants(service, actor, input);
@@ -119,7 +125,11 @@ export async function PATCH(request: Request) {
   if (!current) {
     return NextResponse.json({ error: "找不到该交流记录。" }, { status: 404 });
   }
-  if (actor.profile.role === "mentor" && current.mentor_id !== actor.id) {
+  if (
+    !actor.profile.is_admin &&
+    actor.profile.participant_role === "mentor" &&
+    current.mentor_id !== actor.id
+  ) {
     return NextResponse.json({ error: "没有权限修改该记录。" }, { status: 403 });
   }
 
@@ -127,13 +137,15 @@ export async function PATCH(request: Request) {
     ...current,
     ...parsed.data.patch,
     mentor_id:
-      actor.profile.role === "mentor" ? actor.id : parsed.data.patch.mentor_id ?? current.mentor_id,
+      !actor.profile.is_admin && actor.profile.participant_role === "mentor"
+        ? actor.id
+        : parsed.data.patch.mentor_id ?? current.mentor_id,
   } as SessionLog;
   const validationError = await validateParticipants(service, actor, next);
   if (validationError) return invalidBody(validationError);
 
   const update =
-    actor.profile.role === "mentor"
+    !actor.profile.is_admin && actor.profile.participant_role === "mentor"
       ? { ...parsed.data.patch, mentor_id: actor.id }
       : parsed.data.patch;
   const { data, error } = await service
@@ -163,7 +175,11 @@ export async function DELETE(request: Request) {
   if (!current) {
     return NextResponse.json({ error: "找不到该交流记录。" }, { status: 404 });
   }
-  if (actor.profile.role === "mentor" && current.mentor_id !== actor.id) {
+  if (
+    !actor.profile.is_admin &&
+    actor.profile.participant_role === "mentor" &&
+    current.mentor_id !== actor.id
+  ) {
     return NextResponse.json({ error: "没有权限删除该记录。" }, { status: 403 });
   }
 

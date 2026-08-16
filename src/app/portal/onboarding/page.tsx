@@ -12,7 +12,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
-import { roleLabels } from "@/data/portalCopy";
+import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import {
   AVATAR_MAX_BYTES,
@@ -20,11 +20,13 @@ import {
   uploadAvatar,
   validateImageFile,
 } from "@/lib/portal/uploads";
-import type { UserRole } from "@/types/portal";
+import type { ParticipantRole } from "@/types/portal";
 
 type Invite = {
   fullName: string | null;
-  role: UserRole;
+  participantRole: ParticipantRole | null;
+  isAdmin: boolean;
+  isVolunteer: boolean;
   cohortIds: string[];
   cohortNames: string[];
 };
@@ -158,13 +160,18 @@ export default function OnboardingPage() {
 
               {invite && (
                 <Alert severity="info">
-                  身份：{roleLabels[invite.role]}
+                  身份：{profileLabels({
+                    participant_role: invite.participantRole,
+                    is_admin: invite.isAdmin,
+                    is_volunteer: invite.isVolunteer,
+                  }).join(" · ")}
                   {invite.cohortNames.length > 0
                     ? ` · 项目：${invite.cohortNames.join("、")}`
                     : ""}
                 </Alert>
               )}
 
+              {invite && (
               <Stack direction="row" spacing={2} alignItems="center">
                 <Avatar src={avatarUrl ?? undefined} sx={{ width: 72, height: 72 }} />
                 <Button
@@ -185,9 +192,12 @@ export default function OnboardingPage() {
                   />
                 </Button>
               </Stack>
+              )}
+              {invite && (
               <Typography variant="caption" color="text.secondary" sx={{ mt: "-16px !important" }}>
                 JPEG、PNG 或 WebP，最大 2 MB
               </Typography>
+              )}
 
               <TextField
                 label="姓名"

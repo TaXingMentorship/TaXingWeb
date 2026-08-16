@@ -57,7 +57,9 @@ const sessionTypes: SessionType[] = ["mentorship", "gratitude"];
 
 export default function ProgressPage() {
   const { currentUser } = usePortalSession();
-  const role = currentUser?.role;
+  const role = currentUser?.is_admin
+    ? "admin"
+    : currentUser?.participant_role;
 
   const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
 
@@ -73,8 +75,11 @@ export default function ProgressPage() {
     if (!cohortId && availableCohorts.length) setCohortId(availableCohorts[0].id);
   }, [availableCohorts, cohortId]);
 
-  if (!role) {
+  if (!currentUser) {
     return <Typography color="text.secondary">加载中…</Typography>;
+  }
+  if (!role) {
+    return <Alert severity="error">你的身份只能查看资料，无法管理进度记录。</Alert>;
   }
 
   return (
@@ -433,10 +438,10 @@ function StaffView({
   });
 
   const mentors = (profiles ?? []).filter(
-    (p) => p.role === "mentor" && p.cohort_ids.includes(cohortId),
+    (p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId),
   );
   const allMentees = (profiles ?? []).filter(
-    (p) => p.role === "mentee" && p.cohort_ids.includes(cohortId),
+    (p) => p.participant_role === "mentee" && p.cohort_ids.includes(cohortId),
   );
   // Mentors may only log records for their matched mentees; admins see everyone.
   const matchedMenteeIds = React.useMemo(

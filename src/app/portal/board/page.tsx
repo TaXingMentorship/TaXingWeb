@@ -37,7 +37,7 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 export default function BoardListPage() {
   const { currentUser } = usePortalSession();
   const queryClient = useQueryClient();
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.is_admin ?? false;
   const cohortIds = currentUser?.cohort_ids ?? [];
   const [createOpen, setCreateOpen] = React.useState(false);
 

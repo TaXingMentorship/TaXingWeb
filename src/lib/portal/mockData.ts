@@ -40,7 +40,9 @@ const avatar = (seed: string) =>
 export const mockProfiles: Profile[] = [
   {
     id: "admin-1",
-    role: "admin",
+    participant_role: null,
+    is_admin: true,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring", "cohort-2024-fall"],
     full_name: "管理员·林夏",
     email: "admin@taxing.org",
@@ -65,7 +67,9 @@ export const mockProfiles: Profile[] = [
   // Mentors
   {
     id: "mentor-1",
-    role: "mentor",
+    participant_role: "mentor",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring", "cohort-2024-fall"],
     full_name: "王静",
     email: "wangjing@example.com",
@@ -88,7 +92,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentor-2",
-    role: "mentor",
+    participant_role: "mentor",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring"],
     full_name: "李梅",
     email: "limei@example.com",
@@ -111,7 +117,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentor-3",
-    role: "mentor",
+    participant_role: "mentor",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring"],
     full_name: "张晓琳",
     email: "zhangxiaolin@example.com",
@@ -134,7 +142,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentor-4",
-    role: "mentor",
+    participant_role: "mentor",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring"],
     full_name: "陈安琪",
     email: "chenanqi@example.com",
@@ -157,7 +167,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentor-5",
-    role: "mentor",
+    participant_role: "mentor",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2024-fall"],
     full_name: "刘洋",
     email: "liuyang@example.com",
@@ -182,7 +194,9 @@ export const mockProfiles: Profile[] = [
   // Mentees
   {
     id: "mentee-1",
-    role: "mentee",
+    participant_role: "mentee",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring"],
     full_name: "赵欣怡",
     email: "zhaoxinyi@example.com",
@@ -205,7 +219,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentee-2",
-    role: "mentee",
+    participant_role: "mentee",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring"],
     full_name: "孙佳",
     email: "sunjia@example.com",
@@ -228,7 +244,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentee-3",
-    role: "mentee",
+    participant_role: "mentee",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring", "cohort-2024-fall"],
     full_name: "周敏",
     email: "zhoumin@example.com",
@@ -251,7 +269,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentee-4",
-    role: "mentee",
+    participant_role: "mentee",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring"],
     full_name: "吴雨桐",
     email: "wuyutong@example.com",
@@ -274,7 +294,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentee-5",
-    role: "mentee",
+    participant_role: "mentee",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2025-spring"],
     full_name: "郑思源",
     email: "zhengsiyuan@example.com",
@@ -297,7 +319,9 @@ export const mockProfiles: Profile[] = [
   },
   {
     id: "mentee-6",
-    role: "mentee",
+    participant_role: "mentee",
+    is_admin: false,
+    is_volunteer: false,
     cohort_ids: ["cohort-2024-fall"],
     full_name: "黄丽",
     email: "huangli@example.com",
