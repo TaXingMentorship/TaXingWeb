@@ -34,7 +34,24 @@ export default function PasswordForm({ mode }: { mode: "setup" | "update" }) {
     }
 
     setSubmitting(true);
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    const timeout = new Promise<never>((_, reject) => {
+      window.setTimeout(
+        () => reject(new Error("PASSWORD_UPDATE_TIMEOUT")),
+        15_000,
+      );
+    });
+    let updateError: Error | null = null;
+    try {
+      const result = await Promise.race([
+        supabase.auth.updateUser({ password }),
+        timeout,
+      ]);
+      updateError = result.error;
+    } catch {
+      setError("保存密码超时，请刷新页面并使用最新的重置链接重试。");
+      setSubmitting(false);
+      return;
+    }
     if (updateError) {
       setError("无法保存密码。链接可能已过期，请重新申请。");
       setSubmitting(false);

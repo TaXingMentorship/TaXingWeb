@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
@@ -19,6 +21,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { pagesItems } from '@/data/navigation';
 import { donationDescription, donationLink } from '@/data/donation';
 import DonationDialog from '@/components/common/DonationDialog';
+import { createClient } from '@/lib/supabase/client';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 const logoSrc = `${basePath}/icons/forward_with_her_logo.png`;
@@ -26,8 +29,23 @@ const logoSrc = `${basePath}/icons/forward_with_her_logo.png`;
 const AppAppBar: React.FC = () => {
   const [donationOpen, setDonationOpen] = React.useState(false);
   const [navOpen, setNavOpen] = React.useState(false);
+  const [authenticated, setAuthenticated] = React.useState(false);
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+
+  React.useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      setAuthenticated(Boolean(data.user));
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticated(Boolean(session?.user));
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleDonationOpen = () => setDonationOpen(true);
   const handleDonationClose = () => setDonationOpen(false);
@@ -36,7 +54,9 @@ const AppAppBar: React.FC = () => {
   const renderNavButtons = () => (
     pagesItems.map((item) => (
       <Link href={item.path} key={item.name}>
-        <Button sx={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>{item.name}</Button>
+        <Button sx={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
+          {item.path === '/portal' && authenticated ? 'PORTAL' : item.name}
+        </Button>
       </Link>
     ))
   );
@@ -52,7 +72,10 @@ const AppAppBar: React.FC = () => {
         {pagesItems.map((item) => (
           <ListItem key={item.name} disablePadding>
             <ListItemButton component={Link} href={item.path} sx={{ py: 1.2 }}>
-              <ListItemText primary={item.name} primaryTypographyProps={{ fontWeight: 600 }} />
+              <ListItemText
+                primary={item.path === '/portal' && authenticated ? 'PORTAL' : item.name}
+                primaryTypographyProps={{ fontWeight: 600 }}
+              />
             </ListItemButton>
           </ListItem>
         ))}

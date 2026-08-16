@@ -45,10 +45,12 @@ export function PortalSessionProvider({
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "INITIAL_SESSION") return;
 
-      void queryClient.invalidateQueries({
-        queryKey: ["portal", "currentUser"],
-      });
-      router.refresh();
+      setTimeout(() => {
+        void queryClient.invalidateQueries({
+          queryKey: ["portal", "currentUser"],
+        });
+        router.refresh();
+      }, 0);
     });
 
     return () => subscription.unsubscribe();

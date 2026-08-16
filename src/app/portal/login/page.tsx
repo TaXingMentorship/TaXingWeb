@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -21,7 +20,6 @@ function safeNextPath(value: string | null) {
 }
 
 export default function PortalLoginPage() {
-  const router = useRouter();
   const supabase = React.useMemo(() => createClient(), []);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -43,10 +41,9 @@ export default function PortalLoginPage() {
       return;
     }
 
-    router.replace(
+    window.location.assign(
       safeNextPath(new URLSearchParams(window.location.search).get("next")),
     );
-    router.refresh();
   }
 
   return (
