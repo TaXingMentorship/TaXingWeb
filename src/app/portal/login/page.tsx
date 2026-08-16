@@ -36,7 +36,7 @@ export default function PortalLoginPage() {
       password,
     });
     if (signInError) {
-      setError("邮箱或密码不正确。首次登录请先使用邀请邮件设置密码。");
+      setError("邮箱或密码不正确。首次登录请先设置密码。");
       setSubmitting(false);
       return;
     }
@@ -89,14 +89,22 @@ export default function PortalLoginPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={submitting}
               />
-              <Button
-                component={Link}
-                href="/portal/password/forgot"
-                size="small"
-                sx={{ alignSelf: "flex-end" }}
-              >
-                忘记密码？
-              </Button>
+              <Stack direction="row" justifyContent="space-between">
+                <Button
+                  component={Link}
+                  href="/portal/password/first-time"
+                  size="small"
+                >
+                  首次登录？设置密码
+                </Button>
+                <Button
+                  component={Link}
+                  href="/portal/password/forgot"
+                  size="small"
+                >
+                  忘记密码？
+                </Button>
+              </Stack>
               <Button
                 type="submit"
                 variant="contained"

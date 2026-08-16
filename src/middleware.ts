@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PORTAL_PATHS = [
   "/portal/login",
   "/portal/auth/callback",
+  "/portal/password/first-time",
   "/portal/password/forgot",
 ];
 const PROFILE_OPTIONAL_PATHS = [
