@@ -95,7 +95,7 @@ export default function PortalLoginPage() {
                   href="/portal/password/first-time"
                   size="small"
                 >
-                  首次登录？设置密码
+                  首次登录？激活账号
                 </Button>
                 <Button
                   component={Link}

@@ -172,35 +172,38 @@ export default function OnboardingPage() {
               )}
 
               {invite && (
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Avatar src={avatarUrl ?? undefined} sx={{ width: 72, height: 72 }} />
-                <Button
-                  component="label"
-                  variant="outlined"
-                  startIcon={<UploadFileIcon />}
-                  disabled={!authUser || uploading}
-                >
-                  {uploading ? "上传中…" : "上传头像"}
-                  <input
-                    type="file"
-                    accept={IMAGE_ACCEPT}
-                    hidden
-                    onChange={(event) => {
-                      void handleAvatar(event.target.files?.[0]);
-                      event.target.value = "";
-                    }}
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Avatar
+                    src={avatarUrl ?? undefined}
+                    sx={{ width: 72, height: 72, flexShrink: 0 }}
                   />
-                </Button>
-              </Stack>
-              )}
-              {invite && (
-              <Typography variant="caption" color="text.secondary" sx={{ mt: "-16px !important" }}>
-                JPEG、PNG 或 WebP，最大 2 MB
-              </Typography>
+                  <Stack spacing={0.5} alignItems="flex-start">
+                    <Button
+                      component="label"
+                      variant="outlined"
+                      startIcon={<UploadFileIcon />}
+                      disabled={!authUser || uploading}
+                    >
+                      {uploading ? "上传中…" : "上传头像"}
+                      <input
+                        type="file"
+                        accept={IMAGE_ACCEPT}
+                        hidden
+                        onChange={(event) => {
+                          void handleAvatar(event.target.files?.[0]);
+                          event.target.value = "";
+                        }}
+                      />
+                    </Button>
+                    <Typography variant="caption" color="text.secondary">
+                      JPEG、PNG 或 WebP，最大 2 MB
+                    </Typography>
+                  </Stack>
+                </Stack>
               )}
 
               <TextField
-                label="姓名"
+                label="昵称"
                 required
                 fullWidth
                 value={fullName}
