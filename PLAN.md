@@ -63,8 +63,8 @@ Nav order: **首页 · 我的资料 · 本期活动 · 成员目录 · 进度跟
 | `/portal/me` | Edit own profile (昵称, 领域, 经历, role fields, 公开开关) | ✅ |
 | `/portal/activities` | 本期活动: 重要文件 / 主线活动 / 支线活动 (links TBD) | ✅ (placeholder) |
 | `/portal/directory` | 成员目录: 导师/学员 tabs, search + interest filter, detail dialog | ✅ |
-| `/portal/board` | 留言板 list of boards; admin can create | ✅ |
-| `/portal/board/[boardId]` | Single board: posts + composer, category filter, admin hide | ✅ |
+| `/portal/board` | 留言板: Padlet 式单页 — 顶部 tab 切换留言板、彩色卡片瀑布流、标题/匿名/配色/emoji 投稿、表情反应、评论；admin 可新建留言板并置顶/标记已解答/隐藏 | ✅ |
+| `/portal/board/[boardId]` | 重定向到 `/portal/board?board=<id>`（保留旧链接） | ✅ |
 | `/portal/admin/sessions` | 进度跟踪: mentor/mentee views, log 交流记录 (type), participation submit, matched-pair gating | ✅ |
 | `/portal/admin/roster` | 成员名单: read-only auto-pulled sheet + 配对关系 nested view; only 备注 editable | ✅ |
 | `/portal/admin/import` | 名单导入: roster CSV + match CSV upload | ✅ |
@@ -129,6 +129,10 @@ Goal: connect the existing UI to a real Supabase project so we can do manual tes
 - [ ] `npm run lint` + `npm run build` pass; deploy preview and smoke-test.
 
 ### Phase G — Hardening *(after B verified)*
+- [x] **True anonymous posting.** Done in `0009`: reads go through
+      `bulletin_posts_readable` / `bulletin_comments_readable`, which null out
+      `author_id` unless you are the author or an admin; the base tables grant
+      INSERT only, so update and delete moved to `/api/admin/moderation`.
 - [ ] Rate-limit bulletin posts (per user per minute).
 - [ ] CSV import dry-run mode.
 - [ ] Finalize "全部完成本期活动" requirements definition (currently a placeholder heuristic in the roster view).
