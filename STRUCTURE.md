@@ -59,6 +59,24 @@ Copy `.env.example` → `.env.local` and fill in from the Supabase dashboard (Pr
 
 Migrations in `supabase/migrations/` are applied by hand in the Supabase SQL editor — there is no CLI migration step in the build. Apply them in filename order, and let each one commit before running the next.
 
+### Deployment
+
+The site runs on Vercel. **The same variables must also be set in the Vercel project, per environment** — Vercel scopes them to Production / Preview / Development separately, and Preview is the one people forget. A pull-request preview with no variables looks like this:
+
+> Application error: a client-side exception has occurred while loading … (see the browser console for more information)
+
+with `@supabase/ssr: Your project's URL and API key are required to create a Supabase client!` in the console. Every page fails, not just the portal, because the browser Supabase client is constructed in the shared `AppBar`.
+
+`NEXT_PUBLIC_*` values are **inlined at build time**, so adding them to Vercel is not enough — the deployment has to be rebuilt (Redeploy) before they take effect.
+
+`next build` succeeds without them. Only running the built app catches it:
+
+```bash
+npm run build && npm run start
+```
+
+Make that part of the check for anything deployment-related.
+
 ---
 
 ## Portal data flow

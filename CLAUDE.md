@@ -14,6 +14,14 @@ npm run lint && npm run build
 
 There is no test framework — these two are the gate. Use `npx tsc --noEmit` for a type check that leaves `.next` alone.
 
+**For anything that could affect deployment, also run the production server**, not just the build:
+
+```bash
+npm run build && npm run start
+```
+
+`next build` only proves the code compiles. A missing environment variable, for instance, compiles fine and then throws in the browser — see the Deployment section of `STRUCTURE.md`.
+
 **Stop the dev server before running `npm run build`.** Both write to `.next`; the build clobbers the dev server's chunks, which then dies with `Cannot find module './NNNN.js'` and 404s every asset. Recover with `rm -rf .next` and restart.
 
 ## Rules that are easy to break
