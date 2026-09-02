@@ -1,7 +1,24 @@
 export type ParticipantRole = "mentor" | "mentee";
 export type UserRole = "admin" | ParticipantRole;
 
-export type BulletinCategory = "wish" | "thanks" | "growth" | "other";
+export type BulletinCategory =
+  | "wish"
+  | "thanks"
+  | "growth"
+  | "question"
+  | "feedback"
+  | "expectation"
+  | "reflection"
+  | "other";
+
+export type BulletinColor =
+  | "default"
+  | "yellow"
+  | "pink"
+  | "blue"
+  | "green"
+  | "purple"
+  | "orange";
 
 export type SessionType = "mentorship" | "gratitude";
 
@@ -11,6 +28,13 @@ export type BulletinBoard = {
   name: string;
   description: string | null;
   is_open: boolean;
+  /** null means every category is allowed on this board. */
+  allowed_categories: BulletinCategory[] | null;
+  allow_anonymous: boolean;
+  allow_comments: boolean;
+  /** Prompt shown in the composer and the empty state. */
+  prompt: string | null;
+  sort_order: number;
   created_at: string;
 };
 
@@ -76,10 +100,44 @@ export type BulletinPost = {
   id: string;
   cohort_id: string;
   board_id: string;
-  author_id: string;
+  /**
+   * null when the row is anonymous and you are neither its author nor an
+   * admin — the 0009 views mask it before it leaves the database.
+   */
+  author_id: string | null;
   category: BulletinCategory;
+  title: string | null;
   body: string;
+  /**
+   * Enforced in the database since migration 0009: the readable views null out
+   * `author_id` for everyone except the author and admins.
+   */
+  is_anonymous: boolean;
+  color: BulletinColor;
+  pinned: boolean;
+  resolved: boolean;
   hidden: boolean;
+  created_at: string;
+};
+
+export type BulletinComment = {
+  id: string;
+  post_id: string;
+  cohort_id: string;
+  /** Masked to null for anonymous rows — see BulletinPost.author_id. */
+  author_id: string | null;
+  body: string;
+  is_anonymous: boolean;
+  hidden: boolean;
+  created_at: string;
+};
+
+export type BulletinReaction = {
+  id: string;
+  post_id: string;
+  cohort_id: string;
+  user_id: string;
+  emoji: string;
   created_at: string;
 };
 

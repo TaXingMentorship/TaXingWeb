@@ -16,8 +16,6 @@ import Typography from '@mui/material/Typography';
 import MenuIcon from '@mui/icons-material/Menu';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useTheme } from '@mui/material/styles';
-import useMediaQuery from '@mui/material/useMediaQuery';
 import { pagesItems } from '@/data/navigation';
 import { donationDescription, donationLink } from '@/data/donation';
 import DonationDialog from '@/components/common/DonationDialog';
@@ -30,8 +28,6 @@ const AppAppBar: React.FC = () => {
   const [donationOpen, setDonationOpen] = React.useState(false);
   const [navOpen, setNavOpen] = React.useState(false);
   const [authenticated, setAuthenticated] = React.useState(false);
-  const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
   React.useEffect(() => {
     const supabase = createClient();
@@ -105,57 +101,63 @@ const AppAppBar: React.FC = () => {
             </Link>
           </Box>
 
-          {isDesktop ? (
-            <Box
+          {/* Both variants are always rendered and toggled with CSS. Branching
+              on useMediaQuery instead made the server and client emit different
+              markup, which broke hydration site-wide. */}
+          <Box
+            sx={{
+              display: { xs: 'none', md: 'flex' },
+              alignItems: 'center',
+              gap: 1.5,
+              justifyContent: 'space-evenly',
+              flexWrap: 'nowrap',
+              flexGrow: 1,
+              ml: { md: 3 }
+            }}
+          >
+            {renderNavButtons()}
+            <Button
+              onClick={handleDonationOpen}
+              variant="contained"
+              color="inherit"
+              disableElevation
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                justifyContent: 'space-evenly',
-                flexWrap: 'nowrap',
-                flexGrow: 1,
-                ml: { md: 3 }
+                fontSize: 18,
+                fontWeight: 'bold',
+                px: 2.5,
+                background: '#ffffff',
+                color: '#1a1a1a',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+                '&:hover': {
+                  background: '#f5f5f5',
+                  boxShadow: '0 6px 16px rgba(0, 0, 0, 0.16)'
+                },
+                '&:focus-visible': {
+                  outline: '3px solid rgba(0, 0, 0, 0.2)',
+                  outlineOffset: 2
+                }
               }}
             >
-              {renderNavButtons()}
-              <Button
-                onClick={handleDonationOpen}
-                variant="contained"
-                color="inherit"
-                disableElevation
-                sx={{
-                  fontSize: 18,
-                  fontWeight: 'bold',
-                  px: 2.5,
-                  background: '#ffffff',
-                  color: '#1a1a1a',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
-                  '&:hover': {
-                    background: '#f5f5f5',
-                    boxShadow: '0 6px 16px rgba(0, 0, 0, 0.16)'
-                  },
-                  '&:focus-visible': {
-                    outline: '3px solid rgba(0, 0, 0, 0.2)',
-                    outlineOffset: 2
-                  }
-                }}
-              >
-                Donation
-              </Button>
-            </Box>
-          ) : (
-            <>
-              <Box sx={{ flexGrow: 1 }} />
-              <IconButton
-                edge="end"
-                color="inherit"
-                aria-label="Open navigation menu"
-                onClick={toggleNav}
-              >
-                <MenuIcon />
-              </IconButton>
-            </>
-          )}
+              Donation
+            </Button>
+          </Box>
+
+          <Box
+            sx={{
+              display: { xs: 'flex', md: 'none' },
+              flexGrow: 1,
+              justifyContent: 'flex-end'
+            }}
+          >
+            <IconButton
+              edge="end"
+              color="inherit"
+              aria-label="Open navigation menu"
+              onClick={toggleNav}
+            >
+              <MenuIcon />
+            </IconButton>
+          </Box>
         </Toolbar>
       </AppBar>
 

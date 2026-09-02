@@ -19,44 +19,17 @@ import Stack from "@mui/material/Stack";
 import IconButton from "@mui/material/IconButton";
 import AppBar from "@mui/material/AppBar";
 import MenuIcon from "@mui/icons-material/Menu";
-import HomeIcon from "@mui/icons-material/Home";
-import GroupsIcon from "@mui/icons-material/Groups";
-import PersonIcon from "@mui/icons-material/Person";
-import ForumIcon from "@mui/icons-material/Forum";
-import EventIcon from "@mui/icons-material/Event";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
-import InsightsIcon from "@mui/icons-material/Insights";
 import LogoutIcon from "@mui/icons-material/Logout";
 import CircularProgress from "@mui/material/CircularProgress";
 import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
+import { canAccessPortalNav, portalNavItems } from "@/data/portalNav";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 const DRAWER_WIDTH = 248;
 
-type NavItem = {
-  label: string;
-  path: string;
-  icon: React.ReactNode;
-  access: "all" | "participant" | "admin";
-};
-
-const navItems: NavItem[] = [
-  { label: portalCopy.nav.home, path: "/portal", icon: <HomeIcon />, access: "all" },
-  { label: portalCopy.nav.me, path: "/portal/me", icon: <PersonIcon />, access: "all" },
-  { label: portalCopy.nav.activities, path: "/portal/activities", icon: <EventIcon />, access: "all" },
-  { label: portalCopy.nav.directory, path: "/portal/directory", icon: <GroupsIcon />, access: "all" },
-  { label: portalCopy.nav.progress, path: "/portal/admin/sessions", icon: <InsightsIcon />, access: "participant" },
-  { label: portalCopy.nav.board, path: "/portal/board", icon: <ForumIcon />, access: "all" },
-  { label: portalCopy.nav.roster, path: "/portal/admin/roster", icon: <ListAltIcon />, access: "admin" },
-  { label: portalCopy.nav.adminImport, path: "/portal/admin/import", icon: <UploadFileIcon />, access: "admin" },
-];
-
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const pathname = usePathname();
   const { currentUser, loading, signOut } = usePortalSession();
@@ -70,13 +43,8 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     return <>{children}</>;
   }
 
-  const visibleItems = navItems.filter(
-    (item) =>
-      currentUser &&
-      (item.access === "all" ||
-        (item.access === "admin" && currentUser.is_admin) ||
-        (item.access === "participant" &&
-          (currentUser.is_admin || currentUser.participant_role))),
+  const visibleItems = portalNavItems.filter((item) =>
+    canAccessPortalNav(item, currentUser),
   );
 
   const drawerContent = (
@@ -123,7 +91,9 @@ export default function PortalShell({ children }: { children: React.ReactNode })
                 onClick={() => setMobileOpen(false)}
                 sx={{ borderRadius: 2 }}
               >
-                <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+                <ListItemIcon sx={{ minWidth: 40 }}>
+                  <item.Icon />
+                </ListItemIcon>
                 <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
               </ListItemButton>
             </ListItem>
@@ -145,54 +115,63 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   );
 
   return (
-    <Box sx={{ display: "flex", minHeight: "calc(100vh - 64px)" }}>
-      {!isDesktop && (
-        <AppBar
-          position="sticky"
-          color="default"
-          elevation={1}
-          sx={{ top: 0 }}
-        >
-          <Toolbar>
-            <IconButton edge="start" onClick={() => setMobileOpen(true)} aria-label="打开菜单">
-              <MenuIcon />
-            </IconButton>
-            <Typography variant="h6" fontWeight={800} color="secondary.main" sx={{ ml: 1 }}>
-              {portalCopy.brand}
-            </Typography>
-          </Toolbar>
-        </AppBar>
-      )}
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: { xs: "column", md: "row" },
+        minHeight: "calc(100vh - 64px)",
+      }}
+    >
+      {/* Rendered always, toggled with CSS — branching on useMediaQuery made
+          the server and client emit different markup, which broke hydration
+          and left the whole portal non-interactive in some viewports. */}
+      <AppBar
+        position="sticky"
+        color="default"
+        elevation={1}
+        sx={{ top: 0, display: { xs: "block", md: "none" } }}
+      >
+        <Toolbar>
+          <IconButton edge="start" onClick={() => setMobileOpen(true)} aria-label="打开菜单">
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6" fontWeight={800} color="secondary.main" sx={{ ml: 1 }}>
+            {portalCopy.brand}
+          </Typography>
+        </Toolbar>
+      </AppBar>
 
       <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
-        {isDesktop ? (
-          <Drawer
-            variant="permanent"
-            open
-            sx={{
-              "& .MuiDrawer-paper": {
-                width: DRAWER_WIDTH,
-                boxSizing: "border-box",
-                position: "static",
-                height: "auto",
-                minHeight: "100%",
-                borderRight: `1px solid ${theme.palette.divider}`,
-              },
-            }}
-          >
-            {drawerContent}
-          </Drawer>
-        ) : (
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={() => setMobileOpen(false)}
-            ModalProps={{ keepMounted: true }}
-            sx={{ "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" } }}
-          >
-            {drawerContent}
-          </Drawer>
-        )}
+        <Drawer
+          variant="permanent"
+          open
+          sx={{
+            display: { xs: "none", md: "block" },
+            "& .MuiDrawer-paper": {
+              width: DRAWER_WIDTH,
+              boxSizing: "border-box",
+              position: "static",
+              height: "auto",
+              minHeight: "100%",
+              borderRight: `1px solid ${theme.palette.divider}`,
+            },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
+
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          ModalProps={{ keepMounted: true }}
+          sx={{
+            display: { xs: "block", md: "none" },
+            "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
       </Box>
 
       <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 4 }, maxWidth: "100%" }}>

@@ -4,7 +4,10 @@ import { createClient } from "@/lib/supabase/client";
 import type {
   BulletinBoard,
   BulletinCategory,
+  BulletinColor,
+  BulletinComment,
   BulletinPost,
+  BulletinReaction,
   Cohort,
   Match,
   ParticipationRecord,
@@ -64,13 +67,59 @@ function postAdminJson<T>(
 
 // --- Cohorts ---------------------------------------------------------------
 
+/**
+ * Newest season first, so every cohort picker defaults to the current one.
+ * `starts_at` is nullable — those sink to the bottom and fall back to
+ * `created_at`. RLS (`cohorts_select_member`) already scopes the result:
+ * members get their own cohorts, admins get all of them.
+ */
 export async function listCohorts(): Promise<Cohort[]> {
   const { data, error } = await createClient()
     .from("cohorts")
     .select("*")
-    .order("created_at", { ascending: true });
+    .order("starts_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
   throwQueryError("读取项目", error);
   return (data ?? []) as Cohort[];
+}
+
+export async function createCohort(input: {
+  name: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  bulletin_open: boolean;
+}): Promise<Cohort> {
+  const { data, error } = await createClient()
+    .from("cohorts")
+    .insert(input)
+    .select("*")
+    .single();
+  throwQueryError("创建季度", error);
+  return data as Cohort;
+}
+
+export async function updateCohort(
+  id: string,
+  patch: Partial<
+    Pick<Cohort, "name" | "starts_at" | "ends_at" | "bulletin_open">
+  >,
+): Promise<Cohort> {
+  const { data, error } = await createClient()
+    .from("cohorts")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  throwQueryError("更新季度", error);
+  return data as Cohort;
+}
+
+/** Season-wide switch: closing it makes every board in the cohort read-only. */
+export function setCohortBulletinOpen(
+  id: string,
+  open: boolean,
+): Promise<Cohort> {
+  return updateCohort(id, { bulletin_open: open });
 }
 
 export async function getCohort(id: string): Promise<Cohort | null> {
@@ -149,7 +198,9 @@ export async function listBoards(filter?: {
     query = query.in("cohort_id", filter.cohortIds);
   }
 
-  const { data, error } = await query.order("created_at", { ascending: true });
+  const { data, error } = await query
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
   throwQueryError("读取留言板", error);
   return (data ?? []) as BulletinBoard[];
 }
@@ -169,6 +220,11 @@ export async function createBoard(input: {
   name: string;
   description: string | null;
   is_open: boolean;
+  allowed_categories: BulletinCategory[] | null;
+  allow_anonymous: boolean;
+  allow_comments: boolean;
+  prompt: string | null;
+  sort_order: number;
 }): Promise<BulletinBoard> {
   const { data, error } = await createClient()
     .from("bulletin_boards")
@@ -179,11 +235,28 @@ export async function createBoard(input: {
   return data as BulletinBoard;
 }
 
+/** Individual board switch; the cohort switch remains the global override. */
+export async function setBoardOpen(
+  id: string,
+  open: boolean,
+): Promise<BulletinBoard> {
+  const { data, error } = await createClient()
+    .from("bulletin_boards")
+    .update({ is_open: open })
+    .eq("id", id)
+    .select("*")
+    .single();
+  throwQueryError("更新留言板", error);
+  return data as BulletinBoard;
+}
+
 /** Number of RLS-visible posts per board, keyed by board id. */
 export async function countPostsByBoard(
   includeHidden = false,
 ): Promise<Record<string, number>> {
-  let query = createClient().from("bulletin_posts").select("board_id");
+  let query = createClient()
+    .from("bulletin_posts_readable")
+    .select("board_id");
   if (!includeHidden) query = query.eq("hidden", false);
 
   const { data, error } = await query;
@@ -203,12 +276,14 @@ export async function listPosts(filter?: {
   cohortId?: string;
   includeHidden?: boolean;
 }): Promise<BulletinPost[]> {
-  let query = createClient().from("bulletin_posts").select("*");
+  let query = createClient().from("bulletin_posts_readable").select("*");
   if (filter?.boardId) query = query.eq("board_id", filter.boardId);
   if (filter?.cohortId) query = query.eq("cohort_id", filter.cohortId);
   if (!filter?.includeHidden) query = query.eq("hidden", false);
 
-  const { data, error } = await query.order("created_at", { ascending: false });
+  const { data, error } = await query
+    .order("pinned", { ascending: false })
+    .order("created_at", { ascending: false });
   throwQueryError("读取留言", error);
   return (data ?? []) as BulletinPost[];
 }
@@ -218,15 +293,15 @@ export async function createPost(input: {
   board_id: string;
   author_id: string;
   category: BulletinCategory;
+  title: string | null;
   body: string;
-}): Promise<BulletinPost> {
-  const { data, error } = await createClient()
-    .from("bulletin_posts")
-    .insert(input)
-    .select("*")
-    .single();
+  is_anonymous: boolean;
+  color: BulletinColor;
+}): Promise<void> {
+  // No .select() — 0009 revoked SELECT on the base table, so reading the row
+  // back would fail. Callers refetch through the view instead.
+  const { error } = await createClient().from("bulletin_posts").insert(input);
   throwQueryError("发布留言", error);
-  return data as BulletinPost;
 }
 
 export async function setPostHidden(
@@ -236,17 +311,138 @@ export async function setPostHidden(
   return adminJson<BulletinPost>(
     "/api/admin/moderation",
     "PATCH",
-    { id, hidden },
+    { target: "post", id, hidden },
     "更新留言状态",
   );
 }
 
+export async function setPostPinned(
+  id: string,
+  pinned: boolean,
+): Promise<BulletinPost> {
+  return adminJson<BulletinPost>(
+    "/api/admin/moderation",
+    "PATCH",
+    { target: "post", id, pinned },
+    "更新置顶状态",
+  );
+}
+
+export async function setPostResolved(
+  id: string,
+  resolved: boolean,
+): Promise<BulletinPost> {
+  return adminJson<BulletinPost>(
+    "/api/admin/moderation",
+    "PATCH",
+    { target: "post", id, resolved },
+    "更新解答状态",
+  );
+}
+
+export async function setCommentHidden(
+  id: string,
+  hidden: boolean,
+): Promise<BulletinComment> {
+  return adminJson<BulletinComment>(
+    "/api/admin/moderation",
+    "PATCH",
+    { target: "comment", id, hidden },
+    "更新评论状态",
+  );
+}
+
 export async function deletePost(id: string): Promise<void> {
-  const { error } = await createClient()
-    .from("bulletin_posts")
-    .delete()
-    .eq("id", id);
-  throwQueryError("删除留言", error);
+  await adminJson("/api/admin/moderation", "DELETE", { target: "post", id }, "删除留言");
+}
+
+// --- Bulletin comments -----------------------------------------------------
+
+/**
+ * Comments for a whole board in one round trip; callers group them by
+ * `post_id`. Mirrors countPostsByBoard's client-side aggregation — fine at
+ * this scale, and it keeps the wall to a fixed number of queries.
+ */
+export async function listComments(filter: {
+  postIds: string[];
+  includeHidden?: boolean;
+}): Promise<BulletinComment[]> {
+  if (filter.postIds.length === 0) return [];
+
+  let query = createClient()
+    .from("bulletin_comments_readable")
+    .select("*")
+    .in("post_id", filter.postIds);
+  if (!filter.includeHidden) query = query.eq("hidden", false);
+
+  const { data, error } = await query.order("created_at", { ascending: true });
+  throwQueryError("读取评论", error);
+  return (data ?? []) as BulletinComment[];
+}
+
+export async function createComment(input: {
+  post_id: string;
+  cohort_id: string;
+  author_id: string;
+  body: string;
+  is_anonymous: boolean;
+}): Promise<void> {
+  const { error } = await createClient().from("bulletin_comments").insert(input);
+  throwQueryError("发表评论", error);
+}
+
+export async function deleteComment(id: string): Promise<void> {
+  await adminJson(
+    "/api/admin/moderation",
+    "DELETE",
+    { target: "comment", id },
+    "删除评论",
+  );
+}
+
+// --- Bulletin reactions ----------------------------------------------------
+
+export async function listReactions(filter: {
+  postIds: string[];
+}): Promise<BulletinReaction[]> {
+  if (filter.postIds.length === 0) return [];
+
+  const { data, error } = await createClient()
+    .from("bulletin_reactions")
+    .select("*")
+    .in("post_id", filter.postIds);
+  throwQueryError("读取表情反应", error);
+  return (data ?? []) as BulletinReaction[];
+}
+
+/** Adds the reaction, or removes it when the user already left that emoji. */
+export async function toggleReaction(input: {
+  post_id: string;
+  cohort_id: string;
+  user_id: string;
+  emoji: string;
+  active: boolean;
+}): Promise<void> {
+  const supabase = createClient();
+
+  if (input.active) {
+    const { error } = await supabase
+      .from("bulletin_reactions")
+      .delete()
+      .eq("post_id", input.post_id)
+      .eq("user_id", input.user_id)
+      .eq("emoji", input.emoji);
+    throwQueryError("取消表情反应", error);
+    return;
+  }
+
+  const { error } = await supabase.from("bulletin_reactions").insert({
+    post_id: input.post_id,
+    cohort_id: input.cohort_id,
+    user_id: input.user_id,
+    emoji: input.emoji,
+  });
+  throwQueryError("添加表情反应", error);
 }
 
 // --- Sessions log ----------------------------------------------------------
