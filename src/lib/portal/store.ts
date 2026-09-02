@@ -235,6 +235,21 @@ export async function createBoard(input: {
   return data as BulletinBoard;
 }
 
+/** Individual board switch; the cohort switch remains the global override. */
+export async function setBoardOpen(
+  id: string,
+  open: boolean,
+): Promise<BulletinBoard> {
+  const { data, error } = await createClient()
+    .from("bulletin_boards")
+    .update({ is_open: open })
+    .eq("id", id)
+    .select("*")
+    .single();
+  throwQueryError("更新留言板", error);
+  return data as BulletinBoard;
+}
+
 /** Number of RLS-visible posts per board, keyed by board id. */
 export async function countPostsByBoard(
   includeHidden = false,

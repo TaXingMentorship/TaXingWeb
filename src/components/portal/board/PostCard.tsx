@@ -122,9 +122,13 @@ export default function PostCard({
         {post.pinned && (
           <Chip
             size="small"
-            color="secondary"
             icon={<PushPinIcon />}
             label={portalCopy.board.pinned}
+            sx={{
+              bgcolor: "primary.main",
+              color: "common.white",
+              "& .MuiChip-icon": { color: "inherit" },
+            }}
           />
         )}
         {post.resolved && (

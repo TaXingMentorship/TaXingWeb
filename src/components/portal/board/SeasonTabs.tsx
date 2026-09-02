@@ -5,8 +5,6 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
-import Switch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import type { Cohort } from "@/types/portal";
 import { portalCopy } from "@/data/portalCopy";
@@ -23,18 +21,12 @@ import { portalCopy } from "@/data/portalCopy";
 export default function SeasonTabs({
   cohorts,
   selectedId,
-  isAdmin,
   onSelect,
-  onToggleOpen,
 }: {
   cohorts: Cohort[];
   selectedId: string | null;
-  isAdmin: boolean;
   onSelect: (id: string) => void;
-  onToggleOpen: (id: string, open: boolean) => void;
 }) {
-  const selected = cohorts.find((c) => c.id === selectedId) ?? null;
-
   return (
     <Box
       sx={{
@@ -119,23 +111,6 @@ export default function SeasonTabs({
           )}
         </Stack>
 
-        {isAdmin && selected && (
-          <FormControlLabel
-            control={
-              <Switch
-                size="small"
-                checked={selected.bulletin_open}
-                onChange={(e) => onToggleOpen(selected.id, e.target.checked)}
-              />
-            }
-            label={
-              <Typography variant="caption">
-                {portalCopy.board.seasonOpenToggle}
-              </Typography>
-            }
-            sx={{ mr: 0, flexShrink: 0 }}
-          />
-        )}
       </Stack>
     </Box>
   );

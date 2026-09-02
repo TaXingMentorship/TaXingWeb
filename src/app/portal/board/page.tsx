@@ -11,6 +11,8 @@ import Alert from "@mui/material/Alert";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Chip from "@mui/material/Chip";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import AddIcon from "@mui/icons-material/Add";
 import type {
   Cohort,
@@ -32,7 +34,7 @@ import {
   listPosts,
   listProfiles,
   listReactions,
-  setCohortBulletinOpen,
+  setBoardOpen,
   setCommentHidden,
   setPostHidden,
   setPostPinned,
@@ -262,11 +264,11 @@ function BoardPageContent() {
     onSuccess: invalidateComments,
   });
 
-  const seasonToggleMutation = useMutation({
+  const boardToggleMutation = useMutation({
     mutationFn: (input: { id: string; open: boolean }) =>
-      setCohortBulletinOpen(input.id, input.open),
+      setBoardOpen(input.id, input.open),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["portal", "cohorts"] }),
+      queryClient.invalidateQueries({ queryKey: ["portal", "boards"] }),
   });
 
   const deleteCommentMutation = useMutation({
@@ -328,7 +330,7 @@ function BoardPageContent() {
     deletePostMutation.error,
     commentFlagMutation.error,
     deleteCommentMutation.error,
-    seasonToggleMutation.error,
+    boardToggleMutation.error,
   ].find(Boolean) as Error | undefined;
 
   return (
@@ -366,9 +368,7 @@ function BoardPageContent() {
         <SeasonTabs
           cohorts={cohorts}
           selectedId={cohortId}
-          isAdmin={isAdmin}
           onSelect={selectCohort}
-          onToggleOpen={(id, open) => seasonToggleMutation.mutate({ id, open })}
         />
       )}
 
@@ -387,6 +387,24 @@ function BoardPageContent() {
 
           {selectedBoard && (
             <>
+              {isAdmin && (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      size="small"
+                      checked={selectedBoard.is_open}
+                      onChange={(event) =>
+                        boardToggleMutation.mutate({
+                          id: selectedBoard.id,
+                          open: event.target.checked,
+                        })
+                      }
+                    />
+                  }
+                  label={portalCopy.board.openLabel}
+                  sx={{ mb: 1 }}
+                />
+              )}
               {selectedBoard.description && (
                 <Typography color="text.secondary" sx={{ mb: 2 }}>
                   {selectedBoard.description}
