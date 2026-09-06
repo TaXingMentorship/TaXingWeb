@@ -44,3 +44,23 @@ export function createServiceRoleClient() {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 }
+
+/**
+ * Anonymous, cookie-free client for the **public marketing pages**.
+ *
+ * `createClient()` above reads the auth cookie, which opts the calling Server
+ * Component into dynamic rendering — wrong for `/about`, which has no session
+ * to read and should stay cacheable. This one carries no session at all, so it
+ * is always the `anon` role and sees exactly what a signed-out visitor sees.
+ *
+ * Use it only for genuinely public data (`volunteers_public`). Anything
+ * user-scoped needs `createClient()`; anything privileged needs
+ * `createServiceRoleClient()` inside `src/app/api/admin/**`.
+ */
+export function createPublicClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+}
