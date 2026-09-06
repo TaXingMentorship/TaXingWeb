@@ -25,6 +25,7 @@ import { useTheme } from "@mui/material/styles";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
 import { canAccessPortalNav, portalNavItems } from "@/data/portalNav";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
+import PersonaSwitcher from "@/components/portal/PersonaSwitcher";
 
 const DRAWER_WIDTH = 248;
 
@@ -32,7 +33,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const theme = useTheme();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const pathname = usePathname();
-  const { currentUser, loading, signOut } = usePortalSession();
+  const { currentUser, realUser, loading, signOut } = usePortalSession();
 
   if (
     pathname === "/portal/login" ||
@@ -62,18 +63,23 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         />
       </Box>
       <Divider />
-      {currentUser && (
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 2.5, py: 2 }}>
-          <Avatar src={currentUser.avatar_url ?? undefined} />
-          <Box>
-            <Typography variant="body1" fontWeight={700} lineHeight={1.2}>
-              {currentUser.full_name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {portalCopy.account.loggedInAs}：{profileLabels(currentUser).join(" · ")}
-            </Typography>
-          </Box>
-        </Stack>
+      {realUser && (
+        <>
+          {/* Name, avatar and the real identity never follow the persona —
+              otherwise the switcher would misreport who you are. */}
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 2.5, pt: 2, pb: 1.5 }}>
+            <Avatar src={realUser.avatar_url ?? undefined} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body1" fontWeight={700} lineHeight={1.2} sx={{ wordBreak: "break-word" }}>
+                {realUser.full_name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {portalCopy.account.loggedInAs}：{profileLabels(realUser).join(" · ")}
+              </Typography>
+            </Box>
+          </Stack>
+          <PersonaSwitcher />
+        </>
       )}
       <Divider />
       <List sx={{ flexGrow: 1, px: 1 }}>
