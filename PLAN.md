@@ -128,13 +128,59 @@ Goal: connect the existing UI to a real Supabase project so we can do manual tes
 - [ ] RLS negative checks: as a mentee, attempt to update another user's profile or `sessions_log` — must fail.
 - [ ] `npm run lint` + `npm run build` pass; deploy preview and smoke-test.
 
+### Phase H — Volunteer roster
+
+- [x] `volunteers` / `volunteer_groups` / `volunteer_seasons` + RLS + the
+      `volunteers_public` view (migration `0010`); 94 legacy volunteers and
+      eight historical seasons backfilled (`0011`).
+- [x] `/portal/volunteers` — group tabs, season filter, search, admin add/edit/
+      delete. Default tab is the viewer's own group; admins land on 全部.
+- [x] `/portal/admin/volunteers` — Excel/CSV import with dry-run preview, and
+      group management.
+- [x] `/about` reads `volunteers_public`; `src/data/volunteers.ts` deleted.
+- [ ] Apply `0010` and `0011` in the Supabase SQL editor, then run through the
+      manual checks in the volunteer section of `STRUCTURE.md`.
+- [ ] Backfill group membership for the historical seasons — the legacy data
+      records who and when, but not which group.
+
+### Phase I — Persona switching & identity linking
+
+- [x] Persona switcher (`0012` not required): `PortalSessionProvider` projects
+      `currentUser` through the active persona, so the sidebar, the home tiles
+      and every page's own `is_admin` check follow with no page changes.
+      Display-only — `PersonaBanner` says so while a preview is active.
+- [x] `volunteers.profile_id` linked automatically by email, with triggers on
+      both tables; name matches surface for admin confirmation (`0012`).
+- [x] `volunteers_resolved` — the linked profile wins for name, contact and
+      avatar; no two-way sync.
+- [x] Season matching ignores internal whitespace, so `2025 春季` and `2025春季`
+      find the same cohort.
+- [x] Fixed 成员目录's 志愿者 tab, which listed admins (`is_admin || is_volunteer`)
+      and no actual volunteers.
+- [x] Volunteer roster shows one chip per season carrying that season's group,
+      so a change of group across seasons is legible.
+- [x] Group leads (`0013`): `is_lead` per season, `includes_leads` per group, so
+      战略组 contains the leads without a second membership row.
+- [x] Identity tags editable inline on 成员名单 (`/api/admin/profiles`, with a
+      last-admin guard).
+- [x] Season rows in the volunteer dialog sort newest-first.
+- [x] Dropped the persona preview banner at the user's request — the sidebar
+      switcher remains the indication.
+- [ ] **No Google Sheet sync exists.** 2025春季 / 2026春季 / 2026秋季 have no
+      volunteers because the retired `volunteers.ts` only went up to 2025夏季.
+      Export the sheet to .xlsx and import it.
+- [ ] Confirm the four name-match candidates (renee / simona / 核糖 / 蛋子) in
+      `/portal/admin/volunteers`.
+- [ ] `2025夏季` ends `2026-09-07`, a year after it starts — looks like a typo;
+      fix in 季度管理.
+
 ### Phase G — Hardening *(after B verified)*
 - [x] **True anonymous posting.** Done in `0009`: reads go through
       `bulletin_posts_readable` / `bulletin_comments_readable`, which null out
       `author_id` unless you are the author or an admin; the base tables grant
       INSERT only, so update and delete moved to `/api/admin/moderation`.
 - [ ] Rate-limit bulletin posts (per user per minute).
-- [ ] CSV import dry-run mode.
+- [x] Import dry-run mode. Done for the volunteer import (`admin_import_volunteers(p_rows, p_dry_run)`); the roster/match imports still write straight away.
 - [ ] Finalize "全部完成本期活动" requirements definition (currently a placeholder heuristic in the roster view).
 - [ ] Wire real 本期活动 resource links once provided.
 
