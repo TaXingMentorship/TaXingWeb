@@ -4,6 +4,7 @@ import * as React from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Avatar from "@mui/material/Avatar";
+import AnonymousAvatar from "@/components/portal/board/AnonymousAvatar";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
@@ -78,12 +79,14 @@ export default function PostComments({
                 alignItems="flex-start"
                 sx={{ opacity: comment.hidden ? 0.6 : 1 }}
               >
-                <Avatar
-                  src={author?.avatar_url ?? undefined}
-                  sx={{ width: 26, height: 26, fontSize: 13 }}
-                >
-                  {comment.is_anonymous ? "匿" : undefined}
-                </Avatar>
+                {comment.is_anonymous ? (
+                  <AnonymousAvatar seed={comment.id} size={26} />
+                ) : (
+                  <Avatar
+                    src={author?.avatar_url ?? undefined}
+                    sx={{ width: 26, height: 26, fontSize: 13 }}
+                  />
+                )}
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Stack
                     direction="row"

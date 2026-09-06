@@ -159,7 +159,9 @@ export const portalCopy = {
     progress: "进度跟踪",
     cohorts: "季度管理",
     roster: "成员名单",
+    volunteers: "志愿者名单",
     adminImport: "名单导入",
+    adminVolunteers: "志愿者管理",
     adminSessions: "进度跟踪",
   },
   activities: {
@@ -276,6 +278,173 @@ export const portalCopy = {
     // Deletion is intentionally absent: eight tables cascade from `cohorts`,
     // so removing one would wipe that season's entire history.
     noDeleteHint: "季度不可在此删除 —— 删除会连带清空该季度的全部留言、配对与记录。",
+  },
+  volunteers: {
+    title: "志愿者名单",
+    subtitle: "她行的志愿者们，按组别与季度浏览。",
+    allTab: "全部",
+    myGroupHint: "我所在的组",
+    searchLabel: "搜索志愿者",
+    searchPlaceholder: "搜索姓名、邮箱或微信…",
+    seasonLabel: "季度",
+    allSeasons: "全部季度",
+    columns: {
+      name: "姓名",
+      group: "组别",
+      seasons: "季度",
+      email: "邮箱",
+      wechat: "微信",
+      notes: "备注",
+      actions: "操作",
+    },
+    noGroup: "未分组",
+    notPublic: "不公开",
+    notPublicHint: "不会出现在官网的志愿者致谢名单里",
+    count: (n: number) => `共 ${n} 位志愿者`,
+    empty: "没有符合条件的志愿者。",
+    emptyAll: "还没有志愿者记录。管理员可以在「志愿者管理」中批量导入。",
+    loading: "加载中…",
+
+    // Create / edit dialog
+    addButton: "添加志愿者",
+    createTitle: "添加志愿者",
+    editTitle: "编辑志愿者",
+    nameLabel: "姓名",
+    nameHelper: "必填。同名的两位志愿者请加上区分后缀，例如「小鱼 - 运营」。",
+    emailLabel: "邮箱",
+    emailHelper: "选填。批量导入时按邮箱匹配已有记录。",
+    wechatLabel: "微信号",
+    notesLabel: "备注",
+    isPublicLabel: "在官网致谢名单中公开显示",
+    seasonsLabel: "参与季度与组别",
+    seasonsHelper: "至少选择一个季度。同一位志愿者在不同季度可以属于不同的组。",
+    addSeason: "添加季度",
+    removeSeason: "移除这个季度",
+    groupPlaceholder: "未分组",
+    save: "保存",
+    cancel: "取消",
+    nameRequired: "请填写姓名。",
+    seasonRequired: "请至少选择一个季度。",
+    duplicateSeason: "同一个季度只能出现一次。",
+
+    // Deletion
+    deleteButton: "删除",
+    deleteTitle: "删除志愿者",
+    deleteConfirm: (name: string) =>
+      `确定要删除「${name}」吗？该志愿者的季度与组别记录会一并删除，且无法恢复。`,
+    deleteAction: "确认删除",
+
+    adminOnly: "仅管理员可以添加、编辑或删除志愿者。",
+
+    // Profile linking
+    linkedChip: "已关联门户账号",
+    linkedHint: "姓名、邮箱与微信来自本人的门户资料，在这里不可编辑。",
+    linkedProfileLink: "查看门户资料",
+    unlink: "解除关联",
+    unlinkTitle: "解除关联",
+    unlinkConfirm: (name: string) =>
+      `解除「${name}」与门户账号的关联后，名单会改回显示志愿者表里自己存的信息。稍后如果邮箱仍然一致，系统会重新自动关联。`,
+    ownValueHint: (value: string) => `解除关联后会回落为「${value}」`,
+    seasonGroupColumn: "季度 · 组别",
+    moreSeasons: (n: number) => `+${n}`,
+    seasonDetailTitle: "参与经历",
+    leadLabel: "负责人",
+    leadHint: "标记为该季度所在组的负责人。负责人会自动出现在战略组名单里。",
+    leadChip: "负责人",
+    includesLeadsHint: "本组自动包含当季所有负责人",
+  },
+  adminVolunteers: {
+    title: "志愿者管理",
+    subtitle: "批量导入志愿者名单，并维护组别。",
+    adminOnly: "仅管理员可访问志愿者管理。",
+
+    // Import
+    importTitle: "批量导入",
+    importIntro:
+      "支持 Excel（.xlsx）与 CSV。必需的列：姓名、季度；可选的列：邮箱、微信、组别、备注、公开。",
+    importSeasonHint:
+      "「季度」列填一个或多个季度，用分号隔开：2025秋季;2026春季。要给每个季度单独指定组别，写成 2025秋季:运营组;2026春季:项目组。",
+    importDedupeHint:
+      "有邮箱的行按邮箱匹配已有记录并更新；没有邮箱的行按姓名匹配。只要有任意一行冲突，整个文件都不会写入。",
+    chooseFile: "选择文件",
+    downloadTemplate: "下载模板",
+    templateFileName: "志愿者导入模板.csv",
+    selected: (name: string, rows: number) => `已选择：${name}（${rows} 行）`,
+    checking: "预检中…",
+    importing: "导入中…",
+    confirmImport: (rows: number) => `确认导入 ${rows} 行`,
+    recheck: "重新选择文件",
+    previewTitle: "预检结果",
+    previewClean: "预检通过，可以导入。",
+    resultTitle: "导入结果",
+    willAdd: (n: number) => `新增 ${n}`,
+    willUpdate: (n: number) => `更新 ${n}`,
+    errorCount: (n: number) => `错误 ${n}`,
+    blocked: "文件中存在冲突，本次没有写入任何数据。请按下列提示修改后重新上传。",
+    added: "已新增",
+    updated: "已更新",
+    done: (added: number, updated: number) =>
+      `导入完成：新增 ${added} 位，更新 ${updated} 位。`,
+
+    // Groups
+    groupsTitle: "组别管理",
+    groupsIntro: "组别用于志愿者名单的视图切换。新增组别后会自动出现在名单页的标签栏里。",
+    addGroup: "新建组别",
+    createGroupTitle: "新建组别",
+    editGroupTitle: "编辑组别",
+    groupNameLabel: "组别名称",
+    groupDescriptionLabel: "简介（可选）",
+    groupSortLabel: "排序（数字越小越靠前）",
+    includesLeadsLabel: "自动包含所有负责人",
+    includesLeadsHelp:
+      "开启后，其他组的负责人会自动出现在这个组的名单里 —— 战略组就是这样运作的。",
+    groupMembers: (n: number) => `${n} 人次`,
+    deleteGroupTitle: "删除组别",
+    deleteGroupConfirm: (name: string) =>
+      `确定要删除「${name}」吗？属于该组的志愿者不会被删除，只会变成「未分组」。`,
+    groupNameRequired: "请填写组别名称。",
+    groupsEmpty: "还没有组别，先新建一个。",
+
+    // Name-match linking candidates
+    matchesTitle: "待确认的账号关联",
+    matchesIntro:
+      "下面这些志愿者与某个门户账号同名，但邮箱对不上，所以没有自动关联 —— 同名不代表是同一个人。确认之后，他们的姓名与联系方式将以门户资料为准。",
+    matchesEmpty: "没有待确认的关联。邮箱一致的志愿者会自动关联。",
+    matchVolunteer: "志愿者",
+    matchProfile: "门户账号",
+    matchConfirm: "确认是同一人",
+    matchConfirmTitle: "确认关联",
+    matchConfirmBody: (v: string, p: string) =>
+      `确认志愿者「${v}」就是门户账号「${p}」本人？关联后名单会改用其门户资料里的姓名与联系方式。`,
+  },
+  roster: {
+    identityTitle: "编辑身份",
+    identityHint: "导师与学员互斥；管理员与志愿者是独立的标记。",
+    identityLabels: {
+      mentor: "导师",
+      mentee: "学员",
+      admin: "管理员",
+      volunteer: "志愿者",
+    },
+    identityNone: "暂无身份",
+    identityRequired: "每位成员至少需要一种身份。",
+    identitySelfAdminWarning:
+      "这会移除你自己的管理员身份，之后你将无法再打开这个页面。",
+    save: "保存",
+    cancel: "取消",
+    editIdentity: (name: string) => `编辑「${name}」的身份`,
+  },
+  persona: {
+    label: "当前视角",
+    switchTo: "切换视角",
+    options: {
+      admin: "管理员",
+      mentor: "导师",
+      mentee: "学员",
+      volunteer: "志愿者",
+    },
+    primaryHint: "我的身份",
+    back: "回到我的身份",
   },
   account: {
     switcher: "切换演示身份",

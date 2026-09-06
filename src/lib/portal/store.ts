@@ -16,6 +16,11 @@ import type {
   RosterInvite,
   SessionLog,
   SessionType,
+  ResolvedVolunteer,
+  ResolvedVolunteerWithSeasons,
+  VolunteerGroup,
+  VolunteerSeason,
+  VolunteerWithSeasons,
 } from "@/types/portal";
 
 type SupabaseError = {
@@ -640,6 +645,266 @@ export async function importMatches(
     "/api/admin/matches",
     { cohortId, rows },
     "导入配对",
+  );
+}
+
+/**
+ * Changes who someone is: mentor/mentee, admin, volunteer.
+ *
+ * Not a `updateProfile` patch — that function deliberately omits these fields.
+ * Granting admin is the most privileged write in the app, so it goes through a
+ * route handler like every other one (`protect_profile_privileges` in migration
+ * 0004 is the database's own backstop).
+ */
+export function updateProfileIdentity(
+  id: string,
+  identity: {
+    participant_role: ParticipantRole | null;
+    is_admin: boolean;
+    is_volunteer: boolean;
+  },
+): Promise<Profile> {
+  return adminJson<Profile>(
+    "/api/admin/profiles",
+    "PATCH",
+    { id, ...identity },
+    "更新成员身份",
+  );
+}
+
+// --- Volunteers ------------------------------------------------------------
+
+export async function listVolunteerGroups(): Promise<VolunteerGroup[]> {
+  const { data, error } = await createClient()
+    .from("volunteer_groups")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+  throwQueryError("读取志愿者组别", error);
+  return (data ?? []) as VolunteerGroup[];
+}
+
+/**
+ * The whole roster, read through `volunteers_resolved` so a volunteer linked to
+ * a portal account shows that account's name, contact details and avatar
+ * (migration 0012). Every signed-in member sees every volunteer; the group tabs
+ * on /portal/volunteers are views over this list, not access boundaries.
+ *
+ * Seasons are fetched alongside and joined here rather than embedded in the
+ * query: PostgREST's relationship inference through a view is not something to
+ * depend on, and two parallel requests over a few hundred rows cost nothing.
+ */
+export async function listVolunteers(): Promise<ResolvedVolunteerWithSeasons[]> {
+  const supabase = createClient();
+  const [volunteers, seasons] = await Promise.all([
+    supabase
+      .from("volunteers_resolved")
+      .select("*")
+      .order("full_name", { ascending: true }),
+    supabase
+      .from("volunteer_seasons")
+      .select("*")
+      .order("created_at", { ascending: true }),
+  ]);
+
+  throwQueryError("读取志愿者", volunteers.error);
+  throwQueryError("读取志愿者季度", seasons.error);
+
+  const byVolunteer = new Map<string, VolunteerSeason[]>();
+  for (const season of (seasons.data ?? []) as VolunteerSeason[]) {
+    const bucket = byVolunteer.get(season.volunteer_id);
+    if (bucket) bucket.push(season);
+    else byVolunteer.set(season.volunteer_id, [season]);
+  }
+
+  return ((volunteers.data ?? []) as ResolvedVolunteer[]).map((volunteer) => ({
+    ...volunteer,
+    seasons: byVolunteer.get(volunteer.id) ?? [],
+  }));
+}
+
+/**
+ * Volunteers who share a name with a portal account but are not linked, because
+ * their emails differ or one of them has none.
+ *
+ * Deliberately not linked automatically: sharing a name is not evidence of
+ * being the same person — the same reason the import rejects a NAME_MISMATCH
+ * rather than merging. An admin confirms each one.
+ */
+export async function listLinkCandidates(): Promise<
+  { volunteer: ResolvedVolunteer; profile: Profile }[]
+> {
+  const supabase = createClient();
+  const [volunteers, profiles] = await Promise.all([
+    supabase.from("volunteers_resolved").select("*").is("profile_id", null),
+    supabase.from("profiles").select("*"),
+  ]);
+
+  throwQueryError("读取志愿者", volunteers.error);
+  throwQueryError("读取用户资料", profiles.error);
+
+  const byName = new Map<string, Profile>();
+  for (const profile of (profiles.data ?? []) as Profile[]) {
+    const key = profile.full_name?.trim().toLowerCase();
+    if (key) byName.set(key, profile);
+  }
+
+  return ((volunteers.data ?? []) as ResolvedVolunteer[])
+    .map((volunteer) => ({
+      volunteer,
+      profile: byName.get(volunteer.name_key),
+    }))
+    .filter(
+      (pair): pair is { volunteer: ResolvedVolunteer; profile: Profile } =>
+        Boolean(pair.profile),
+    );
+}
+
+/** Confirms (or, with `null`, removes) the link between a volunteer and an account. */
+export function linkVolunteerProfile(
+  id: string,
+  profileId: string | null,
+): Promise<ResolvedVolunteer> {
+  return adminJson<ResolvedVolunteer>(
+    "/api/admin/volunteers/link",
+    "POST",
+    { id, profile_id: profileId },
+    profileId ? "关联门户账号" : "解除关联",
+  );
+}
+
+export type VolunteerSeasonInput = {
+  cohort_id: string;
+  group_id: string | null;
+  is_lead: boolean;
+};
+
+export type VolunteerInput = {
+  full_name: string;
+  email: string | null;
+  wechat_number: string | null;
+  notes: string | null;
+  is_public: boolean;
+  seasons: VolunteerSeasonInput[];
+};
+
+export function createVolunteer(
+  input: VolunteerInput,
+): Promise<VolunteerWithSeasons> {
+  return postAdminJson<VolunteerWithSeasons>(
+    "/api/admin/volunteers",
+    input,
+    "创建志愿者",
+  );
+}
+
+export function updateVolunteer(
+  id: string,
+  input: VolunteerInput,
+): Promise<VolunteerWithSeasons> {
+  return adminJson<VolunteerWithSeasons>(
+    "/api/admin/volunteers",
+    "PATCH",
+    { id, ...input },
+    "更新志愿者",
+  );
+}
+
+export function deleteVolunteer(id: string): Promise<{ id: string }> {
+  return adminJson<{ id: string }>(
+    "/api/admin/volunteers",
+    "DELETE",
+    { id },
+    "删除志愿者",
+  );
+}
+
+export type VolunteerGroupInput = {
+  name: string;
+  description: string | null;
+  sort_order: number;
+  includes_leads: boolean;
+};
+
+export function createVolunteerGroup(
+  input: VolunteerGroupInput,
+): Promise<VolunteerGroup> {
+  return postAdminJson<VolunteerGroup>(
+    "/api/admin/volunteer-groups",
+    input,
+    "创建组别",
+  );
+}
+
+export function updateVolunteerGroup(
+  id: string,
+  input: VolunteerGroupInput,
+): Promise<VolunteerGroup> {
+  return adminJson<VolunteerGroup>(
+    "/api/admin/volunteer-groups",
+    "PATCH",
+    { id, ...input },
+    "更新组别",
+  );
+}
+
+export function deleteVolunteerGroup(id: string): Promise<{ id: string }> {
+  return adminJson<{ id: string }>(
+    "/api/admin/volunteer-groups",
+    "DELETE",
+    { id },
+    "删除组别",
+  );
+}
+
+/** One row of a parsed Excel/CSV file. Seasons and groups are matched by name. */
+export type VolunteerImportRow = {
+  full_name: string;
+  email: string | null;
+  wechat_number: string | null;
+  notes: string | null;
+  is_public: boolean | null;
+  seasons: { season: string; group: string | null; is_lead: boolean }[];
+};
+
+export type VolunteerImportEntry = {
+  row: number;
+  full_name: string;
+  email: string | null;
+  seasons: string[];
+};
+
+export type VolunteerImportError = {
+  row: number;
+  code: string;
+  name?: string;
+  value?: string;
+  detail?: string;
+  /** Chinese, actionable, written by the route handler. */
+  message: string;
+};
+
+export type VolunteerImportResult = {
+  ok: boolean;
+  dry_run: boolean;
+  errors: VolunteerImportError[];
+  added: VolunteerImportEntry[];
+  updated: VolunteerImportEntry[];
+};
+
+/**
+ * `dryRun` validates and classifies every row without writing anything — the
+ * preview step in the import UI. Either way a single bad row rejects the whole
+ * file, so a partial import is not a state the roster can end up in.
+ */
+export function importVolunteers(
+  rows: VolunteerImportRow[],
+  options?: { dryRun?: boolean },
+): Promise<VolunteerImportResult> {
+  return postAdminJson<VolunteerImportResult>(
+    "/api/admin/volunteers/import",
+    { rows, dryRun: options?.dryRun ?? false },
+    options?.dryRun ? "预检志愿者名单" : "导入志愿者名单",
   );
 }
 
