@@ -53,6 +53,9 @@ import {
 import { portalCopy } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import VolunteerDialog from "@/components/portal/VolunteerDialog";
+import VolunteerLinkCandidates from "@/components/portal/VolunteerLinkCandidates";
+import VolunteerGroupsSection from "@/components/portal/VolunteerGroupsSection";
+import Divider from "@mui/material/Divider";
 
 const ALL = "all";
 const STORAGE_KEY = "taxing.portal.volunteers.group";
@@ -459,6 +462,15 @@ function VolunteersPageContent() {
           />
         </Paper>
       )}
+
+      {isAdmin ? (
+        <>
+          <Divider sx={{ my: 5 }} />
+          <VolunteerLinkCandidates />
+          <Divider sx={{ my: 5 }} />
+          <VolunteerGroupsSection />
+        </>
+      ) : null}
 
       <SeasonHistoryDialog
         volunteer={seasonHistory}

@@ -912,3 +912,67 @@ export function importVolunteers(
 export function resetDemoData(): void {
   throw new Error("真实数据模式不支持重置演示数据");
 }
+
+// --- Unified member import -------------------------------------------------
+
+/**
+ * One row of the merged member spreadsheet. `invite` and `is_volunteer` are
+ * what route it: the first decides whether a portal account is offered, the
+ * second whether a volunteer roster record is kept. A row can do both.
+ */
+export type MemberImportRow = {
+  full_name: string;
+  email: string | null;
+  wechat_number: string | null;
+  notes: string | null;
+  is_public: boolean | null;
+  participant_role: ParticipantRole | null;
+  is_admin: boolean;
+  is_volunteer: boolean;
+  invite: boolean;
+  seasons: { season: string; group: string | null; is_lead: boolean }[];
+};
+
+export type MemberImportAction =
+  | "INVITE_ADDED"
+  | "INVITE_UPDATED"
+  | "INVITE_ALREADY_CLAIMED"
+  | "VOLUNTEER_ADDED"
+  | "VOLUNTEER_UPDATED";
+
+export type MemberImportPlan = {
+  row: number;
+  full_name: string;
+  email: string | null;
+  actions: MemberImportAction[];
+  seasons: string[];
+};
+
+export type MemberImportResult = {
+  ok: boolean;
+  dry_run: boolean;
+  errors: VolunteerImportError[];
+  rows: MemberImportPlan[];
+  summary: {
+    invites_added: number;
+    invites_updated: number;
+    volunteers_added: number;
+    volunteers_updated: number;
+  };
+};
+
+/**
+ * `dryRun` plans every row without writing — the preview step, which is where
+ * an admin sees exactly who is about to be given a portal account. Either way a
+ * single bad row rejects the whole file, across both tables.
+ */
+export function importMembers(
+  rows: MemberImportRow[],
+  options?: { dryRun?: boolean },
+): Promise<MemberImportResult> {
+  return postAdminJson<MemberImportResult>(
+    "/api/admin/members/import",
+    { rows, dryRun: options?.dryRun ?? false },
+    options?.dryRun ? "预检成员名单" : "导入成员名单",
+  );
+}

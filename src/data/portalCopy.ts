@@ -160,8 +160,7 @@ export const portalCopy = {
     cohorts: "季度管理",
     roster: "成员名单",
     volunteers: "志愿者名单",
-    adminImport: "名单导入",
-    adminVolunteers: "志愿者管理",
+    adminImport: "成员导入",
     adminSessions: "进度跟踪",
   },
   activities: {
@@ -178,6 +177,7 @@ export const portalCopy = {
     title: "留言板",
     listSubtitle: "选择上方的留言板，浏览并发布你的留言。",
     createButton: "新建留言板",
+    createSeasonHelp: "新留言板归属的季度。还没有留言板的季度也可以选。",
     createTitle: "新建留言板",
     nameLabel: "留言板名称",
     descriptionLabel: "简介（可选）",
@@ -433,6 +433,50 @@ export const portalCopy = {
     save: "保存",
     cancel: "取消",
     editIdentity: (name: string) => `编辑「${name}」的身份`,
+  },
+  memberImport: {
+    title: "成员导入",
+    subtitle: "一份表格，一人一行；「身份」列决定这一行会做什么。",
+    intro:
+      "支持 Excel（.xlsx）与 CSV。必需的列：姓名、身份、季度；可选的列：邮箱、组别、微信、备注、公开、开通门户。",
+    routingHint:
+      "「身份」可填导师、学员、志愿者、管理员，多个用「+」连接（例如「导师+志愿者」）。导师 / 学员 / 管理员会开通门户账号，所以必须有邮箱；志愿者只记入名册，除非把「开通门户」填成「是」—— 也就是说，给志愿者填邮箱只是留联系方式，不会悄悄发出账号。",
+    seasonHint:
+      "「季度」填一个或多个，用分号隔开：2026秋季;2027春季。要给每个季度单独指定组别，写成 2026秋季:运营组;2027春季:项目组；负责人写成 2026秋季:运营组(负责人)。",
+    dedupeHint:
+      "认人规则：有邮箱的按邮箱认，没邮箱的按姓名认。只要有任意一行冲突，两张表都不会写入。",
+    chooseFile: "选择文件",
+    downloadTemplate: "下载模板",
+    templateFileName: "成员导入模板.csv",
+    selected: (name: string, rows: number) => `已选择：${name}（${rows} 行）`,
+    checking: "预检中…",
+    importing: "导入中…",
+    confirmImport: (rows: number) => `确认导入 ${rows} 行`,
+    recheck: "重新选择文件",
+    previewTitle: "预检结果 —— 确认前请看清楚每一行会做什么",
+    resultTitle: "导入结果",
+    accountWarning: (n: number) =>
+      `这次会为 ${n} 个人开通门户账号，他们将可以登录并查看成员信息。请确认名单无误。`,
+    countInvites: (n: number) => `开通账号 ${n}`,
+    countInviteUpdates: (n: number) => `更新门户身份 ${n}`,
+    countVolunteers: (n: number) => `新增志愿者 ${n}`,
+    countVolunteerUpdates: (n: number) => `更新志愿者 ${n}`,
+    blocked: "文件中存在冲突，两张表都没有写入。请按下列提示修改后重新上传。",
+    done: (invites: number, added: number, updated: number) =>
+      `导入完成：开通账号 ${invites} 个，新增志愿者 ${added} 位，更新 ${updated} 位。`,
+  },
+  pendingInvites: {
+    title: "已邀请、待激活",
+    intro:
+      "这些人已经被导入邀请名单，但还没有登录过 —— 在他们首次登录并完善资料之前，成员目录和上面的名单里都不会有他们。列出全部季度，方便去催。",
+    empty: "所有被邀请的成员都已经登录过了。",
+    columns: {
+      name: "姓名",
+      email: "邮箱",
+      identity: "身份",
+      season: "邀请的季度",
+      invitedAt: "邀请时间",
+    },
   },
   persona: {
     label: "当前视角",
