@@ -113,6 +113,7 @@ Errors thrown by `store.ts` are user-facing Chinese strings (`读取项目失败
 - **`src/middleware.ts`** (matches `/` and `/portal/*`) refreshes the Supabase cookie, sends unauthenticated users to `/portal/login?next=…`, sends users without a `profiles` row to `/portal/onboarding`, and forwards a `?code=` landing on `/` to `/portal/auth/callback`. The exception lists `PUBLIC_PORTAL_PATHS` and `PROFILE_OPTIONAL_PATHS` are at the top of the file.
 - **`src/app/portal/layout.tsx`** resolves the user server-side via `getCurrentUser()` and seeds `PortalSessionProvider`. Client code reads `usePortalSession()` for `currentUser`, `role`, `isAdmin`, `isVolunteer`.
 - **`src/lib/auth.ts`** — `requireRole()` throws `"UNAUTHENTICATED"` or `"FORBIDDEN"`; callers map that to a redirect (pages) or a status code (route handlers).
+- **A `profiles` row exists only after the person signs in.** `claim_roster_invite` runs at onboarding, so between the import and their first login somebody has an invitation and nothing else — and every member-facing page reads `profiles`. `/portal/admin/roster` therefore ends with a 已邀请、待激活 list, across all seasons, or those people would be invisible everywhere.
 - **Invite-only.** There is no self-registration. Admins CSV-import into `roster_invites`; a user activates through `/api/auth/first-time` with `PORTAL_ACTIVATION_CODE` (compared with a timing-safe hash) and then completes onboarding.
 
 ---
@@ -147,6 +148,13 @@ Admins manage seasons at `/portal/admin/cohorts` — name, start/end dates, and 
 ---
 
 ## Bulletin board
+
+The season row lists **only seasons that already have a board**. The volunteer
+backfill turned `cohorts` into eleven entries of which three have ever had one,
+and the rest were tabs leading to the same empty state. Creating the *first*
+board of a season still works: `CreateBoardDialog` carries its own season
+picker over the full list, because "which season am I reading" and "which season
+is this new board for" are different questions.
 
 `/portal/board` is a single tabbed page: a season row above a board row, addressed as `?cohort=<id>&board=<id>`. The old `/portal/board/[boardId]` route only redirects into it so existing links keep working. Components live in `src/components/portal/board/`.
 
@@ -255,10 +263,35 @@ import compares on, so either spelling finds the right season.
 
 ### Import
 
-`/portal/admin/volunteers` parses `.xlsx` (ExcelJS, **dynamically imported** so
-its ~1 MB stays out of the bundle) or `.csv` (papaparse) in
-`src/lib/portal/volunteerImport.ts`, then posts normalised rows to
-`/api/admin/volunteers/import` → `admin_import_volunteers` (migration `0010`).
+Members arrive through **one form**, `/portal/admin/import`, whichever kind they
+are. The 身份 column routes each row:
+
+| 身份 | Needs email | Result |
+|---|---|---|
+| 导师 / 学员 / 管理员 | yes | a `roster_invites` row — a portal account |
+| 志愿者 | no | a `volunteers` row |
+| both, or 志愿者 + 开通门户=是 | yes | both, from the one row |
+
+The tables could not merge even if we wanted them to: `claim_roster_invite`
+matches the signed-in user's email against `roster_invites.email`, so the
+address *is* the activation mechanism — an invitation without one can never be
+claimed. Most volunteers have no email, and neither `roster_invites` nor
+`profiles` has anywhere to put a group.
+
+**Granting access stays explicit.** A volunteer-only row creates an invitation
+only when `开通门户` says so, so recording someone's email as a contact detail
+never quietly hands them an account. Portal-only identities do imply one — a
+导师 row with no invitation would be inert. The preview names, per row, exactly
+what will happen, and counts the accounts about to be opened; that preview is a
+safety control, not decoration.
+
+The older `admin_import_volunteers` RPC (`0013`) is left in place — nothing
+calls it now, but it is the fallback if the merged import ever has to be rolled
+back.
+
+`src/lib/portal/memberImport.ts` parses `.xlsx` (ExcelJS, **dynamically imported** so its ~1 MB stays
+out of the bundle) and `.csv` (papaparse), then posts normalised rows to
+`/api/admin/members/import` → `admin_import_members` (migration `0014`).
 
 The RPC validates the entire file before writing anything and **returns every
 failing row at once** — unlike `admin_import_roster`, which raises on the first

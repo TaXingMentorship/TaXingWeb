@@ -174,6 +174,13 @@ Goal: connect the existing UI to a real Supabase project so we can do manual tes
 - [ ] `2025夏季` ends `2026-09-07`, a year after it starts — looks like a typo;
       fix in 季度管理.
 
+### Phase J — 反馈修改
+
+- [x] 两个导入入口合并为一个「成员导入」；组别管理与账号关联移到志愿者名单页。
+- [x] 邀请与志愿者名册合并为一份表格，由「身份」列路由（`0014`）。开通账号
+      保持显式：志愿者填了邮箱不会自动发账号。
+- [x] 留言板只显示已有留言板的季度；建板对话框自带季度选择器。
+
 ### Phase G — Hardening *(after B verified)*
 - [x] **True anonymous posting.** Done in `0009`: reads go through
       `bulletin_posts_readable` / `bulletin_comments_readable`, which null out
