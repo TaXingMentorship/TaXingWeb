@@ -29,6 +29,8 @@ import {
   updateProfile,
 } from "@/lib/portal/store";
 import IdentityCell from "@/components/portal/IdentityCell";
+import PendingInvites from "@/components/portal/PendingInvites";
+import Divider from "@mui/material/Divider";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 export default function RosterPage() {
@@ -350,6 +352,10 @@ export default function RosterPage() {
           )}
         </Stack>
       )}
+      <Divider sx={{ my: 5 }} />
+
+      <PendingInvites />
+
     </Box>
   );
 }
