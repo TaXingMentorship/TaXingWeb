@@ -27,7 +27,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import Alert from "@mui/material/Alert";
 import type { ParticipantRole, Profile } from "@/types/portal";
-import { listCohorts, listProfiles } from "@/lib/portal/store";
+import { listCohorts, listProfiles, listVolunteers } from "@/lib/portal/store";
 import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
@@ -47,6 +47,33 @@ export default function DirectoryPage() {
     queryKey: ["portal", "cohorts"],
     queryFn: listCohorts,
   });
+  const { data: volunteers } = useQuery({
+    queryKey: ["portal", "volunteers"],
+    queryFn: listVolunteers,
+  });
+
+  /**
+   * Profile ids that have a volunteer record behind them.
+   *
+   * This tab used to filter on `p.is_admin || p.is_volunteer`, which listed
+   * every admin as a volunteer — with `is_volunteer` unset on every profile,
+   * the tab showed the admin team and no volunteers at all. Being an admin is
+   * not being a volunteer; the volunteer roster is.
+   */
+  const volunteerProfileIds = React.useMemo(
+    () =>
+      new Set(
+        (volunteers ?? [])
+          .map((volunteer) => volunteer.profile_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    [volunteers],
+  );
+  const isVolunteer = React.useCallback(
+    (profile: Profile) =>
+      profile.is_volunteer || volunteerProfileIds.has(profile.id),
+    [volunteerProfileIds],
+  );
 
   React.useEffect(() => {
     if (!currentUser?.is_admin || cohortId || !cohorts?.length) return;
@@ -76,9 +103,7 @@ export default function DirectoryPage() {
     const q = search.trim().toLowerCase();
     return visible
       .filter((p) =>
-        tab === "volunteer"
-          ? p.is_admin || p.is_volunteer
-          : p.participant_role === tab,
+        tab === "volunteer" ? isVolunteer(p) : p.participant_role === tab,
       )
       .filter((p) =>
         q
@@ -92,7 +117,7 @@ export default function DirectoryPage() {
           ? interests.every((i) => p.interests.includes(i))
           : true,
       );
-  }, [visible, tab, search, interests]);
+  }, [visible, tab, search, interests, isVolunteer]);
 
   return (
     <Box>
@@ -123,7 +148,7 @@ export default function DirectoryPage() {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab value="mentor" label={`导师（${visible.filter((p) => p.participant_role === "mentor").length}）`} />
         <Tab value="mentee" label={`学员（${visible.filter((p) => p.participant_role === "mentee").length}）`} />
-        <Tab value="volunteer" label={`志愿者（${visible.filter((p) => p.is_admin || p.is_volunteer).length}）`} />
+        <Tab value="volunteer" label={`志愿者（${visible.filter(isVolunteer).length}）`} />
       </Tabs>
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 3 }}>

@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code 的本地工具配置（浏览器预览用），与构建和部署无关
+.claude/

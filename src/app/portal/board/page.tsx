@@ -101,19 +101,47 @@ function BoardPageContent() {
     enabled: Boolean(currentUser),
   });
 
+  /**
+   * Every board the viewer may see, fetched once rather than per season — the
+   * season row needs to know which seasons have boards at all, and one request
+   * answers both that and "which boards are in the selected season".
+   */
+  const { data: allBoards, isLoading: boardsLoading } = useQuery({
+    queryKey: ["portal", "boards", "all"],
+    queryFn: () => listBoards(),
+    enabled: Boolean(currentUser),
+  });
+
+  /**
+   * Seasons that actually have a board. Since the volunteer backfill added the
+   * historical seasons, `cohorts` holds eleven entries of which only two have
+   * ever had a board — listing the other nine gave admins a row of tabs that
+   * all led to the same empty state.
+   *
+   * Creating the *first* board of a season still works: CreateBoardDialog
+   * carries its own season picker over the full list.
+   */
+  const seasonsWithBoards = React.useMemo(() => {
+    if (!cohorts) return [];
+    const withBoards = new Set((allBoards ?? []).map((board) => board.cohort_id));
+    return cohorts.filter((cohort: Cohort) => withBoards.has(cohort.id));
+  }, [cohorts, allBoards]);
+
   // Newest season first, so this lands on the current one by default.
   const requestedCohortId = searchParams.get("cohort");
   const selectedCohort = React.useMemo(() => {
-    if (!cohorts || cohorts.length === 0) return null;
-    return cohorts.find((c: Cohort) => c.id === requestedCohortId) ?? cohorts[0];
-  }, [cohorts, requestedCohortId]);
+    if (seasonsWithBoards.length === 0) return null;
+    return (
+      seasonsWithBoards.find((c: Cohort) => c.id === requestedCohortId) ??
+      seasonsWithBoards[0]
+    );
+  }, [seasonsWithBoards, requestedCohortId]);
   const cohortId = selectedCohort?.id ?? null;
 
-  const { data: boards, isLoading: boardsLoading } = useQuery({
-    queryKey: ["portal", "boards", cohortId],
-    queryFn: () => listBoards({ cohortIds: [cohortId!] }),
-    enabled: Boolean(cohortId),
-  });
+  const boards = React.useMemo(
+    () => (allBoards ?? []).filter((board) => board.cohort_id === cohortId),
+    [allBoards, cohortId],
+  );
 
   const { data: counts } = useQuery({
     queryKey: ["portal", "boardCounts", isAdmin],
@@ -361,12 +389,11 @@ function BoardPageContent() {
         {portalCopy.board.listSubtitle}
       </Typography>
 
-      {/* Outside the boards branch: a season with no boards yet must still be
-          switchable, otherwise the user is stranded in it. Rendered even for a
-          single season — it names the season you are looking at. */}
-      {cohorts && cohorts.length > 0 && (
+      {/* Only seasons that have a board. Rendered even for a single season — it
+          names the season you are looking at. */}
+      {seasonsWithBoards.length > 0 && (
         <SeasonTabs
-          cohorts={cohorts}
+          cohorts={seasonsWithBoards}
           selectedId={cohortId}
           onSelect={selectCohort}
         />
@@ -374,7 +401,7 @@ function BoardPageContent() {
 
       {boardsLoading ? (
         <Typography color="text.secondary">{portalCopy.board.loading}</Typography>
-      ) : !boards || boards.length === 0 ? (
+      ) : boards.length === 0 ? (
         <Alert severity="info">{portalCopy.board.empty}</Alert>
       ) : (
         <>
@@ -524,7 +551,8 @@ function BoardPageContent() {
       {isAdmin && (
         <CreateBoardDialog
           open={createOpen}
-          cohortId={cohortId ?? ""}
+          cohortId={cohortId ?? cohorts?.[0]?.id ?? ""}
+          cohorts={cohorts ?? []}
           onClose={() => setCreateOpen(false)}
           onCreated={(board) => {
             setCreateOpen(false);

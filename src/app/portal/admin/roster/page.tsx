@@ -28,7 +28,9 @@ import {
   listSessions,
   updateProfile,
 } from "@/lib/portal/store";
-import { profileLabels } from "@/data/portalCopy";
+import IdentityCell from "@/components/portal/IdentityCell";
+import PendingInvites from "@/components/portal/PendingInvites";
+import Divider from "@mui/material/Divider";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 export default function RosterPage() {
@@ -220,12 +222,7 @@ export default function RosterPage() {
                       <TableCell>{profile.email ?? "—"}</TableCell>
                       <TableCell>{profile.wechat_number ?? "—"}</TableCell>
                       <TableCell>
-                        <Chip
-                          size="small"
-                          label={profileLabels(profile).join(" · ")}
-                          color={profile.participant_role === "mentor" ? "primary" : "default"}
-                          variant="outlined"
-                        />
+                        <IdentityCell profile={profile} />
                       </TableCell>
                       <TableCell align="right">{sessionCount}</TableCell>
                       <TableCell align="center">
@@ -355,6 +352,10 @@ export default function RosterPage() {
           )}
         </Stack>
       )}
+      <Divider sx={{ my: 5 }} />
+
+      <PendingInvites />
+
     </Box>
   );
 }

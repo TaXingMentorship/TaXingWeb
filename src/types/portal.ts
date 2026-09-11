@@ -163,3 +163,109 @@ export type ParticipationRecord = {
   screenshot_path: string | null;
   created_at: string;
 };
+
+// --- Volunteers ------------------------------------------------------------
+
+export type VolunteerGroup = {
+  id: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  /** Automatically contains every lead, not only its own members. */
+  includes_leads: boolean;
+  created_at: string;
+};
+
+/**
+ * A person who has helped run a season. Distinct from `Profile`: almost no
+ * volunteer has a portal account, and `profile_id` is the optional link for the
+ * ones who do.
+ *
+ * `name_key` and `email_key` are database-generated and read-only — they are
+ * the deduplication keys the Excel import matches on (email first, name second).
+ */
+export type Volunteer = {
+  id: string;
+  full_name: string;
+  name_key: string;
+  email: string | null;
+  email_key: string | null;
+  wechat_number: string | null;
+  notes: string | null;
+  /** Whether this volunteer appears in the public /about acknowledgement list. */
+  is_public: boolean;
+  profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Group membership is per season, so moving groups is recorded, not overwritten. */
+export type VolunteerSeason = {
+  id: string;
+  volunteer_id: string;
+  cohort_id: string;
+  group_id: string | null;
+  /**
+   * Led their group that season. Groups flagged `includes_leads` (战略组) list
+   * every lead alongside their own members, which is how one person can be in a
+   * working group and the leadership group at once without needing two rows.
+   */
+  is_lead: boolean;
+  created_at: string;
+};
+
+/** What `listVolunteers()` returns — the volunteer with its seasons joined in. */
+export type VolunteerWithSeasons = Volunteer & {
+  seasons: VolunteerSeason[];
+};
+
+/**
+ * The two columns `volunteers_public` exposes to signed-out visitors. Contact
+ * details are absent from the view itself, not filtered out here.
+ */
+export type PublicVolunteer = {
+  id: string;
+  full_name: string;
+  seasons: string[];
+};
+
+/**
+ * Which identity the portal is being *viewed as*.
+ *
+ * This is a presentation lens, not a permission level: RLS and
+ * `requireApiRole()` both read the real profile, so previewing as a mentee does
+ * not remove an admin's access to anything. See the Persona section of
+ * STRUCTURE.md.
+ */
+export type Persona = "admin" | "mentor" | "mentee" | "volunteer";
+
+/**
+ * A volunteer with the linked portal profile already applied — what
+ * `volunteers_resolved` returns (migration 0012).
+ *
+ * `full_name` / `email` / `wechat_number` come from the profile when the
+ * volunteer is linked to one, and from the volunteer row otherwise. The
+ * `own_*` fields are the volunteer row's own stored values, so the edit dialog
+ * can show what it would fall back to if the link were removed.
+ */
+export type ResolvedVolunteer = {
+  id: string;
+  profile_id: string | null;
+  full_name: string;
+  email: string | null;
+  wechat_number: string | null;
+  avatar_url: string | null;
+  notes: string | null;
+  is_public: boolean;
+  own_full_name: string;
+  own_email: string | null;
+  own_wechat_number: string | null;
+  name_key: string;
+  email_key: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ResolvedVolunteerWithSeasons = ResolvedVolunteer & {
+  seasons: VolunteerSeason[];
+};
