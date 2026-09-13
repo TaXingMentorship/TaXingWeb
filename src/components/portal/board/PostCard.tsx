@@ -5,6 +5,7 @@ import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Avatar from "@mui/material/Avatar";
+import AnonymousAvatar from "@/components/portal/board/AnonymousAvatar";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
@@ -83,12 +84,17 @@ export default function PostCard({
       }}
     >
       <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ mb: 1 }}>
-        <Avatar
-          src={author?.avatar_url ?? undefined}
-          sx={{ width: 32, height: 32, fontSize: 14 }}
-        >
-          {post.is_anonymous ? "匿" : undefined}
-        </Avatar>
+        {/* An anonymous post never renders the author's avatar — admins and the
+            author can resolve `author_id`, and passing it to `src` used to put
+            the real face above 「匿名成员」. */}
+        {post.is_anonymous ? (
+          <AnonymousAvatar seed={post.id} size={32} />
+        ) : (
+          <Avatar
+            src={author?.avatar_url ?? undefined}
+            sx={{ width: 32, height: 32, fontSize: 14 }}
+          />
+        )}
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography variant="body2" fontWeight={700} noWrap>
             {post.is_anonymous

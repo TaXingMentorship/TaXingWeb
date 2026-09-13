@@ -1,14 +1,20 @@
-'use client';
-
 import React from 'react';
 import { Box, Container } from '@mui/material';
 import Image from 'next/image';
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-import { volunteers } from '@/data/volunteers';
 import { aboutPageContent } from '@/data/aboutContent';
-import {HistoryTimeline, VolunteerAccordion } from '@/components/about';
+import { listPublicVolunteers } from '@/lib/publicVolunteers';
+import { HistoryTimeline, VolunteerAccordion } from '@/components/about';
 
-const AboutUs: React.FC = () => {
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
+// The volunteer list comes from Supabase rather than a checked-in array, so the
+// page is regenerated hourly instead of being frozen at build time. Adding a
+// volunteer in the portal shows up here without a deploy.
+export const revalidate = 3600;
+
+const AboutUs = async () => {
+  const volunteers = await listPublicVolunteers();
+
   return (
     <Container maxWidth="lg" sx={{ py: 8 }}>
       <Box sx={{ my: 6, display: 'flex', justifyContent: 'center' }}>

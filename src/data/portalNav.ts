@@ -8,6 +8,7 @@ import ForumIcon from "@mui/icons-material/Forum";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import VolunteerActivismIcon from "@mui/icons-material/VolunteerActivism";
 import type { Profile } from "@/types/portal";
 import { portalCopy } from "./portalCopy";
 
@@ -76,6 +77,13 @@ export const portalNavItems: PortalNavItem[] = [
     description: "发布求助、感谢与成长打卡。",
   },
   {
+    label: portalCopy.nav.volunteers,
+    path: "/portal/volunteers",
+    Icon: VolunteerActivismIcon,
+    access: "all",
+    description: "浏览各组志愿者名单；管理员还可在此维护组别与账号关联。",
+  },
+  {
     label: portalCopy.nav.cohorts,
     path: "/portal/admin/cohorts",
     Icon: CalendarMonthIcon,
@@ -94,7 +102,7 @@ export const portalNavItems: PortalNavItem[] = [
     path: "/portal/admin/import",
     Icon: UploadFileIcon,
     access: "admin",
-    description: "上传 CSV 批量导入导师与学员。",
+    description: "邀请新成员加入门户，或批量导入志愿者名册。",
   },
 ];
 

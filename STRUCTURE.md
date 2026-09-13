@@ -14,7 +14,10 @@ Routes `/`, `/about`, `/past-programs`, `/podcast`, `/join`. Static, no auth, En
 
 - `src/components/sections/` — page-level sections (`HeroSection`, `VolunteersSection`, …)
 - `src/components/common/` — shared UI (`AppBar`, `Card`, `SectionContainer`, `PodcastPlayer`, …)
-- `src/data/` — all copy and content (`aboutContent.ts`, `volunteers.ts`, `pastPrograms.ts`, …)
+- `src/data/` — all copy and content (`aboutContent.ts`, `pastPrograms.ts`, …)
+
+The one exception to "static content lives in `src/data`" is the volunteer
+acknowledgement list on `/about`, which reads Supabase — see **Volunteers** below.
 
 **Convention:** text lives in `src/data`, not in components. For a content or design update, edit the data file first.
 
@@ -89,6 +92,7 @@ Picking the wrong one is the most common mistake in this codebase.
 |---|---|---|
 | `createClient()` in `src/lib/supabase/client.ts` | Browser, RLS enforced | `store.ts`, `uploads.ts` — all client-side reads and user-scoped writes |
 | `createClient()` in `src/lib/supabase/server.ts` | Request-scoped, cookie-backed, RLS enforced | Server Components and Route Handlers acting *as the signed-in user* |
+| `createPublicClient()` in `src/lib/supabase/server.ts` | Anonymous, no cookie, RLS enforced as `anon` | Public marketing pages (`/about` → `volunteers_public`) |
 | `createServiceRoleClient()` in `src/lib/supabase/server.ts` | **Bypasses RLS**, server-only | Admin route handlers only |
 
 ### The `store.ts` seam
@@ -109,6 +113,7 @@ Errors thrown by `store.ts` are user-facing Chinese strings (`读取项目失败
 - **`src/middleware.ts`** (matches `/` and `/portal/*`) refreshes the Supabase cookie, sends unauthenticated users to `/portal/login?next=…`, sends users without a `profiles` row to `/portal/onboarding`, and forwards a `?code=` landing on `/` to `/portal/auth/callback`. The exception lists `PUBLIC_PORTAL_PATHS` and `PROFILE_OPTIONAL_PATHS` are at the top of the file.
 - **`src/app/portal/layout.tsx`** resolves the user server-side via `getCurrentUser()` and seeds `PortalSessionProvider`. Client code reads `usePortalSession()` for `currentUser`, `role`, `isAdmin`, `isVolunteer`.
 - **`src/lib/auth.ts`** — `requireRole()` throws `"UNAUTHENTICATED"` or `"FORBIDDEN"`; callers map that to a redirect (pages) or a status code (route handlers).
+- **A `profiles` row exists only after the person signs in.** `claim_roster_invite` runs at onboarding, so between the import and their first login somebody has an invitation and nothing else — and every member-facing page reads `profiles`. `/portal/admin/roster` therefore ends with a 已邀请、待激活 list, across all seasons, or those people would be invisible everywhere.
 - **Invite-only.** There is no self-registration. Admins CSV-import into `roster_invites`; a user activates through `/api/auth/first-time` with `PORTAL_ACTIVATION_CODE` (compared with a timing-safe hash) and then completes onboarding.
 
 ---
@@ -143,6 +148,13 @@ Admins manage seasons at `/portal/admin/cohorts` — name, start/end dates, and 
 ---
 
 ## Bulletin board
+
+The season row lists **only seasons that already have a board**. The volunteer
+backfill turned `cohorts` into eleven entries of which three have ever had one,
+and the rest were tabs leading to the same empty state. Creating the *first*
+board of a season still works: `CreateBoardDialog` carries its own season
+picker over the full list, because "which season am I reading" and "which season
+is this new board for" are different questions.
 
 `/portal/board` is a single tabbed page: a season row above a board row, addressed as `?cohort=<id>&board=<id>`. The old `/portal/board/[boardId]` route only redirects into it so existing links keep working. Components live in `src/components/portal/board/`.
 
@@ -181,6 +193,191 @@ Consequences for anyone touching this code:
 `profiles` remains cohort-scoped, so an author from another season cannot be resolved even when `author_id` is present. Render that case as `pastMemberName` (「往期成员」), never as `anonymousName` — conflating them would report a named post as anonymous.
 
 `reactionEmojis` in `portalCopy.ts` must stay in sync with the check constraint on `bulletin_reactions.emoji`.
+
+---
+
+## Volunteers
+
+`volunteers` is a **separate table from `profiles`**, and conflating the two is
+the easy mistake here. A profile is a portal account; a volunteer is someone who
+helped run a season, and almost none of them have an account — the 94 rows
+backfilled from the retired `src/data/volunteers.ts` have no email at all.
+`volunteers.profile_id` is the optional link for the ones who do.
+
+The `/portal/directory` "志愿者" tab is unrelated: it filters `profiles` by
+`is_admin || is_volunteer`.
+
+### Shape
+
+| Table | Holds |
+|---|---|
+| `volunteer_groups` | 运营组 / 项目组 / 人事组 / 战略组, plus any group an admin adds. Ordered by `sort_order` |
+| `volunteers` | The person: name, optional email/WeChat/notes, `is_public`, optional `profile_id` |
+| `volunteer_seasons` | `(volunteer_id, cohort_id, group_id)` — participation *and* group membership |
+
+**Group membership hangs off the season, not the volunteer.** Someone in 运营组
+for one season and 项目组 for the next has two rows, and both are kept. Any code
+asking "which group is this person in" has to say *when*.
+
+### Leads, and 战略组
+
+One group per season — but 战略组 overlaps the others, because it is the group
+leads plus whoever belongs to it directly. Rather than relax
+`unique (volunteer_id, cohort_id)` and make every list answer "which group, of
+possibly several", the overlap is modelled as what it is: a role.
+
+- `volunteer_seasons.is_lead` — led their group that season
+- `volunteer_groups.includes_leads` — this group also contains every lead
+
+So a lead of 运营组 in 2026春季 appears under both 运营组 and 战略组 from a single
+row. `includes_leads` is a **column, not a hardcoded name**: 战略组 has no special
+status in the code, and a differently-named leadership group later is a row
+edit. A lead must have a group — leading nothing is meaningless, and the import
+rejects it (`LEAD_WITHOUT_GROUP`).
+
+In the spreadsheet the marker lives inside the season cell —
+`2026春季:运营组(负责人)` — because leadership is per season exactly like the
+group. A separate column could only say "is a lead", never "led 运营组 in
+2026春季".
+
+Seasons reuse `cohorts`, the portal's organising axis, so the eight historical
+volunteer seasons (2020冬季 … 2025夏季) are cohort rows. They carry `starts_at`
+so they sort below the live seasons, and `bulletin_open = false`. They do show
+up in admin cohort pickers.
+
+### Deduplication
+
+`name_key` and `email_key` are generated columns, each with a unique index.
+Email is the primary dedup key and the name is the fallback, because email is
+optional. The name index is what makes "no duplicate records" enforceable —
+two genuinely different people with the same name need a distinguishing suffix,
+which is already the convention in the legacy data (`Julie Spring` vs `julie`).
+
+### Season names
+
+`cohorts` holds two spellings: the portal's own seasons are `2025 春季` and
+`2026 秋季` (with a space), the ones backfilled in `0011` are `2025夏季` and
+`2024冬季` (without). Rather than renaming anyone's season, matching ignores
+internal whitespace — `public.season_key()` (migration `0012`) is what the
+import compares on, so either spelling finds the right season.
+
+### Import
+
+Members arrive through **one form**, `/portal/admin/import`, whichever kind they
+are. The 身份 column routes each row:
+
+| 身份 | Needs email | Result |
+|---|---|---|
+| 导师 / 学员 / 管理员 | yes | a `roster_invites` row — a portal account |
+| 志愿者 | no | a `volunteers` row |
+| both, or 志愿者 + 开通门户=是 | yes | both, from the one row |
+
+The tables could not merge even if we wanted them to: `claim_roster_invite`
+matches the signed-in user's email against `roster_invites.email`, so the
+address *is* the activation mechanism — an invitation without one can never be
+claimed. Most volunteers have no email, and neither `roster_invites` nor
+`profiles` has anywhere to put a group.
+
+**Granting access stays explicit.** A volunteer-only row creates an invitation
+only when `开通门户` says so, so recording someone's email as a contact detail
+never quietly hands them an account. Portal-only identities do imply one — a
+导师 row with no invitation would be inert. The preview names, per row, exactly
+what will happen, and counts the accounts about to be opened; that preview is a
+safety control, not decoration.
+
+The older `admin_import_volunteers` RPC (`0013`) is left in place — nothing
+calls it now, but it is the fallback if the merged import ever has to be rolled
+back.
+
+`src/lib/portal/memberImport.ts` parses `.xlsx` (ExcelJS, **dynamically imported** so its ~1 MB stays
+out of the bundle) and `.csv` (papaparse), then posts normalised rows to
+`/api/admin/members/import` → `admin_import_members` (migration `0014`).
+
+The RPC validates the entire file before writing anything and **returns every
+failing row at once** — unlike `admin_import_roster`, which raises on the first
+problem. A single conflict rejects the whole file, so a partial import is not a
+reachable state. `p_dry_run` runs validation only; the UI always dry-runs first
+and shows the preview before the admin confirms.
+
+Blank cells never erase stored values on an update — clearing a field is done in
+the dialog, where it is unambiguous.
+
+### Linking to portal accounts
+
+`volunteers.profile_id` ties a volunteer to their account. It is set
+**automatically by email** — triggers on both tables (migration `0012`) keep it
+current when either side's email changes, so a link cannot silently rot.
+
+**A shared name is never enough.** Same name is a lead, not proof of same
+person; that is the principle the import's `NAME_MISMATCH` check enforces, and
+linking holds the same line. Name matches surface in
+`/portal/admin/volunteers` for an admin to confirm one by one.
+
+Reads go through `volunteers_resolved`, which coalesces the profile's
+`full_name` / `email` / `wechat_number` / `avatar_url` over the volunteer row's
+own. **The profile wins.** There is no two-way sync — nothing to conflict,
+nothing to overwrite — and because resolution happens at read time the answer
+cannot be stale. The volunteer row's own values remain as `own_*` columns, which
+is what the edit dialog shows as the fallback while the linked fields are
+read-only.
+
+Unlinking an email-matched volunteer is a no-op: the trigger relinks them
+immediately, and correctly — the emails match. Unlink is only meaningful for a
+link an admin confirmed by name.
+
+`volunteers_resolved` is `security_invoker = true`, unlike the 0009 bulletin
+views: it must run as the caller so the existing RLS on `volunteers` and
+`profiles` still applies. It widens no access, it only joins what the caller can
+already read.
+
+### Public list
+
+`/about` reads `volunteers_public`, a SECURITY DEFINER view with exactly two
+meaningful columns (`full_name`, `seasons`) over rows where `is_public`. Since
+0012 the name resolves through the linked profile, so renaming yourself in
+我的资料 updates the public credit. The column list did not change and must not:
+joining `profiles` must never become the route by which an email reaches a page
+anonymous visitors can read. Contact
+details cannot leak there because they are not columns of the view. The page
+uses `createPublicClient()` — cookie-free, so the page stays statically rendered
+with `revalidate = 3600` — and degrades to an empty state rather than throwing
+if the read fails.
+
+---
+
+## Persona switching
+
+A signed-in user can look at the portal through another identity: an admin can
+preview 导师 / 学员 / 志愿者, and anyone holding more than one identity can move
+between their own. The switcher sits in the sidebar; with one identity it hides
+itself.
+
+**It changes what is shown, never what is allowed.** RLS reads the real
+`is_admin`, and `/api/admin/*` authorises through `requireApiRole()` against the
+real profile. An admin previewing as 学员 keeps every privilege they had — the
+sidebar is just quieter. That is why `PersonaBanner` sits at the top of the
+content area for the whole time a preview is active: a hidden admin menu
+otherwise reads as "this account is limited now", which it is not. Do not use it
+to demonstrate permissions or to hand an account to someone else.
+
+The mechanism is a projection in `PortalSessionProvider`:
+
+| Field | Is |
+|---|---|
+| `currentUser` | the profile **with the persona's identity flags substituted** |
+| `realUser` | the profile as stored |
+
+Every page already reads `currentUser.is_admin` / `.participant_role`, and both
+nav surfaces call `canAccessPortalNav(item, currentUser)` — so projecting one
+object made the whole portal persona-aware without touching a page. Keep it that
+way: a new page should read `currentUser`, and reach for `realUser` only to
+render who the person actually is.
+
+The sidebar keeps showing the real name and the real identity above the
+switcher, so "who am I" and "what am I looking through" never get confused.
+
+The choice lives in `sessionStorage` (not `localStorage`): a preview lens should
+not silently survive into next week, and it is cleared on sign-out.
 
 ---
 

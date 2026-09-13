@@ -22,7 +22,7 @@ import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 import OutlinedInput from "@mui/material/OutlinedInput";
 import type { SelectChangeEvent } from "@mui/material/Select";
-import type { BulletinBoard, BulletinCategory } from "@/types/portal";
+import type { BulletinBoard, BulletinCategory, Cohort } from "@/types/portal";
 import { createBoard } from "@/lib/portal/store";
 import { allCategories, categoryLabels, portalCopy } from "@/data/portalCopy";
 
@@ -87,15 +87,27 @@ export default function BoardTabs({
 export function CreateBoardDialog({
   open,
   cohortId,
+  cohorts,
   onClose,
   onCreated,
 }: {
   open: boolean;
-  /** The season currently selected in SeasonTabs — the new board joins it. */
+  /** The season selected in SeasonTabs — the initial choice, not the only one. */
   cohortId: string;
+  /**
+   * Every season, including those with no boards yet.
+   *
+   * The season row only lists seasons that already have a board, so it cannot
+   * be the control that decides where a *new* board goes — the first board of a
+   * season would be impossible to create. Those are two different questions
+   * ("which season am I reading" vs "which season is this board for") and they
+   * get two different controls.
+   */
+  cohorts: Cohort[];
   onClose: () => void;
   onCreated: (board: BulletinBoard) => void;
 }) {
+  const [targetCohortId, setTargetCohortId] = React.useState(cohortId);
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [prompt, setPrompt] = React.useState("");
@@ -113,12 +125,13 @@ export function CreateBoardDialog({
     setAllowAnonymous(true);
     setAllowComments(true);
     setCategories([]);
-  }, [open]);
+    setTargetCohortId(cohortId);
+  }, [open, cohortId]);
 
   const mutation = useMutation({
     mutationFn: () =>
       createBoard({
-        cohort_id: cohortId,
+        cohort_id: targetCohortId,
         name: name.trim(),
         description: description.trim() || null,
         prompt: prompt.trim() || null,
@@ -149,6 +162,20 @@ export function CreateBoardDialog({
           {mutation.isError && (
             <Alert severity="error">{(mutation.error as Error).message}</Alert>
           )}
+          <TextField
+            select
+            label={portalCopy.board.seasonLabel}
+            value={targetCohortId}
+            onChange={(event) => setTargetCohortId(event.target.value)}
+            helperText={portalCopy.board.createSeasonHelp}
+            fullWidth
+          >
+            {cohorts.map((cohort) => (
+              <MenuItem key={cohort.id} value={cohort.id}>
+                {cohort.name}
+              </MenuItem>
+            ))}
+          </TextField>
           <TextField
             label={portalCopy.board.nameLabel}
             value={name}
