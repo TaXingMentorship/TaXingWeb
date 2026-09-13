@@ -26,6 +26,11 @@ npm run start
 
 > No env vars are required today. If you add APIs/domains later, create `.env.local` in the project root and configure as needed.
 
+## Website Deployment
+Deployment are automatically ran by Vercel. A PR with a new branch should trigger a preview deployment for testing. After merging the PRs into production branches, the changes will be in production as well. There are two production branches:
+- Main: The main branch is the out-facing website that does not include the member portal features.
+- agents/portal-production: This is the production branch for the internal website that includes member portal features.
+
 ## Project Structure (summary)
 ```
 src/
