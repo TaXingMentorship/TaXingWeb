@@ -10,6 +10,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import SecretVisibilityToggle from "@/components/portal/SecretVisibilityToggle";
 import { createClient } from "@/lib/supabase/client";
 
 export default function FirstTimePasswordPage() {
@@ -18,6 +19,10 @@ export default function FirstTimePasswordPage() {
   const [activationCode, setActivationCode] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmation, setConfirmation] = React.useState("");
+  const [activationCodeVisible, setActivationCodeVisible] =
+    React.useState(false);
+  const [passwordVisible, setPasswordVisible] = React.useState(false);
+  const [confirmationVisible, setConfirmationVisible] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -96,7 +101,7 @@ export default function FirstTimePasswordPage() {
               />
               <TextField
                 label="共享激活码"
-                type="password"
+                type={activationCodeVisible ? "text" : "password"}
                 autoComplete="off"
                 required
                 fullWidth
@@ -104,10 +109,21 @@ export default function FirstTimePasswordPage() {
                 onChange={(event) => setActivationCode(event.target.value)}
                 disabled={submitting}
                 inputProps={{ minLength: 12 }}
+                InputProps={{
+                  endAdornment: (
+                    <SecretVisibilityToggle
+                      visible={activationCodeVisible}
+                      onToggle={() =>
+                        setActivationCodeVisible((visible) => !visible)
+                      }
+                      name="激活码"
+                    />
+                  ),
+                }}
               />
               <TextField
                 label="设置私人密码"
-                type="password"
+                type={passwordVisible ? "text" : "password"}
                 autoComplete="new-password"
                 required
                 fullWidth
@@ -115,10 +131,19 @@ export default function FirstTimePasswordPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={submitting}
                 inputProps={{ minLength: 8 }}
+                InputProps={{
+                  endAdornment: (
+                    <SecretVisibilityToggle
+                      visible={passwordVisible}
+                      onToggle={() => setPasswordVisible((visible) => !visible)}
+                      name="密码"
+                    />
+                  ),
+                }}
               />
               <TextField
                 label="确认私人密码"
-                type="password"
+                type={confirmationVisible ? "text" : "password"}
                 autoComplete="new-password"
                 required
                 fullWidth
@@ -126,6 +151,17 @@ export default function FirstTimePasswordPage() {
                 onChange={(event) => setConfirmation(event.target.value)}
                 disabled={submitting}
                 inputProps={{ minLength: 8 }}
+                InputProps={{
+                  endAdornment: (
+                    <SecretVisibilityToggle
+                      visible={confirmationVisible}
+                      onToggle={() =>
+                        setConfirmationVisible((visible) => !visible)
+                      }
+                      name="确认密码"
+                    />
+                  ),
+                }}
               />
               <Button
                 type="submit"
