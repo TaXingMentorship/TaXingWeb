@@ -9,6 +9,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import SecretVisibilityToggle from "@/components/portal/SecretVisibilityToggle";
 import { createClient } from "@/lib/supabase/client";
 
 function safeNextPath(value: string | null) {
@@ -23,6 +24,7 @@ export default function PortalLoginPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [passwordVisible, setPasswordVisible] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -81,13 +83,22 @@ export default function PortalLoginPage() {
               />
               <TextField
                 label="密码"
-                type="password"
+                type={passwordVisible ? "text" : "password"}
                 autoComplete="current-password"
                 required
                 fullWidth
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={submitting}
+                InputProps={{
+                  endAdornment: (
+                    <SecretVisibilityToggle
+                      visible={passwordVisible}
+                      onToggle={() => setPasswordVisible((visible) => !visible)}
+                      name="密码"
+                    />
+                  ),
+                }}
               />
               <Stack direction="row" justifyContent="space-between">
                 <Button
