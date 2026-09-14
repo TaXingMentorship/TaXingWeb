@@ -1,0 +1,194 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import Box from "@mui/material/Box";
+import Drawer from "@mui/material/Drawer";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
+import Divider from "@mui/material/Divider";
+import Avatar from "@mui/material/Avatar";
+import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
+import IconButton from "@mui/material/IconButton";
+import AppBar from "@mui/material/AppBar";
+import MenuIcon from "@mui/icons-material/Menu";
+import LogoutIcon from "@mui/icons-material/Logout";
+import CircularProgress from "@mui/material/CircularProgress";
+import { useTheme } from "@mui/material/styles";
+import { portalCopy, profileLabels } from "@/data/portalCopy";
+import { canAccessPortalNav, portalNavItems } from "@/data/portalNav";
+import { usePortalSession } from "@/components/portal/PortalSessionProvider";
+import PersonaSwitcher from "@/components/portal/PersonaSwitcher";
+
+const DRAWER_WIDTH = 248;
+
+export default function PortalShell({ children }: { children: React.ReactNode }) {
+  const theme = useTheme();
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const pathname = usePathname();
+  const { currentUser, realUser, loading, signOut } = usePortalSession();
+
+  if (
+    pathname === "/portal/login" ||
+    pathname === "/portal/auth/callback" ||
+    pathname === "/portal/onboarding" ||
+    pathname.startsWith("/portal/password/")
+  ) {
+    return <>{children}</>;
+  }
+
+  const visibleItems = portalNavItems.filter((item) =>
+    canAccessPortalNav(item, currentUser),
+  );
+
+  const drawerContent = (
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Box sx={{ px: 2.5, py: 2.5 }}>
+        <Typography variant="h6" fontWeight={800} color="secondary.main">
+          {portalCopy.brand}
+        </Typography>
+        <Chip
+          size="small"
+          label={portalCopy.prototypeBadge}
+          color="warning"
+          variant="outlined"
+          sx={{ mt: 1 }}
+        />
+      </Box>
+      <Divider />
+      {realUser && (
+        <>
+          {/* Name, avatar and the real identity never follow the persona —
+              otherwise the switcher would misreport who you are. */}
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 2.5, pt: 2, pb: 1.5 }}>
+            <Avatar src={realUser.avatar_url ?? undefined} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body1" fontWeight={700} lineHeight={1.2} sx={{ wordBreak: "break-word" }}>
+                {realUser.full_name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {portalCopy.account.loggedInAs}：{profileLabels(realUser).join(" · ")}
+              </Typography>
+            </Box>
+          </Stack>
+          <PersonaSwitcher />
+        </>
+      )}
+      <Divider />
+      <List sx={{ flexGrow: 1, px: 1 }}>
+        {visibleItems.map((item) => {
+          const selected =
+            item.path === "/portal"
+              ? pathname === "/portal"
+              : pathname.startsWith(item.path);
+          return (
+            <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                component={Link}
+                href={item.path}
+                selected={selected}
+                onClick={() => setMobileOpen(false)}
+                sx={{ borderRadius: 2 }}
+              >
+                <ListItemIcon sx={{ minWidth: 40 }}>
+                  <item.Icon />
+                </ListItemIcon>
+                <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
+      </List>
+      <Divider />
+      <List sx={{ px: 1 }}>
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => void signOut()} sx={{ borderRadius: 2 }}>
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <LogoutIcon />
+            </ListItemIcon>
+            <ListItemText primary="退出登录" />
+          </ListItemButton>
+        </ListItem>
+      </List>
+    </Box>
+  );
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: { xs: "column", md: "row" },
+        minHeight: "calc(100vh - 64px)",
+      }}
+    >
+      {/* Rendered always, toggled with CSS — branching on useMediaQuery made
+          the server and client emit different markup, which broke hydration
+          and left the whole portal non-interactive in some viewports. */}
+      <AppBar
+        position="sticky"
+        color="default"
+        elevation={1}
+        sx={{ top: 0, display: { xs: "block", md: "none" } }}
+      >
+        <Toolbar>
+          <IconButton edge="start" onClick={() => setMobileOpen(true)} aria-label="打开菜单">
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6" fontWeight={800} color="secondary.main" sx={{ ml: 1 }}>
+            {portalCopy.brand}
+          </Typography>
+        </Toolbar>
+      </AppBar>
+
+      <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
+        <Drawer
+          variant="permanent"
+          open
+          sx={{
+            display: { xs: "none", md: "block" },
+            "& .MuiDrawer-paper": {
+              width: DRAWER_WIDTH,
+              boxSizing: "border-box",
+              position: "static",
+              height: "auto",
+              minHeight: "100%",
+              borderRight: `1px solid ${theme.palette.divider}`,
+            },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
+
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          ModalProps={{ keepMounted: true }}
+          sx={{
+            display: { xs: "block", md: "none" },
+            "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
+      </Box>
+
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 4 }, maxWidth: "100%" }}>
+        {loading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          children
+        )}
+      </Box>
+    </Box>
+  );
+}

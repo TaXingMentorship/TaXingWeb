@@ -1,11 +1,13 @@
+'use client';
+
 import React from 'react';
 import { Accordion, AccordionSummary, AccordionDetails, Typography, Box } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { Volunteer } from '@/types/volunteer';
+import { PublicVolunteer } from '@/types/portal';
 
 interface VolunteerAccordionProps {
   title: string;
-  volunteers: Volunteer[];
+  volunteers: PublicVolunteer[];
 }
 
 const VolunteerAccordion: React.FC<VolunteerAccordionProps> = ({ title, volunteers }) => {
@@ -31,29 +33,35 @@ const VolunteerAccordion: React.FC<VolunteerAccordionProps> = ({ title, voluntee
         </Box>
       </AccordionSummary>
       <AccordionDetails sx={{ bgcolor: '#f8f9fa', pt: 0 }}>
-        <Box>
-          {volunteers.map((volunteer, index) => (
-            <Box
-              key={volunteer.name}
-              sx={{
-                py: 2,
-                borderBottom: index < volunteers.length - 1 ? '1px solid #e0e0e0' : 'none',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 2
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>
-                {volunteer.name}
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                {volunteer.participation}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
+        {volunteers.length === 0 ? (
+          <Typography variant="body1" color="text.secondary" sx={{ py: 2 }}>
+            志愿者名单暂时无法加载，请稍后再试。
+          </Typography>
+        ) : (
+          <Box>
+            {volunteers.map((volunteer, index) => (
+              <Box
+                key={volunteer.id}
+                sx={{
+                  py: 2,
+                  borderBottom: index < volunteers.length - 1 ? '1px solid #e0e0e0' : 'none',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 2
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 'medium', wordBreak: 'break-word' }}>
+                  {volunteer.full_name}
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                  {volunteer.seasons.join('、')}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        )}
       </AccordionDetails>
     </Accordion>
   );
