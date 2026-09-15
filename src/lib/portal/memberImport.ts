@@ -91,7 +91,8 @@ type Identity = {
 
 const MENTOR = new Set(["导师", "mentor"]);
 const MENTEE = new Set(["学员", "mentee"]);
-const ADMIN = new Set(["管理员", "admin"]);
+// 「管理员」 is the old spelling; spreadsheets written before the rename still import.
+const ADMIN = new Set(["负责人", "管理员", "admin"]);
 const VOLUNTEER = new Set(["志愿者", "volunteer"]);
 
 /**
@@ -109,7 +110,7 @@ export function parseIdentity(cell: string): Identity {
     .filter(Boolean);
 
   if (tokens.length === 0) {
-    throw new MemberParseError("身份不能为空。可填写：导师、学员、志愿者、管理员，多个用「+」连接。");
+    throw new MemberParseError("身份不能为空。可填写：导师、学员、志愿者、负责人，多个用「+」连接。");
   }
 
   const identity: Identity = { participant_role: null, is_admin: false, is_volunteer: false };
@@ -130,7 +131,7 @@ export function parseIdentity(cell: string): Identity {
       identity.is_volunteer = true;
     } else {
       throw new MemberParseError(
-        `无法识别的身份「${token}」。可填写：导师、学员、志愿者、管理员，多个用「+」连接。`,
+        `无法识别的身份「${token}」。可填写：导师、学员、志愿者、负责人，多个用「+」连接。`,
       );
     }
   }

@@ -29,6 +29,8 @@ import {
 } from "@/lib/portal/uploads";
 import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
+import MyVolunteerSection from "@/components/portal/MyVolunteerSection";
+import { useCompleteTasksLinkingTo } from "@/components/portal/useMyTasks";
 
 const interestSuggestions = [
   "产品管理",
@@ -50,9 +52,11 @@ const interestSuggestions = [
 ];
 
 export default function MyProfilePage() {
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
   const queryClient = useQueryClient();
   const userId = currentUser?.id;
+  // A 「完善志愿者信息」 task links here; saving anything on this page closes it.
+  const completeProfileTasks = useCompleteTasksLinkingTo("/portal/me");
 
   const { data: profile } = useQuery({
     queryKey: ["portal", "profile", userId],
@@ -77,6 +81,7 @@ export default function MyProfilePage() {
       queryClient.invalidateQueries({ queryKey: ["portal", "profiles"] });
       queryClient.invalidateQueries({ queryKey: ["portal", "currentUser"] });
       setToast(true);
+      completeProfileTasks();
     },
   });
 
@@ -341,6 +346,17 @@ export default function MyProfilePage() {
             </Stack>
           </Paper>
         </Grid>
+        {/* The volunteer record hangs off the real account, whichever persona
+            is being previewed. */}
+        {realUser && (
+          <Grid size={{ xs: 12, md: 8 }}>
+            <MyVolunteerSection
+              profileId={realUser.id}
+              isVolunteer={realUser.is_volunteer}
+              onSaved={completeProfileTasks}
+            />
+          </Grid>
+        )}
       </Grid>
 
       <Snackbar

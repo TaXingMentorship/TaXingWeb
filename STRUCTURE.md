@@ -330,6 +330,16 @@ views: it must run as the caller so the existing RLS on `volunteers` and
 `profiles` still applies. It widens no access, it only joins what the caller can
 already read.
 
+### Self-service
+
+A volunteer with a linked account sees a 志愿者信息 block on `/portal/me`
+listing her seasons, and can change the **group** on each one. That is the
+whole surface: adding or removing a season and the `is_lead` mark stay with
+admins. The write goes through `set_my_volunteer_group()` (migration `0016`)
+rather than an UPDATE policy — RLS cannot say "this column but not those" —
+and every change lands in `volunteer_season_changes`, which admins see at the
+bottom of the edit dialog. The block is keyed on `realUser`, not the persona.
+
 ### Public list
 
 `/about` reads `volunteers_public`, a SECURITY DEFINER view with exactly two
@@ -342,6 +352,34 @@ details cannot leak there because they are not columns of the view. The page
 uses `createPublicClient()` — cookie-free, so the page stays statically rendered
 with `revalidate = 3600` — and degrades to an empty state rather than throwing
 if the read fails.
+
+---
+
+## Tasks
+
+Admin-assigned to-dos that show up as reminders in the portal (migration
+`0017`): a 待办提醒 strip on `/portal`, a count badge on 我的任务 in the sidebar,
+and `/portal/tasks` itself. Admins create them at `/portal/admin/tasks`.
+
+`tasks` is the thing to do; `task_assignments` is one row per recipient.
+**Recipients are volunteer records, not accounts** — most volunteers have no
+account, and a task assigned before someone activates must be waiting for her
+afterwards. The assignee is resolved at read time through
+`volunteers.profile_id` (`is_my_assignment()`), so activation makes the task
+appear with no re-assignment. The create dialog counts recipients without an
+account for the same reason: a reminder nobody can see should not look sent.
+`task_assignments.profile_id` is the direct form for non-volunteers; nothing
+uses it yet.
+
+Writes follow the usual split. `/api/admin/tasks` creates task + recipients
+(the dialog expands 整组 / 全季度 client-side and posts the exact list it
+previews) and deletes. A recipient can only complete or reopen her own row,
+through `set_my_task_done()`. Saving anything on `/portal/me` also closes
+pending tasks whose `link` is `/portal/me` (`useCompleteTasksLinkingTo`).
+Links are validated to be portal paths — a reminder never leads off-site.
+
+`useMyTasks` is the one query behind all three reader surfaces so the counts
+agree; it is keyed on `realUser` because tasks are not a persona thing.
 
 ---
 

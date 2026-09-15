@@ -15,6 +15,7 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import { listCohorts } from "@/lib/portal/store";
 import { profileLabels } from "@/data/portalCopy";
 import { canAccessPortalNav, portalNavItems } from "@/data/portalNav";
+import TaskReminderCard from "@/components/portal/TaskReminderCard";
 
 export default function PortalHomePage() {
   const { currentUser } = usePortalSession();
@@ -46,6 +47,8 @@ export default function PortalHomePage() {
           所在项目：{myCohorts.map((c) => c.name).join("、")}
         </Typography>
       )}
+
+      <TaskReminderCard />
 
       <Grid container spacing={2}>
         {visibleTiles.map((tile) => (

@@ -9,6 +9,8 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import VolunteerActivismIcon from "@mui/icons-material/VolunteerActivism";
+import ChecklistIcon from "@mui/icons-material/Checklist";
+import AssignmentIcon from "@mui/icons-material/Assignment";
 import type { Profile } from "@/types/portal";
 import { portalCopy } from "./portalCopy";
 
@@ -49,6 +51,13 @@ export const portalNavItems: PortalNavItem[] = [
     description: "完善个人资料，填写微信号方便联系。",
   },
   {
+    label: portalCopy.nav.tasks,
+    path: "/portal/tasks",
+    Icon: ChecklistIcon,
+    access: "all",
+    description: "查看负责人分配给你的待办事项。",
+  },
+  {
     label: portalCopy.nav.activities,
     path: "/portal/activities",
     Icon: EventIcon,
@@ -81,7 +90,14 @@ export const portalNavItems: PortalNavItem[] = [
     path: "/portal/volunteers",
     Icon: VolunteerActivismIcon,
     access: "all",
-    description: "浏览各组志愿者名单；管理员还可在此维护组别与账号关联。",
+    description: "浏览各组志愿者名单；负责人还可在此维护组别与账号关联。",
+  },
+  {
+    label: portalCopy.nav.adminTasks,
+    path: "/portal/admin/tasks",
+    Icon: AssignmentIcon,
+    access: "admin",
+    description: "给志愿者分配任务，并查看完成情况。",
   },
   {
     label: portalCopy.nav.cohorts,

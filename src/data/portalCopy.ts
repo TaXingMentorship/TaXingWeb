@@ -10,7 +10,7 @@ import type {
 /** Centralized Simplified-Chinese copy for the portal. */
 
 export const roleLabels: Record<UserRole, string> = {
-  admin: "管理员",
+  admin: "负责人",
   mentor: "导师",
   mentee: "学员",
 };
@@ -162,6 +162,95 @@ export const portalCopy = {
     volunteers: "志愿者名单",
     adminImport: "成员导入",
     adminSessions: "进度跟踪",
+    tasks: "我的任务",
+    adminTasks: "任务管理",
+  },
+  tasks: {
+    title: "我的任务",
+    subtitle: "负责人分配给你的待办事项。处理完后记得标记完成。",
+    pendingTab: "待办",
+    doneTab: "已完成",
+    empty: "暂时没有待办任务。",
+    emptyDone: "还没有完成过的任务。",
+    loading: "加载中…",
+    go: "去处理",
+    markDone: "标记完成",
+    reopen: "重新打开",
+    dueOn: (date: string) => `截止 ${date}`,
+    overdue: "已逾期",
+    completedAt: (date: string) => `完成于 ${date}`,
+    // Home-page reminder card
+    reminderTitle: "待办提醒",
+    reminderCount: (n: number) => `你有 ${n} 项待办任务`,
+    reminderAll: "查看全部",
+  },
+  adminTasks: {
+    title: "任务管理",
+    subtitle: "给志愿者分配任务，她们会在门户首页和「我的任务」里收到提醒。",
+    adminOnly: "仅负责人可访问任务管理。",
+    newButton: "新建任务",
+    empty: "还没有分配过任务。",
+    loading: "加载中…",
+    columns: {
+      title: "任务",
+      recipients: "接收人",
+      progress: "完成情况",
+      due: "截止",
+      created: "创建时间",
+      actions: "操作",
+    },
+    progress: (done: number, total: number) => `${done} / ${total} 已完成`,
+    noAccount: (n: number) => `${n} 人尚未开通门户`,
+    noDue: "无",
+    deleteButton: "删除",
+    deleteTitle: "删除任务",
+    deleteConfirm: (title: string) =>
+      `确定要删除「${title}」吗？所有接收人的这条任务和完成记录都会一并删除。`,
+    deleteAction: "确认删除",
+    cancel: "取消",
+
+    // Recipients detail
+    detailTitle: "完成情况",
+    statusDone: "已完成",
+    statusPending: "待办",
+    statusNoAccount: "未开通门户",
+    statusNoAccountHint: "开通门户账号后就会看到这条任务，不需要重新分配。",
+
+    // Create dialog
+    createTitle: "新建任务",
+    presetLabel: "常用任务",
+    presetCustom: "自定义",
+    presets: [
+      {
+        key: "profile",
+        title: "完善志愿者信息",
+        description: "请到「我的资料」检查你的昵称、微信号，并确认参与季度与所在组别是否正确。",
+        link: "/portal/me",
+      },
+    ],
+    titleLabel: "任务标题",
+    descriptionLabel: "任务说明",
+    linkLabel: "跳转链接",
+    linkHelper: "选填。门户内的路径，例如 /portal/me；接收人点「去处理」会跳转过去。",
+    dueLabel: "截止日期",
+    recipientsLabel: "接收人",
+    recipientModeLabel: "选择方式",
+    recipientModes: {
+      individuals: "指定志愿者",
+      group: "某季度的一个组",
+      season: "某季度全部志愿者",
+    },
+    seasonLabel: "季度",
+    groupLabel: "组别",
+    volunteersLabel: "志愿者",
+    volunteersPlaceholder: "搜索姓名…",
+    previewCount: (n: number) => `将分配给 ${n} 位志愿者`,
+    previewNoAccount: (n: number) =>
+      `其中 ${n} 位还没有开通门户账号，暂时看不到提醒；开通后会自动看到。`,
+    previewEmpty: "还没有选择接收人。",
+    titleRequired: "请填写任务标题。",
+    recipientsRequired: "请至少选择一位接收人。",
+    create: "创建并分配",
   },
   activities: {
     title: "本期活动",
@@ -189,7 +278,7 @@ export const portalCopy = {
     postCount: "条留言",
     closed: "仅浏览",
     empty: "当前还没有留言板。",
-    adminOnlyCreate: "只有管理员可以新建留言板。",
+    adminOnlyCreate: "只有负责人可以新建留言板。",
     emptyWall: "还没有留言，来发布第一条吧！",
     emptyWallReadOnly: "这个留言板还没有留言。",
     loading: "加载中…",
@@ -207,7 +296,7 @@ export const portalCopy = {
     anonymousLabel: "匿名发布",
     // Deliberately does not promise full anonymity: `author_id` is still
     // readable through the API. See PLAN.md Phase G.
-    anonymousHint: "其他成员不会看到你的名字，管理员仍可查看以便处理不当内容。",
+    anonymousHint: "其他成员不会看到你的名字，负责人仍可查看以便处理不当内容。",
     anonymousName: "匿名成员",
     // Cross-season authors: `profiles` stays cohort-scoped, so their name is
     // unresolvable. Must read differently from a genuinely anonymous post.
@@ -265,6 +354,9 @@ export const portalCopy = {
     unset: "未设置",
     archived: "已归档",
     memberCount: "成员",
+    memberCountHint: "有门户账号、且加入了该季度的导师 / 学员 / 负责人。",
+    volunteerCount: "志愿者",
+    volunteerCountHint: "志愿者名单里参与了该季度的人，不要求有门户账号。",
     boardCount: "留言板",
     actions: "操作",
     edit: "编辑",
@@ -272,7 +364,7 @@ export const portalCopy = {
     cancel: "取消",
     empty: "还没有任何季度，先新建一个。",
     loading: "加载中…",
-    adminOnly: "仅管理员可访问季度管理。",
+    adminOnly: "仅负责人可访问季度管理。",
     nameRequired: "请填写季度名称。",
     endBeforeStart: "结束日期不能早于开始日期。",
     // Deletion is intentionally absent: eight tables cascade from `cohorts`,
@@ -302,7 +394,7 @@ export const portalCopy = {
     notPublicHint: "不会出现在官网的志愿者致谢名单里",
     count: (n: number) => `共 ${n} 位志愿者`,
     empty: "没有符合条件的志愿者。",
-    emptyAll: "还没有志愿者记录。管理员可以在「志愿者管理」中批量导入。",
+    emptyAll: "还没有志愿者记录。负责人可以在「志愿者管理」中批量导入。",
     loading: "加载中…",
 
     // Create / edit dialog
@@ -316,6 +408,7 @@ export const portalCopy = {
     wechatLabel: "微信号",
     notesLabel: "备注",
     isPublicLabel: "在官网致谢名单中公开显示",
+    publicHint: "会出现在官网的志愿者致谢名单里",
     seasonsLabel: "参与季度与组别",
     seasonsHelper: "至少选择一个季度。同一位志愿者在不同季度可以属于不同的组。",
     addSeason: "添加季度",
@@ -334,7 +427,7 @@ export const portalCopy = {
       `确定要删除「${name}」吗？该志愿者的季度与组别记录会一并删除，且无法恢复。`,
     deleteAction: "确认删除",
 
-    adminOnly: "仅管理员可以添加、编辑或删除志愿者。",
+    adminOnly: "仅负责人可以添加、编辑或删除志愿者。",
 
     // Profile linking
     linkedChip: "已关联门户账号",
@@ -352,11 +445,29 @@ export const portalCopy = {
     leadHint: "标记为该季度所在组的负责人。负责人会自动出现在战略组名单里。",
     leadChip: "负责人",
     includesLeadsHint: "本组自动包含当季所有负责人",
+
+    // Self-service change log, shown to admins in the edit dialog
+    changesTitle: "组别修改记录",
+    changesHint: "志愿者本人在「我的资料」里做的修改。",
+    changesEmpty: "暂无修改记录。",
+    changeLine: (from: string, to: string) => `${from} → ${to}`,
+  },
+  myVolunteer: {
+    title: "志愿者信息",
+    subtitle: "你参与过的季度与所在的组别。可以修改组别；新增或移除季度请联系负责人。",
+    noRecord: "还没有关联到你的志愿者记录，请联系负责人。",
+    seasonColumn: "季度",
+    groupColumn: "组别",
+    noGroup: "未分组",
+    leadChip: "负责人",
+    leadHint: "负责人必须属于一个组别。",
+    saved: "组别已更新",
+    loading: "加载中…",
   },
   adminVolunteers: {
     title: "志愿者管理",
     subtitle: "批量导入志愿者名单，并维护组别。",
-    adminOnly: "仅管理员可访问志愿者管理。",
+    adminOnly: "仅负责人可访问志愿者管理。",
 
     // Import
     importTitle: "批量导入",
@@ -419,17 +530,17 @@ export const portalCopy = {
   },
   roster: {
     identityTitle: "编辑身份",
-    identityHint: "导师与学员互斥；管理员与志愿者是独立的标记。",
+    identityHint: "导师与学员互斥；负责人与志愿者是独立的标记。",
     identityLabels: {
       mentor: "导师",
       mentee: "学员",
-      admin: "管理员",
+      admin: "负责人",
       volunteer: "志愿者",
     },
     identityNone: "暂无身份",
     identityRequired: "每位成员至少需要一种身份。",
     identitySelfAdminWarning:
-      "这会移除你自己的管理员身份，之后你将无法再打开这个页面。",
+      "这会移除你自己的负责人身份，之后你将无法再打开这个页面。",
     save: "保存",
     cancel: "取消",
     editIdentity: (name: string) => `编辑「${name}」的身份`,
@@ -440,7 +551,7 @@ export const portalCopy = {
     intro:
       "支持 Excel（.xlsx）与 CSV。必需的列：姓名、身份、季度；可选的列：邮箱、组别、微信、备注、公开、开通门户。",
     routingHint:
-      "「身份」可填导师、学员、志愿者、管理员，多个用「+」连接（例如「导师+志愿者」）。导师 / 学员 / 管理员会开通门户账号，所以必须有邮箱；志愿者只记入名册，除非把「开通门户」填成「是」—— 也就是说，给志愿者填邮箱只是留联系方式，不会悄悄发出账号。",
+      "「身份」可填导师、学员、志愿者、负责人，多个用「+」连接（例如「导师+志愿者」）。导师 / 学员 / 负责人会开通门户账号，所以必须有邮箱；志愿者只记入名册，除非把「开通门户」填成「是」—— 也就是说，给志愿者填邮箱只是留联系方式，不会悄悄发出账号。",
     seasonHint:
       "「季度」填一个或多个，用分号隔开：2026秋季;2027春季。要给每个季度单独指定组别，写成 2026秋季:运营组;2027春季:项目组；负责人写成 2026秋季:运营组(负责人)。",
     dedupeHint:
@@ -482,7 +593,7 @@ export const portalCopy = {
     label: "当前视角",
     switchTo: "切换视角",
     options: {
-      admin: "管理员",
+      admin: "负责人",
       mentor: "导师",
       mentee: "学员",
       volunteer: "志愿者",

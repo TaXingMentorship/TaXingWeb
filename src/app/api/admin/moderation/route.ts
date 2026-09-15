@@ -83,7 +83,7 @@ export async function PATCH(request: Request) {
     const denied = await authorizeAuthorOrAdmin(
       TABLES.post,
       id,
-      "只有发布者本人或管理员可以标记已解答。",
+      "只有发布者本人或负责人可以标记已解答。",
     );
     if (denied) return denied;
   } else {
@@ -125,7 +125,7 @@ export async function DELETE(request: Request) {
   const denied = await authorizeAuthorOrAdmin(
     table,
     id,
-    "只有发布者本人或管理员可以删除。",
+    "只有发布者本人或负责人可以删除。",
   );
   if (denied) return denied;
 

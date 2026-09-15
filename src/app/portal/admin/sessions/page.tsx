@@ -211,7 +211,7 @@ function MenteeView({
             我的交流记录（{sessions?.length ?? 0}）
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            由导师或管理员录入，展示你参与的所有交流场次。
+            由导师或负责人录入，展示你参与的所有交流场次。
           </Typography>
           {sessions && sessions.length > 0 ? (
             <Table size="small">
@@ -518,7 +518,7 @@ function StaffView({
             </Typography>
             {mentorBlocked && (
               <Alert severity="warning" sx={{ mb: 2 }}>
-                管理员尚未上传本项目的配对结果，暂时无法记录交流。
+                负责人尚未上传本项目的配对结果，暂时无法记录交流。
               </Alert>
             )}
             <Stack spacing={2}>

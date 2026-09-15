@@ -47,10 +47,10 @@ export async function PATCH(request: Request) {
       .select("*", { count: "exact", head: true })
       .eq("is_admin", true)
       .neq("id", id);
-    if (countError) return databaseError("检查管理员数量", countError.message);
+    if (countError) return databaseError("检查负责人数量", countError.message);
     if ((count ?? 0) === 0) {
       return invalidBody(
-        "这是最后一位管理员，不能取消其管理员身份 —— 否则没有人能再进入管理页面。请先指定另一位管理员。",
+        "这是最后一位负责人，不能取消其负责人身份 —— 否则没有人能再进入管理页面。请先指定另一位负责人。",
       );
     }
   }

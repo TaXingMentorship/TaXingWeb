@@ -33,7 +33,7 @@ function claimError(message: string) {
     return "没有找到与当前登录邮箱匹配的有效邀请。";
   }
   if (message.includes("INVITE_ROLE_CONFLICT")) {
-    return "该邮箱存在身份冲突，请联系管理员处理。";
+    return "该邮箱存在身份冲突，请联系负责人处理。";
   }
   if (message.includes("INVALID_PROFILE")) {
     return "请填写有效的姓名。";
