@@ -257,7 +257,6 @@ export const portalCopy = {
     seasonOpenToggle: "本季度留言板开放",
 
     // Gating
-    volunteerReadOnly: "志愿者账号可浏览留言，但不能发布内容。",
     boardClosed: "该留言板当前已关闭，仅可浏览。",
     seasonArchived: "本季度活动已结束，留言板仅可浏览。",
     otherSeasonReadOnly: "你不是本季度的成员，可以浏览往期内容，但不能发布或互动。",

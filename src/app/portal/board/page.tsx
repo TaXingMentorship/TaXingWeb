@@ -93,7 +93,12 @@ function BoardPageContent() {
   const searchParams = useSearchParams();
 
   const isAdmin = currentUser?.is_admin ?? false;
-  const canPost = isAdmin || Boolean(currentUser?.participant_role);
+  // Mirrors the insert policies (migration 0015): admins, participants and
+  // volunteers may write; a non-member of the season is filtered out below.
+  const canPost =
+    isAdmin ||
+    Boolean(currentUser?.participant_role) ||
+    Boolean(currentUser?.is_volunteer);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [editingBoard, setEditingBoard] = React.useState<BulletinBoard | null>(
     null,
@@ -530,14 +535,10 @@ function BoardPageContent() {
                 <Alert severity="info" sx={{ mb: 2 }}>
                   {portalCopy.board.otherSeasonReadOnly}
                 </Alert>
-              ) : !selectedBoard.is_open ? (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  {portalCopy.board.boardClosed}
-                </Alert>
               ) : (
-                !canPost && (
+                !selectedBoard.is_open && (
                   <Alert severity="warning" sx={{ mb: 2 }}>
-                    {portalCopy.board.volunteerReadOnly}
+                    {portalCopy.board.boardClosed}
                   </Alert>
                 )
               )}
