@@ -1,4 +1,4 @@
-export { default as BoardTabs, CreateBoardDialog } from "./BoardTabs";
+export { default as BoardTabs, BoardDialog } from "./BoardTabs";
 export { default as SeasonTabs } from "./SeasonTabs";
 export { default as PostWall } from "./PostWall";
 export { default as PostCard, type PostCardActions } from "./PostCard";

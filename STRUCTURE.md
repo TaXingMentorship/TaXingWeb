@@ -152,7 +152,7 @@ Admins manage seasons at `/portal/admin/cohorts` — name, start/end dates, and 
 The season row lists **only seasons that already have a board**. The volunteer
 backfill turned `cohorts` into eleven entries of which three have ever had one,
 and the rest were tabs leading to the same empty state. Creating the *first*
-board of a season still works: `CreateBoardDialog` carries its own season
+board of a season still works: `BoardDialog` carries its own season
 picker over the full list, because "which season am I reading" and "which season
 is this new board for" are different questions.
 
@@ -161,6 +161,8 @@ is this new board for" are different questions.
 The wall is CSS multi-column masonry and the emoji picker is hand-rolled — no `@mui/lab`, no picker library, matching the MUI-only stack.
 
 **Boards are configured, not hardcoded.** Each row carries `allowed_categories`, `allow_anonymous`, `allow_comments`, `prompt` and `sort_order`, so a new kind of board (feedback wall, mentor Q&A, graduation wall) is a row an admin creates, not a code change. `sort_order` has no form field — every board is created at `0` and ordering falls through to `created_at`; change it in Supabase to make a board jump the queue.
+
+Admins edit or delete a board from the page itself: the selected tab carries a pencil that opens `BoardDialog` in edit mode, and its 「删除留言板」 button leads to a confirmation. Both go through the browser client (`updateBoard` / `deleteBoard` in `store.ts`) — RLS `boards_admin_all` already grants admins UPDATE and DELETE on `bulletin_boards`, so unlike posts and comments no API route is involved. Deleting a board cascades to every post, comment and reaction on it, which the confirmation spells out. A board's season cannot be changed once it exists, because posts carry their own `cohort_id`.
 
 ### Who can do what
 
