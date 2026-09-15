@@ -40,6 +40,7 @@ import {
 import { portalCopy } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import TaskDialog from "@/components/portal/TaskDialog";
+import { MY_TASKS_KEY } from "@/components/portal/useMyTasks";
 
 const TASKS_KEY = ["portal", "tasks", "admin"] as const;
 
@@ -83,11 +84,18 @@ export default function AdminTasksPage() {
     [volunteers],
   );
 
+  // The admin may be a recipient too, so her own reminder badge is refreshed
+  // along with the admin list.
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: TASKS_KEY });
+    queryClient.invalidateQueries({ queryKey: MY_TASKS_KEY });
+  };
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteTask(id),
     onSuccess: () => {
       setPendingDelete(null);
-      queryClient.invalidateQueries({ queryKey: TASKS_KEY });
+      invalidate();
     },
   });
 
@@ -234,7 +242,7 @@ export default function AdminTasksPage() {
         onClose={() => setDialogOpen(false)}
         onSaved={() => {
           setDialogOpen(false);
-          queryClient.invalidateQueries({ queryKey: TASKS_KEY });
+          invalidate();
         }}
       />
 
