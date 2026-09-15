@@ -269,3 +269,17 @@ export type ResolvedVolunteer = {
 export type ResolvedVolunteerWithSeasons = ResolvedVolunteer & {
   seasons: VolunteerSeason[];
 };
+
+/**
+ * One self-service group change, written by `set_my_volunteer_group`
+ * (migration 0016). Admin-readable only; there is no client-side insert.
+ */
+export type VolunteerSeasonChange = {
+  id: string;
+  volunteer_id: string;
+  cohort_id: string;
+  old_group_id: string | null;
+  new_group_id: string | null;
+  changed_by: string;
+  changed_at: string;
+};

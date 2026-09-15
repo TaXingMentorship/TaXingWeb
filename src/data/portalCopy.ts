@@ -316,6 +316,7 @@ export const portalCopy = {
     wechatLabel: "微信号",
     notesLabel: "备注",
     isPublicLabel: "在官网致谢名单中公开显示",
+    publicHint: "会出现在官网的志愿者致谢名单里",
     seasonsLabel: "参与季度与组别",
     seasonsHelper: "至少选择一个季度。同一位志愿者在不同季度可以属于不同的组。",
     addSeason: "添加季度",
@@ -352,6 +353,24 @@ export const portalCopy = {
     leadHint: "标记为该季度所在组的负责人。负责人会自动出现在战略组名单里。",
     leadChip: "负责人",
     includesLeadsHint: "本组自动包含当季所有负责人",
+
+    // Self-service change log, shown to admins in the edit dialog
+    changesTitle: "组别修改记录",
+    changesHint: "志愿者本人在「我的资料」里做的修改。",
+    changesEmpty: "暂无修改记录。",
+    changeLine: (from: string, to: string) => `${from} → ${to}`,
+  },
+  myVolunteer: {
+    title: "志愿者信息",
+    subtitle: "你参与过的季度与所在的组别。可以修改组别；新增或移除季度请联系管理员。",
+    noRecord: "还没有关联到你的志愿者记录，请联系管理员。",
+    seasonColumn: "季度",
+    groupColumn: "组别",
+    noGroup: "未分组",
+    leadChip: "负责人",
+    leadHint: "负责人必须属于一个组别。",
+    saved: "组别已更新",
+    loading: "加载中…",
   },
   adminVolunteers: {
     title: "志愿者管理",

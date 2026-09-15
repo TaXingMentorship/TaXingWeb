@@ -20,6 +20,7 @@ import type {
   ResolvedVolunteerWithSeasons,
   VolunteerGroup,
   VolunteerSeason,
+  VolunteerSeasonChange,
   VolunteerWithSeasons,
 } from "@/types/portal";
 
@@ -758,6 +759,72 @@ export async function listLinkCandidates(): Promise<
       (pair): pair is { volunteer: ResolvedVolunteer; profile: Profile } =>
         Boolean(pair.profile),
     );
+}
+
+/**
+ * The signed-in user's own volunteer record, or null when the account is not
+ * linked to one. Read through `volunteers_resolved` like everything else, so
+ * the name and contact details already reflect the profile.
+ */
+export async function getMyVolunteer(
+  profileId: string,
+): Promise<ResolvedVolunteerWithSeasons | null> {
+  const supabase = createClient();
+  const volunteer = await supabase
+    .from("volunteers_resolved")
+    .select("*")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  throwQueryError("读取志愿者信息", volunteer.error);
+  if (!volunteer.data) return null;
+
+  const seasons = await supabase
+    .from("volunteer_seasons")
+    .select("*")
+    .eq("volunteer_id", (volunteer.data as ResolvedVolunteer).id)
+    .order("created_at", { ascending: true });
+  throwQueryError("读取志愿者季度", seasons.error);
+
+  return {
+    ...(volunteer.data as ResolvedVolunteer),
+    seasons: (seasons.data ?? []) as VolunteerSeason[],
+  };
+}
+
+/**
+ * Moves the signed-in volunteer to another group for one of her seasons. The
+ * function (migration 0016) checks the season is hers, refuses to leave a lead
+ * without a group, and records the change in `volunteer_season_changes`.
+ */
+export async function setMyVolunteerGroup(
+  seasonId: string,
+  groupId: string | null,
+): Promise<void> {
+  const { error } = await createClient().rpc("set_my_volunteer_group", {
+    p_season_id: seasonId,
+    p_group_id: groupId,
+  });
+  if (error) {
+    const reason = error.message.includes("LEAD_WITHOUT_GROUP")
+      ? "负责人必须属于一个组别。"
+      : error.message.includes("NOT_YOUR_SEASON")
+        ? "只能修改自己的季度。"
+        : error.message;
+    throw new Error(`修改组别失败：${reason}`);
+  }
+}
+
+/** Self-service group changes for one volunteer, newest first. Admin only (RLS). */
+export async function listVolunteerSeasonChanges(
+  volunteerId: string,
+): Promise<VolunteerSeasonChange[]> {
+  const { data, error } = await createClient()
+    .from("volunteer_season_changes")
+    .select("*")
+    .eq("volunteer_id", volunteerId)
+    .order("changed_at", { ascending: false });
+  throwQueryError("读取修改记录", error);
+  return (data ?? []) as VolunteerSeasonChange[];
 }
 
 /** Confirms (or, with `null`, removes) the link between a volunteer and an account. */

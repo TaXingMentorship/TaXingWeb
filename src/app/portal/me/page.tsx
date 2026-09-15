@@ -29,6 +29,7 @@ import {
 } from "@/lib/portal/uploads";
 import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
+import MyVolunteerSection from "@/components/portal/MyVolunteerSection";
 
 const interestSuggestions = [
   "产品管理",
@@ -50,7 +51,7 @@ const interestSuggestions = [
 ];
 
 export default function MyProfilePage() {
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
   const queryClient = useQueryClient();
   const userId = currentUser?.id;
 
@@ -341,6 +342,16 @@ export default function MyProfilePage() {
             </Stack>
           </Paper>
         </Grid>
+        {/* The volunteer record hangs off the real account, whichever persona
+            is being previewed. */}
+        {realUser && (
+          <Grid size={{ xs: 12, md: 8 }}>
+            <MyVolunteerSection
+              profileId={realUser.id}
+              isVolunteer={realUser.is_volunteer}
+            />
+          </Grid>
+        )}
       </Grid>
 
       <Snackbar
