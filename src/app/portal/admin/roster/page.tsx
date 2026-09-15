@@ -138,7 +138,7 @@ export default function RosterPage() {
   }, [profiles, matches, cohortId]);
 
   if (!currentUser?.is_admin) {
-    return <Alert severity="error">仅管理员可访问成员名单。</Alert>;
+    return <Alert severity="error">仅负责人可访问成员名单。</Alert>;
   }
 
   return (
@@ -274,7 +274,7 @@ export default function RosterPage() {
         </Paper>
       ) : !pairGroups.hasMatches ? (
         <Alert severity="info">
-          管理员尚未上传本项目的配对结果。请在「名单导入」页上传配对表。
+          负责人尚未上传本项目的配对结果。请在「名单导入」页上传配对表。
         </Alert>
       ) : (
         <Stack spacing={2}>

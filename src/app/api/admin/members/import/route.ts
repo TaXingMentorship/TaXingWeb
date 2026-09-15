@@ -53,7 +53,7 @@ function describe(error: ImportError): string {
     case "INVALID_NAME":
       return `${at}：缺少姓名。请填写「姓名」列后重新导入。`;
     case "NO_IDENTITY":
-      return `${at}${who}：缺少身份。「身份」列请填写导师、学员、志愿者或管理员，多个用「+」连接。`;
+      return `${at}${who}：缺少身份。「身份」列请填写导师、学员、志愿者或负责人，多个用「+」连接。`;
     case "INVALID_EMAIL":
       return `${at}${who}：邮箱「${error.value}」格式不正确。请修正，或清空该单元格。`;
     case "INVITE_WITHOUT_EMAIL":

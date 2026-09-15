@@ -55,7 +55,7 @@ export const portalNavItems: PortalNavItem[] = [
     path: "/portal/tasks",
     Icon: ChecklistIcon,
     access: "all",
-    description: "查看管理员分配给你的待办事项。",
+    description: "查看负责人分配给你的待办事项。",
   },
   {
     label: portalCopy.nav.activities,
@@ -90,7 +90,7 @@ export const portalNavItems: PortalNavItem[] = [
     path: "/portal/volunteers",
     Icon: VolunteerActivismIcon,
     access: "all",
-    description: "浏览各组志愿者名单；管理员还可在此维护组别与账号关联。",
+    description: "浏览各组志愿者名单；负责人还可在此维护组别与账号关联。",
   },
   {
     label: portalCopy.nav.adminTasks,
