@@ -30,6 +30,7 @@ import {
 import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import MyVolunteerSection from "@/components/portal/MyVolunteerSection";
+import { useCompleteTasksLinkingTo } from "@/components/portal/useMyTasks";
 
 const interestSuggestions = [
   "产品管理",
@@ -54,6 +55,8 @@ export default function MyProfilePage() {
   const { currentUser, realUser } = usePortalSession();
   const queryClient = useQueryClient();
   const userId = currentUser?.id;
+  // A 「完善志愿者信息」 task links here; saving anything on this page closes it.
+  const completeProfileTasks = useCompleteTasksLinkingTo("/portal/me");
 
   const { data: profile } = useQuery({
     queryKey: ["portal", "profile", userId],
@@ -78,6 +81,7 @@ export default function MyProfilePage() {
       queryClient.invalidateQueries({ queryKey: ["portal", "profiles"] });
       queryClient.invalidateQueries({ queryKey: ["portal", "currentUser"] });
       setToast(true);
+      completeProfileTasks();
     },
   });
 
@@ -349,6 +353,7 @@ export default function MyProfilePage() {
             <MyVolunteerSection
               profileId={realUser.id}
               isVolunteer={realUser.is_volunteer}
+              onSaved={completeProfileTasks}
             />
           </Grid>
         )}

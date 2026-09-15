@@ -97,7 +97,11 @@ export default function VolunteerDialog({
       cohorts,
     ));
     setValidationError(null);
-  }, [open, volunteer, cohorts]);
+    // Reset only when the dialog opens. `volunteer` and `cohorts` are query
+    // results and get new references on every refetch — React Query refetches
+    // on window focus — which would wipe an edit in progress.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Self-service group changes the volunteer made from 我的资料 (migration
   // 0016). Only linked volunteers can have any, so the query is skipped otherwise.

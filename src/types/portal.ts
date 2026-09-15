@@ -283,3 +283,38 @@ export type VolunteerSeasonChange = {
   changed_by: string;
   changed_at: string;
 };
+
+// --- Tasks -----------------------------------------------------------------
+
+/** An admin-assigned to-do that shows up as a reminder in the portal (migration 0017). */
+export type Task = {
+  id: string;
+  title: string;
+  description: string | null;
+  /** Portal path the reminder links to, e.g. `/portal/me`. */
+  link: string | null;
+  due_on: string | null;
+  cohort_id: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+/**
+ * One recipient of a task. Addressed by volunteer record so a task assigned
+ * before the person activates her account is still waiting afterwards;
+ * `profile_id` is the direct form for non-volunteers (unused by the UI so far).
+ */
+export type TaskAssignment = {
+  id: string;
+  task_id: string;
+  volunteer_id: string | null;
+  profile_id: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
+/** What `listMyTasks()` returns — the assignment with its task joined in. */
+export type MyTask = TaskAssignment & { task: Task };
+
+/** What `listTasksWithAssignments()` returns for the admin view. */
+export type TaskWithAssignments = Task & { assignments: TaskAssignment[] };

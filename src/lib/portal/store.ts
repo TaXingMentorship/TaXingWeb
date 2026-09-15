@@ -22,6 +22,9 @@ import type {
   VolunteerSeason,
   VolunteerSeasonChange,
   VolunteerWithSeasons,
+  MyTask,
+  Task,
+  TaskWithAssignments,
 } from "@/types/portal";
 
 type SupabaseError = {
@@ -1042,4 +1045,59 @@ export function importMembers(
     { rows, dryRun: options?.dryRun ?? false },
     options?.dryRun ? "预检成员名单" : "导入成员名单",
   );
+}
+
+// --- Tasks -----------------------------------------------------------------
+
+/**
+ * The signed-in user's assignments with their tasks, pending first. RLS
+ * (migration 0017) already restricts the rows to hers — by account or through
+ * the linked volunteer record — so there is no filter here.
+ */
+export async function listMyTasks(): Promise<MyTask[]> {
+  const { data, error } = await createClient()
+    .from("task_assignments")
+    .select("*, task:tasks(*)")
+    .order("completed_at", { ascending: true, nullsFirst: true })
+    .order("created_at", { ascending: false });
+  throwQueryError("读取任务", error);
+  return ((data ?? []) as (MyTask & { task: Task | null })[]).filter(
+    (row): row is MyTask => Boolean(row.task),
+  );
+}
+
+/** Completes (or reopens) one of the caller's own assignments. */
+export async function setMyTaskDone(assignmentId: string, done: boolean): Promise<void> {
+  const { error } = await createClient().rpc("set_my_task_done", {
+    p_assignment_id: assignmentId,
+    p_done: done,
+  });
+  if (error) throw new Error(`更新任务失败：${error.message}`);
+}
+
+/** Every task with its recipients — admin only (RLS). Newest first. */
+export async function listTasksWithAssignments(): Promise<TaskWithAssignments[]> {
+  const { data, error } = await createClient()
+    .from("tasks")
+    .select("*, assignments:task_assignments(*)")
+    .order("created_at", { ascending: false });
+  throwQueryError("读取任务", error);
+  return (data ?? []) as TaskWithAssignments[];
+}
+
+export type TaskInput = {
+  title: string;
+  description: string | null;
+  link: string | null;
+  due_on: string | null;
+  cohort_id: string | null;
+  volunteer_ids: string[];
+};
+
+export function createTask(input: TaskInput): Promise<TaskWithAssignments> {
+  return postAdminJson<TaskWithAssignments>("/api/admin/tasks", input, "创建任务");
+}
+
+export function deleteTask(id: string): Promise<{ id: string }> {
+  return adminJson<{ id: string }>("/api/admin/tasks", "DELETE", { id }, "删除任务");
 }
