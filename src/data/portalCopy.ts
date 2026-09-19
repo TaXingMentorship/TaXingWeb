@@ -261,7 +261,7 @@ export const portalCopy = {
     },
     seasonLabel: "季度",
     allSeasons: "全部季度",
-    seasonFilterHelper: "只列出该季度参与过的人；换季度不会清掉已选的人。",
+    seasonFilterHelper: "只列出该季度参与过的人；换季度后，不属于新季度的已选人员会被移除。",
     groupLabel: "组别",
     volunteersLabel: "志愿者",
     volunteersPlaceholder: "搜索姓名…",

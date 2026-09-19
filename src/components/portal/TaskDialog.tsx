@@ -130,8 +130,7 @@ export default function TaskDialog({
     [groups],
   );
 
-  // Candidates for the pick modes, narrowed by season. Already-picked people
-  // stay picked when the season changes, so one task can span seasons.
+  // Candidates for the pick modes, narrowed by season.
   const volunteerOptions = React.useMemo(() => {
     if (cohortId === ALL_SEASONS) return volunteers;
     return volunteers.filter((volunteer) =>
@@ -228,6 +227,22 @@ export default function TaskDialog({
     mutation.mutate();
   };
 
+  // Changing the season also drops picked people who are not in it — the
+  // season is a constraint on the recipients, not just a filter on the list,
+  // so nobody from another season rides along unseen.
+  const changeSeason = (next: string) => {
+    setCohortChoice(next);
+    if (next === ALL_SEASONS) return;
+    setPickedVolunteers((current) =>
+      current.filter((volunteer) =>
+        volunteer.seasons.some((season) => season.cohort_id === next),
+      ),
+    );
+    setPickedProfiles((current) =>
+      current.filter((profile) => profile.cohort_ids.includes(next)),
+    );
+  };
+
   const changeMode = (next: RecipientMode) => {
     setMode(next);
     // "All seasons" only exists for the pick modes; a whole-season mode needs
@@ -320,7 +335,7 @@ export default function TaskDialog({
             select
             label={copy.seasonLabel}
             value={cohortId}
-            onChange={(event) => setCohortChoice(event.target.value)}
+            onChange={(event) => changeSeason(event.target.value)}
             helperText={isPickMode ? copy.seasonFilterHelper : undefined}
             fullWidth
           >
