@@ -53,6 +53,7 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import BoardTabs, { BoardDialog } from "@/components/portal/board/BoardTabs";
 import SeasonTabs from "@/components/portal/board/SeasonTabs";
 import PostWall from "@/components/portal/board/PostWall";
+import ProfileDialog from "@/components/portal/ProfileDialog";
 import PostComposer, {
   type ComposerDraft,
 } from "@/components/portal/board/PostComposer";
@@ -106,6 +107,7 @@ function BoardPageContent() {
   const [pendingDelete, setPendingDelete] =
     React.useState<BulletinBoard | null>(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
+  const [openProfile, setOpenProfile] = React.useState<Profile | null>(null);
   const [filter, setFilter] = React.useState<BulletinCategory | "all">("all");
   const [sort, setSort] = React.useState<SortMode>("newest");
 
@@ -346,6 +348,7 @@ function BoardPageContent() {
     onToggleResolved: (id, resolved) =>
       postFlagMutation.mutate({ id, field: "resolved", value: resolved }),
     onDeletePost: (id) => deletePostMutation.mutate(id),
+    onOpenProfile: setOpenProfile,
   };
 
   const visiblePosts = React.useMemo(() => {
@@ -636,6 +639,8 @@ function BoardPageContent() {
           </Dialog>
         </>
       )}
+
+      <ProfileDialog profile={openProfile} onClose={() => setOpenProfile(null)} />
     </Box>
   );
 }

@@ -3,7 +3,6 @@
 import * as React from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Avatar from "@mui/material/Avatar";
 import AnonymousAvatar from "@/components/portal/board/AnonymousAvatar";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
@@ -19,6 +18,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import type { BulletinComment, Profile } from "@/types/portal";
 import { portalCopy } from "@/data/portalCopy";
+import { AuthorAvatar, AuthorName } from "./AuthorIdentity";
 
 const MAX_COMMENT = 2000;
 
@@ -33,6 +33,7 @@ export default function PostComments({
   onSubmit,
   onDelete,
   onToggleHidden,
+  onOpenProfile,
 }: {
   comments: BulletinComment[];
   authorOf: (id: string) => Profile | undefined;
@@ -44,6 +45,7 @@ export default function PostComments({
   onSubmit: (body: string, isAnonymous: boolean) => void;
   onDelete: (id: string) => void;
   onToggleHidden: (id: string, hidden: boolean) => void;
+  onOpenProfile: (profile: Profile) => void;
 }) {
   const [body, setBody] = React.useState("");
   const [anonymous, setAnonymous] = React.useState(false);
@@ -82,10 +84,7 @@ export default function PostComments({
                 {comment.is_anonymous ? (
                   <AnonymousAvatar seed={comment.id} size={26} />
                 ) : (
-                  <Avatar
-                    src={author?.avatar_url ?? undefined}
-                    sx={{ width: 26, height: 26, fontSize: 13 }}
-                  />
+                  <AuthorAvatar author={author} size={26} onOpen={onOpenProfile} />
                 )}
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Stack
@@ -95,11 +94,11 @@ export default function PostComments({
                     flexWrap="wrap"
                     useFlexGap
                   >
-                    <Typography variant="body2" fontWeight={700}>
-                      {comment.is_anonymous
-                        ? portalCopy.board.anonymousName
-                        : (author?.full_name ?? portalCopy.board.pastMemberName)}
-                    </Typography>
+                    <AuthorName
+                      author={author}
+                      isAnonymous={comment.is_anonymous}
+                      onOpen={onOpenProfile}
+                    />
                     {comment.hidden && (
                       <Chip
                         size="small"

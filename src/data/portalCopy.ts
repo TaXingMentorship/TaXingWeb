@@ -230,6 +230,7 @@ export const portalCopy = {
     resolved: "已解答",
     hiddenChip: "已隐藏",
     reactionTooltip: "点一个表情",
+    viewProfile: "查看资料",
     commentsToggle: "条评论",
     commentsEmpty: "还没有评论。",
     commentPlaceholder: "写下你的回复…",
