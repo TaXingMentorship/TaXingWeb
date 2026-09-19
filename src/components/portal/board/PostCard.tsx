@@ -4,7 +4,6 @@ import * as React from "react";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Avatar from "@mui/material/Avatar";
 import AnonymousAvatar from "@/components/portal/board/AnonymousAvatar";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
@@ -20,6 +19,7 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import type { BulletinComment, BulletinPost, BulletinReaction, Profile } from "@/types/portal";
 import { categoryColors, categoryLabels, portalCopy, postColors } from "@/data/portalCopy";
 import ReactionBar from "./ReactionBar";
+import { AuthorAvatar, AuthorName } from "./AuthorIdentity";
 import PostComments from "./PostComments";
 
 export type PostCardActions = {
@@ -31,6 +31,8 @@ export type PostCardActions = {
   onTogglePinned: (id: string, pinned: boolean) => void;
   onToggleResolved: (id: string, resolved: boolean) => void;
   onDeletePost: (id: string) => void;
+  /** Opens the shared profile dialog for a non-anonymous author. */
+  onOpenProfile: (profile: Profile) => void;
 };
 
 export default function PostCard({
@@ -90,17 +92,14 @@ export default function PostCard({
         {post.is_anonymous ? (
           <AnonymousAvatar seed={post.id} size={32} />
         ) : (
-          <Avatar
-            src={author?.avatar_url ?? undefined}
-            sx={{ width: 32, height: 32, fontSize: 14 }}
-          />
+          <AuthorAvatar author={author} size={32} onOpen={actions.onOpenProfile} />
         )}
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography variant="body2" fontWeight={700} noWrap>
-            {post.is_anonymous
-              ? portalCopy.board.anonymousName
-              : (author?.full_name ?? portalCopy.board.pastMemberName)}
-          </Typography>
+          <AuthorName
+            author={author}
+            isAnonymous={post.is_anonymous}
+            onOpen={actions.onOpenProfile}
+          />
           <Typography variant="caption" color="text.secondary">
             {new Date(post.created_at).toLocaleString("zh-CN")}
           </Typography>
@@ -202,6 +201,7 @@ export default function PostCard({
             }
             onDelete={actions.onDeleteComment}
             onToggleHidden={actions.onToggleCommentHidden}
+            onOpenProfile={actions.onOpenProfile}
           />
         </Collapse>
       )}

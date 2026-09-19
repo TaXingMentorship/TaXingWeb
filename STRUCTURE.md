@@ -152,7 +152,7 @@ Admins manage seasons at `/portal/admin/cohorts` — name, start/end dates, and 
 The season row lists **only seasons that already have a board**. The volunteer
 backfill turned `cohorts` into eleven entries of which three have ever had one,
 and the rest were tabs leading to the same empty state. Creating the *first*
-board of a season still works: `CreateBoardDialog` carries its own season
+board of a season still works: `BoardDialog` carries its own season
 picker over the full list, because "which season am I reading" and "which season
 is this new board for" are different questions.
 
@@ -162,6 +162,8 @@ The wall is CSS multi-column masonry and the emoji picker is hand-rolled — no 
 
 **Boards are configured, not hardcoded.** Each row carries `allowed_categories`, `allow_anonymous`, `allow_comments`, `prompt` and `sort_order`, so a new kind of board (feedback wall, mentor Q&A, graduation wall) is a row an admin creates, not a code change. `sort_order` has no form field — every board is created at `0` and ordering falls through to `created_at`; change it in Supabase to make a board jump the queue.
 
+Admins edit or delete a board from the page itself: the selected tab carries a pencil that opens `BoardDialog` in edit mode, and its 「删除留言板」 button leads to a confirmation. Both go through the browser client (`updateBoard` / `deleteBoard` in `store.ts`) — RLS `boards_admin_all` already grants admins UPDATE and DELETE on `bulletin_boards`, so unlike posts and comments no API route is involved. Deleting a board cascades to every post, comment and reaction on it, which the confirmation spells out. A board's season cannot be changed once it exists, because posts carry their own `cohort_id`.
+
 ### Who can do what
 
 | | Read | Post / comment / react |
@@ -169,7 +171,7 @@ The wall is CSS multi-column masonry and the emoji picker is hand-rolled — no 
 | Own season | yes | yes, if the board and season are open |
 | Other seasons | yes | **no** |
 
-Reading is open across all seasons (migration `0008`); the insert policies still require `cohort_id = any(current_cohort_ids())`, so a non-member browses a past season read-only. The UI mirrors this with `canParticipate = canPost && (isAdmin || isMember)`. A board accepts posts only when `board.is_open && cohort.bulletin_open` — the season flag archives a whole season at once.
+Reading is open across all seasons (migration `0008`); the insert policies still require `cohort_id = any(current_cohort_ids())`, so a non-member browses a past season read-only. Writing is open to admins, participants **and volunteers** (migration `0015` added `is_volunteer()` to the three insert policies) — a volunteer-only account is a full member of the seasons in its `cohort_ids`. The UI mirrors this with `canParticipate = canPost && (isAdmin || isMember)`. A board accepts posts only when `board.is_open && cohort.bulletin_open` — the season flag archives a whole season at once.
 
 Since migration `0007`, RLS allows **no** client-side UPDATE on `bulletin_posts` or `bulletin_comments`. Every flag change goes through `/api/admin/moderation`, which authorizes in code: `resolved` for the post's author or an admin; `pinned`, `hidden` and all comment changes for admins only. DELETE is unchanged — authors may still delete their own posts and comments. Do not add a client-side update path for these tables; extend the route instead.
 

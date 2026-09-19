@@ -28,7 +28,9 @@ export default function SecretVisibilityToggle({
           onClick={onToggle}
           onMouseDown={(event) => event.preventDefault()}
         >
-          {visible ? <VisibilityOffIcon /> : <VisibilityIcon />}
+          {/* The icon shows the current state, not the action: a closed eye
+              while the secret is masked, an open one while it is readable. */}
+          {visible ? <VisibilityIcon /> : <VisibilityOffIcon />}
         </IconButton>
       </Tooltip>
     </InputAdornment>

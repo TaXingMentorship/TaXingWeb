@@ -8,6 +8,11 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Alert from "@mui/material/Alert";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogActions from "@mui/material/DialogActions";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Chip from "@mui/material/Chip";
@@ -16,6 +21,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import AddIcon from "@mui/icons-material/Add";
 import type {
   Cohort,
+  BulletinBoard,
   BulletinCategory,
   BulletinComment,
   BulletinPost,
@@ -24,6 +30,7 @@ import type {
 } from "@/types/portal";
 import {
   countPostsByBoard,
+  deleteBoard,
   createComment,
   createPost,
   deleteComment,
@@ -43,11 +50,10 @@ import {
 } from "@/lib/portal/store";
 import { categoryLabels, portalCopy } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
-import BoardTabs, {
-  CreateBoardDialog,
-} from "@/components/portal/board/BoardTabs";
+import BoardTabs, { BoardDialog } from "@/components/portal/board/BoardTabs";
 import SeasonTabs from "@/components/portal/board/SeasonTabs";
 import PostWall from "@/components/portal/board/PostWall";
+import ProfileDialog from "@/components/portal/ProfileDialog";
 import PostComposer, {
   type ComposerDraft,
 } from "@/components/portal/board/PostComposer";
@@ -88,9 +94,20 @@ function BoardPageContent() {
   const searchParams = useSearchParams();
 
   const isAdmin = currentUser?.is_admin ?? false;
-  const canPost = isAdmin || Boolean(currentUser?.participant_role);
+  // Mirrors the insert policies (migration 0015): admins, participants and
+  // volunteers may write; a non-member of the season is filtered out below.
+  const canPost =
+    isAdmin ||
+    Boolean(currentUser?.participant_role) ||
+    Boolean(currentUser?.is_volunteer);
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [editingBoard, setEditingBoard] = React.useState<BulletinBoard | null>(
+    null,
+  );
+  const [pendingDelete, setPendingDelete] =
+    React.useState<BulletinBoard | null>(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
+  const [openProfile, setOpenProfile] = React.useState<Profile | null>(null);
   const [filter, setFilter] = React.useState<BulletinCategory | "all">("all");
   const [sort, setSort] = React.useState<SortMode>("newest");
 
@@ -118,7 +135,7 @@ function BoardPageContent() {
    * ever had a board — listing the other nine gave admins a row of tabs that
    * all led to the same empty state.
    *
-   * Creating the *first* board of a season still works: CreateBoardDialog
+   * Creating the *first* board of a season still works: BoardDialog
    * carries its own season picker over the full list.
    */
   const seasonsWithBoards = React.useMemo(() => {
@@ -304,6 +321,18 @@ function BoardPageContent() {
     onSuccess: invalidateComments,
   });
 
+  const deleteBoardMutation = useMutation({
+    mutationFn: (id: string) => deleteBoard(id),
+    onSuccess: () => {
+      setPendingDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["portal", "boards"] });
+      queryClient.invalidateQueries({ queryKey: ["portal", "boardCounts"] });
+      // Drop the board param so the page falls to the season's first board;
+      // if that was the last one, seasonsWithBoards shrinks on its own.
+      router.replace(`/portal/board?cohort=${cohortId}`, { scroll: false });
+    },
+  });
+
   const actions: PostCardActions = {
     onToggleReaction: (postId, emoji, active) =>
       reactionMutation.mutate({ postId, emoji, active }),
@@ -319,6 +348,7 @@ function BoardPageContent() {
     onToggleResolved: (id, resolved) =>
       postFlagMutation.mutate({ id, field: "resolved", value: resolved }),
     onDeletePost: (id) => deletePostMutation.mutate(id),
+    onOpenProfile: setOpenProfile,
   };
 
   const visiblePosts = React.useMemo(() => {
@@ -359,6 +389,7 @@ function BoardPageContent() {
     commentFlagMutation.error,
     deleteCommentMutation.error,
     boardToggleMutation.error,
+    deleteBoardMutation.error,
   ].find(Boolean) as Error | undefined;
 
   return (
@@ -410,6 +441,7 @@ function BoardPageContent() {
             counts={counts ?? {}}
             selectedId={boardId}
             onSelect={selectBoard}
+            onEdit={isAdmin ? setEditingBoard : undefined}
           />
 
           {selectedBoard && (
@@ -506,14 +538,10 @@ function BoardPageContent() {
                 <Alert severity="info" sx={{ mb: 2 }}>
                   {portalCopy.board.otherSeasonReadOnly}
                 </Alert>
-              ) : !selectedBoard.is_open ? (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  {portalCopy.board.boardClosed}
-                </Alert>
               ) : (
-                !canPost && (
+                !selectedBoard.is_open && (
                   <Alert severity="warning" sx={{ mb: 2 }}>
-                    {portalCopy.board.volunteerReadOnly}
+                    {portalCopy.board.boardClosed}
                   </Alert>
                 )
               )}
@@ -549,18 +577,70 @@ function BoardPageContent() {
       )}
 
       {isAdmin && (
-        <CreateBoardDialog
-          open={createOpen}
-          cohortId={cohortId ?? cohorts?.[0]?.id ?? ""}
-          cohorts={cohorts ?? []}
-          onClose={() => setCreateOpen(false)}
-          onCreated={(board) => {
-            setCreateOpen(false);
-            queryClient.invalidateQueries({ queryKey: ["portal", "boards"] });
-            selectBoard(board.id);
-          }}
-        />
+        <>
+          <BoardDialog
+            open={createOpen || Boolean(editingBoard)}
+            board={editingBoard}
+            cohortId={cohortId ?? cohorts?.[0]?.id ?? ""}
+            cohorts={cohorts ?? []}
+            onClose={() => {
+              setCreateOpen(false);
+              setEditingBoard(null);
+            }}
+            onSaved={(board) => {
+              setCreateOpen(false);
+              setEditingBoard(null);
+              queryClient.invalidateQueries({ queryKey: ["portal", "boards"] });
+              selectBoard(board.id);
+            }}
+            onDelete={(board) => {
+              setEditingBoard(null);
+              setPendingDelete(board);
+            }}
+          />
+
+          <Dialog
+            open={Boolean(pendingDelete)}
+            onClose={() => setPendingDelete(null)}
+            maxWidth="xs"
+            fullWidth
+          >
+            <DialogTitle>{portalCopy.board.deleteBoardTitle}</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                {pendingDelete
+                  ? portalCopy.board.deleteBoardConfirm(
+                      pendingDelete.name,
+                      counts?.[pendingDelete.id] ?? 0,
+                    )
+                  : ""}
+              </DialogContentText>
+              {deleteBoardMutation.isError && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {(deleteBoardMutation.error as Error).message}
+                </Alert>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setPendingDelete(null)}>
+                {portalCopy.board.cancel}
+              </Button>
+              <Button
+                color="error"
+                variant="contained"
+                disabled={deleteBoardMutation.isPending}
+                onClick={() => {
+                  if (pendingDelete) deleteBoardMutation.mutate(pendingDelete.id);
+                }}
+              >
+                {portalCopy.board.deleteBoardAction}
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </>
       )}
+
+      <ProfileDialog profile={openProfile} onClose={() => setOpenProfile(null)} />
     </Box>
   );
 }
