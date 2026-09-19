@@ -15,7 +15,10 @@ const createSchema = z.object({
   link: portalPath.nullable(),
   due_on: z.iso.date().nullable(),
   cohort_id: z.uuid().nullable(),
-  volunteer_ids: z.array(z.uuid()).min(1, "请至少选择一位接收人。").max(500),
+  volunteer_ids: z.array(z.uuid()).max(500).default([]),
+  profile_ids: z.array(z.uuid()).max(500).default([]),
+}).refine((input) => input.volunteer_ids.length + input.profile_ids.length > 0, {
+  message: "请至少选择一位接收人。",
 });
 
 const deleteSchema = z.object({ id: z.uuid() });
@@ -37,8 +40,27 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceRoleClient();
-  const { volunteer_ids, ...task } = parsed.data;
-  const recipients = Array.from(new Set(volunteer_ids));
+  const { volunteer_ids, profile_ids, ...task } = parsed.data;
+  const volunteerIds = Array.from(new Set(volunteer_ids));
+
+  // Someone who is both a volunteer and a mentor can be picked twice — once
+  // by record, once by account. One assignment per person: the volunteer row
+  // wins, since it resolves to the same account.
+  const linked = new Set<string>();
+  if (volunteerIds.length > 0) {
+    const { data: rows, error: linkError } = await supabase
+      .from("volunteers")
+      .select("profile_id")
+      .in("id", volunteerIds)
+      .not("profile_id", "is", null);
+    if (linkError) return databaseError("读取志愿者", linkError.message);
+    for (const row of rows ?? []) if (row.profile_id) linked.add(row.profile_id);
+  }
+  const profileIds = Array.from(new Set(profile_ids)).filter((id) => !linked.has(id));
+  const recipients = [
+    ...volunteerIds.map((volunteer_id) => ({ volunteer_id, profile_id: null })),
+    ...profileIds.map((profile_id) => ({ volunteer_id: null, profile_id })),
+  ];
 
   const { data: created, error } = await supabase
     .from("tasks")
@@ -49,7 +71,7 @@ export async function POST(request: Request) {
 
   const { error: assignError } = await supabase
     .from("task_assignments")
-    .insert(recipients.map((volunteer_id) => ({ task_id: created.id, volunteer_id })));
+    .insert(recipients.map((recipient) => ({ task_id: created.id, ...recipient })));
   if (assignError) {
     // No partial task: a task with nobody to do it is not worth keeping.
     await supabase.from("tasks").delete().eq("id", created.id);

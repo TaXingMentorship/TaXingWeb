@@ -1091,7 +1091,10 @@ export type TaskInput = {
   link: string | null;
   due_on: string | null;
   cohort_id: string | null;
+  /** Volunteer records — the assignee resolves to an account through the link. */
   volunteer_ids: string[];
+  /** Portal accounts (mentors, mentees) addressed directly. */
+  profile_ids: string[];
 };
 
 export function createTask(input: TaskInput): Promise<TaskWithAssignments> {

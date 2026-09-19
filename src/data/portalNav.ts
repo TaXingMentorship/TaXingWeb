@@ -97,7 +97,7 @@ export const portalNavItems: PortalNavItem[] = [
     path: "/portal/admin/tasks",
     Icon: AssignmentIcon,
     access: "admin",
-    description: "给志愿者分配任务，并查看完成情况。",
+    description: "给志愿者、导师或学员分配任务，并查看完成情况。",
   },
   {
     label: portalCopy.nav.cohorts,

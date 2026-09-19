@@ -9,6 +9,7 @@ import DialogActions from "@mui/material/DialogActions";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
+import ListSubheader from "@mui/material/ListSubheader";
 import Button from "@mui/material/Button";
 import Alert from "@mui/material/Alert";
 import Autocomplete from "@mui/material/Autocomplete";
@@ -16,15 +17,27 @@ import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
 import type {
   Cohort,
+  Profile,
   ResolvedVolunteerWithSeasons,
   VolunteerGroup,
 } from "@/types/portal";
 import { createTask } from "@/lib/portal/store";
-import { portalCopy } from "@/data/portalCopy";
+import { participantRoleLabels, portalCopy } from "@/data/portalCopy";
 
-type RecipientMode = "individuals" | "group" | "season";
+type RecipientMode =
+  | "individuals"
+  | "group"
+  | "season"
+  | "members"
+  | "mentors"
+  | "mentees";
+
+const VOLUNTEER_MODES: RecipientMode[] = ["individuals", "group", "season"];
+const MEMBER_MODES: RecipientMode[] = ["members", "mentors", "mentees"];
+const PICK_MODES: RecipientMode[] = ["individuals", "members"];
 
 const CUSTOM = "custom";
+const ALL_SEASONS = "";
 
 /**
  * Members of a group in a season, including the leads a `includes_leads`
@@ -47,6 +60,7 @@ export function volunteersInGroup(
 export default function TaskDialog({
   open,
   volunteers,
+  profiles,
   cohorts,
   groups,
   onClose,
@@ -54,6 +68,8 @@ export default function TaskDialog({
 }: {
   open: boolean;
   volunteers: ResolvedVolunteerWithSeasons[];
+  /** Portal accounts, for the 导师与学员 modes. */
+  profiles: Profile[];
   cohorts: Cohort[];
   groups: VolunteerGroup[];
   onClose: () => void;
@@ -67,15 +83,23 @@ export default function TaskDialog({
   const [link, setLink] = React.useState("");
   const [dueOn, setDueOn] = React.useState("");
   const [mode, setMode] = React.useState<RecipientMode>("individuals");
-  // "" means "the first one" — resolved below rather than stored, so a refetch
-  // of cohorts/groups (React Query refetches on window focus) cannot reset the
-  // form mid-edit.
-  const [cohortChoice, setCohortChoice] = React.useState("");
+  // "" means "the first one" for the whole-season modes and "all seasons" for
+  // the pick modes — resolved below rather than stored, so a refetch of
+  // cohorts/groups (React Query refetches on window focus) cannot reset the
+  // form mid-edit. Pick modes start on the newest season, which is what the
+  // reviewer asked for: the full roster is too long to scan.
+  const [cohortChoice, setCohortChoice] = React.useState<string | null>(null);
   const [groupChoice, setGroupChoice] = React.useState("");
-  const cohortId = cohortChoice || (cohorts[0]?.id ?? "");
-  const groupId = groupChoice || (groups[0]?.id ?? "");
-  const [picked, setPicked] = React.useState<ResolvedVolunteerWithSeasons[]>([]);
+  const [pickedVolunteers, setPickedVolunteers] = React.useState<
+    ResolvedVolunteerWithSeasons[]
+  >([]);
+  const [pickedProfiles, setPickedProfiles] = React.useState<Profile[]>([]);
   const [validationError, setValidationError] = React.useState<string | null>(null);
+
+  const isPickMode = PICK_MODES.includes(mode);
+  const newestCohortId = cohorts[0]?.id ?? "";
+  const cohortId = cohortChoice ?? newestCohortId;
+  const groupId = groupChoice || (groups[0]?.id ?? "");
 
   React.useEffect(() => {
     if (!open) return;
@@ -85,9 +109,10 @@ export default function TaskDialog({
     setLink("");
     setDueOn("");
     setMode("individuals");
-    setCohortChoice("");
+    setCohortChoice(null);
     setGroupChoice("");
-    setPicked([]);
+    setPickedVolunteers([]);
+    setPickedProfiles([]);
     setValidationError(null);
   }, [open]);
 
@@ -100,21 +125,81 @@ export default function TaskDialog({
     setLink(found.link);
   };
 
+  const groupById = React.useMemo(
+    () => new Map(groups.map((group) => [group.id, group])),
+    [groups],
+  );
+
+  // Candidates for the pick modes, narrowed by season. Already-picked people
+  // stay picked when the season changes, so one task can span seasons.
+  const volunteerOptions = React.useMemo(() => {
+    if (cohortId === ALL_SEASONS) return volunteers;
+    return volunteers.filter((volunteer) =>
+      volunteer.seasons.some((season) => season.cohort_id === cohortId),
+    );
+  }, [volunteers, cohortId]);
+
+  const profileOptions = React.useMemo(() => {
+    const members = profiles.filter((profile) => profile.participant_role);
+    if (cohortId === ALL_SEASONS) return members;
+    return members.filter((profile) => profile.cohort_ids.includes(cohortId));
+  }, [profiles, cohortId]);
+
+  const volunteerLabel = (volunteer: ResolvedVolunteerWithSeasons) => {
+    const season =
+      cohortId === ALL_SEASONS
+        ? undefined
+        : volunteer.seasons.find((item) => item.cohort_id === cohortId);
+    const group = season?.group_id ? groupById.get(season.group_id) : undefined;
+    return group ? `${volunteer.full_name} · ${group.name}` : volunteer.full_name;
+  };
+
+  const profileLabel = (profile: Profile) =>
+    profile.participant_role
+      ? `${profile.full_name ?? ""} · ${participantRoleLabels[profile.participant_role]}`
+      : (profile.full_name ?? "");
+
   // The recipients exactly as they will be posted — the preview below is the
   // same list, not an estimate.
-  const recipients = React.useMemo(() => {
-    if (mode === "individuals") return picked;
-    if (!cohortId) return [];
-    if (mode === "season") {
-      return volunteers.filter((volunteer) =>
-        volunteer.seasons.some((season) => season.cohort_id === cohortId),
-      );
+  const recipients = React.useMemo((): {
+    volunteers: ResolvedVolunteerWithSeasons[];
+    profiles: Profile[];
+  } => {
+    switch (mode) {
+      case "individuals":
+        return { volunteers: pickedVolunteers, profiles: [] };
+      case "members":
+        return { volunteers: [], profiles: pickedProfiles };
+      case "season":
+        return {
+          volunteers: volunteers.filter((volunteer) =>
+            volunteer.seasons.some((season) => season.cohort_id === cohortId),
+          ),
+          profiles: [],
+        };
+      case "group": {
+        const group = groupById.get(groupId);
+        return {
+          volunteers: group ? volunteersInGroup(volunteers, cohortId, group) : [],
+          profiles: [],
+        };
+      }
+      case "mentors":
+      case "mentees": {
+        const role = mode === "mentors" ? "mentor" : "mentee";
+        return {
+          volunteers: [],
+          profiles: profiles.filter(
+            (profile) =>
+              profile.participant_role === role && profile.cohort_ids.includes(cohortId),
+          ),
+        };
+      }
     }
-    const group = groups.find((item) => item.id === groupId);
-    return group ? volunteersInGroup(volunteers, cohortId, group) : [];
-  }, [mode, picked, cohortId, groupId, volunteers, groups]);
+  }, [mode, pickedVolunteers, pickedProfiles, volunteers, profiles, cohortId, groupId, groupById]);
 
-  const withoutAccount = recipients.filter((volunteer) => !volunteer.profile_id).length;
+  const recipientCount = recipients.volunteers.length + recipients.profiles.length;
+  const withoutAccount = recipients.volunteers.filter((volunteer) => !volunteer.profile_id).length;
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -123,8 +208,9 @@ export default function TaskDialog({
         description: description.trim() || null,
         link: link.trim() || null,
         due_on: dueOn || null,
-        cohort_id: mode === "individuals" ? null : cohortId || null,
-        volunteer_ids: recipients.map((volunteer) => volunteer.id),
+        cohort_id: isPickMode ? null : cohortId || null,
+        volunteer_ids: recipients.volunteers.map((volunteer) => volunteer.id),
+        profile_ids: recipients.profiles.map((profile) => profile.id),
       }),
     onSuccess: onSaved,
   });
@@ -134,12 +220,19 @@ export default function TaskDialog({
       setValidationError(copy.titleRequired);
       return;
     }
-    if (recipients.length === 0) {
+    if (recipientCount === 0) {
       setValidationError(copy.recipientsRequired);
       return;
     }
     setValidationError(null);
     mutation.mutate();
+  };
+
+  const changeMode = (next: RecipientMode) => {
+    setMode(next);
+    // "All seasons" only exists for the pick modes; a whole-season mode needs
+    // a season.
+    if (!PICK_MODES.includes(next) && cohortId === ALL_SEASONS) setCohortChoice(null);
   };
 
   return (
@@ -206,31 +299,38 @@ export default function TaskDialog({
             select
             label={copy.recipientModeLabel}
             value={mode}
-            onChange={(event) => setMode(event.target.value as RecipientMode)}
+            onChange={(event) => changeMode(event.target.value as RecipientMode)}
             fullWidth
           >
-            {(Object.keys(copy.recipientModes) as RecipientMode[]).map((key) => (
+            <ListSubheader>{copy.recipientGroups.volunteers}</ListSubheader>
+            {VOLUNTEER_MODES.map((key) => (
+              <MenuItem key={key} value={key}>
+                {copy.recipientModes[key]}
+              </MenuItem>
+            ))}
+            <ListSubheader>{copy.recipientGroups.members}</ListSubheader>
+            {MEMBER_MODES.map((key) => (
               <MenuItem key={key} value={key}>
                 {copy.recipientModes[key]}
               </MenuItem>
             ))}
           </TextField>
 
-          {mode !== "individuals" && (
-            <TextField
-              select
-              label={copy.seasonLabel}
-              value={cohortId}
-              onChange={(event) => setCohortChoice(event.target.value)}
-              fullWidth
-            >
-              {cohorts.map((cohort) => (
-                <MenuItem key={cohort.id} value={cohort.id}>
-                  {cohort.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          )}
+          <TextField
+            select
+            label={copy.seasonLabel}
+            value={cohortId}
+            onChange={(event) => setCohortChoice(event.target.value)}
+            helperText={isPickMode ? copy.seasonFilterHelper : undefined}
+            fullWidth
+          >
+            {isPickMode && <MenuItem value={ALL_SEASONS}>{copy.allSeasons}</MenuItem>}
+            {cohorts.map((cohort) => (
+              <MenuItem key={cohort.id} value={cohort.id}>
+                {cohort.name}
+              </MenuItem>
+            ))}
+          </TextField>
           {mode === "group" && (
             <TextField
               select
@@ -249,10 +349,10 @@ export default function TaskDialog({
           {mode === "individuals" && (
             <Autocomplete
               multiple
-              options={volunteers}
-              value={picked}
-              onChange={(_, value) => setPicked(value)}
-              getOptionLabel={(option) => option.full_name}
+              options={volunteerOptions}
+              value={pickedVolunteers}
+              onChange={(_, value) => setPickedVolunteers(value)}
+              getOptionLabel={volunteerLabel}
               isOptionEqualToValue={(a, b) => a.id === b.id}
               renderInput={(params) => (
                 <TextField
@@ -263,9 +363,26 @@ export default function TaskDialog({
               )}
             />
           )}
+          {mode === "members" && (
+            <Autocomplete
+              multiple
+              options={profileOptions}
+              value={pickedProfiles}
+              onChange={(_, value) => setPickedProfiles(value)}
+              getOptionLabel={profileLabel}
+              isOptionEqualToValue={(a, b) => a.id === b.id}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label={copy.membersLabel}
+                  placeholder={copy.membersPlaceholder}
+                />
+              )}
+            />
+          )}
 
-          <Alert severity={recipients.length === 0 ? "warning" : "info"}>
-            {recipients.length === 0 ? copy.previewEmpty : copy.previewCount(recipients.length)}
+          <Alert severity={recipientCount === 0 ? "warning" : "info"}>
+            {recipientCount === 0 ? copy.previewEmpty : copy.previewCount(recipientCount)}
             {withoutAccount > 0 && (
               <Typography variant="body2" sx={{ mt: 0.5 }}>
                 {copy.previewNoAccount(withoutAccount)}

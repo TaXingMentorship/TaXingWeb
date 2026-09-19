@@ -27,17 +27,19 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import type {
+  Profile,
   ResolvedVolunteerWithSeasons,
   TaskWithAssignments,
 } from "@/types/portal";
 import {
   deleteTask,
   listCohorts,
+  listProfiles,
   listTasksWithAssignments,
   listVolunteerGroups,
   listVolunteers,
 } from "@/lib/portal/store";
-import { portalCopy } from "@/data/portalCopy";
+import { participantRoleLabels, portalCopy } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import TaskDialog from "@/components/portal/TaskDialog";
 import { MY_TASKS_KEY } from "@/components/portal/useMyTasks";
@@ -78,10 +80,19 @@ export default function AdminTasksPage() {
     queryFn: listVolunteerGroups,
     enabled: isAdmin,
   });
+  const { data: profiles } = useQuery({
+    queryKey: ["portal", "profiles"],
+    queryFn: () => listProfiles(),
+    enabled: isAdmin,
+  });
 
   const volunteerById = React.useMemo(
     () => new Map((volunteers ?? []).map((volunteer) => [volunteer.id, volunteer])),
     [volunteers],
+  );
+  const profileById = React.useMemo(
+    () => new Map((profiles ?? []).map((profile) => [profile.id, profile])),
+    [profiles],
   );
 
   // The admin may be a recipient too, so her own reminder badge is refreshed
@@ -134,7 +145,7 @@ export default function AdminTasksPage() {
           color="secondary"
           startIcon={<AddIcon />}
           onClick={() => setDialogOpen(true)}
-          disabled={!volunteers || !cohorts || !groups}
+          disabled={!volunteers || !profiles || !cohorts || !groups}
         >
           {copy.newButton}
         </Button>
@@ -237,6 +248,7 @@ export default function AdminTasksPage() {
       <TaskDialog
         open={dialogOpen}
         volunteers={volunteers ?? []}
+        profiles={profiles ?? []}
         cohorts={cohorts ?? []}
         groups={groups ?? []}
         onClose={() => setDialogOpen(false)}
@@ -249,6 +261,7 @@ export default function AdminTasksPage() {
       <RecipientsDialog
         task={detail}
         volunteerById={volunteerById}
+        profileById={profileById}
         onClose={() => setDetail(null)}
       />
 
@@ -279,10 +292,12 @@ export default function AdminTasksPage() {
 function RecipientsDialog({
   task,
   volunteerById,
+  profileById,
   onClose,
 }: {
   task: TaskWithAssignments | null;
   volunteerById: Map<string, ResolvedVolunteerWithSeasons>;
+  profileById: Map<string, Profile>;
   onClose: () => void;
 }) {
   const copy = portalCopy.adminTasks;
@@ -293,10 +308,17 @@ function RecipientsDialog({
       const volunteer = assignment.volunteer_id
         ? volunteerById.get(assignment.volunteer_id)
         : undefined;
+      const profile = assignment.profile_id
+        ? profileById.get(assignment.profile_id)
+        : undefined;
       const hasAccount = Boolean(assignment.profile_id || volunteer?.profile_id);
+      const role = profile?.participant_role
+        ? participantRoleLabels[profile.participant_role]
+        : undefined;
       return {
         id: assignment.id,
-        name: volunteer?.full_name ?? "—",
+        name: volunteer?.full_name ?? profile?.full_name ?? "—",
+        role,
         completedAt: assignment.completed_at,
         hasAccount,
       };
@@ -320,6 +342,11 @@ function RecipientsDialog({
             >
               <Typography variant="body2" fontWeight={600}>
                 {row.name}
+                {row.role && (
+                  <Typography component="span" variant="body2" color="text.secondary">
+                    {" "}· {row.role}
+                  </Typography>
+                )}
               </Typography>
               {row.completedAt ? (
                 <Chip size="small" color="success" label={`${copy.statusDone} · ${formatDate(row.completedAt)}`} />
