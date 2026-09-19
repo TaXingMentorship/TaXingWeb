@@ -1089,7 +1089,7 @@ export type TaskInput = {
   title: string;
   description: string | null;
   link: string | null;
-  due_on: string | null;
+  due_on: string;
   cohort_id: string | null;
   /** Volunteer records — the assignee resolves to an account through the link. */
   volunteer_ids: string[];

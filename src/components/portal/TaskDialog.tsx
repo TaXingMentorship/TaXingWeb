@@ -206,7 +206,7 @@ export default function TaskDialog({
         title: title.trim(),
         description: description.trim() || null,
         link: link.trim() || null,
-        due_on: dueOn || null,
+        due_on: dueOn,
         cohort_id: isPickMode ? null : cohortId || null,
         volunteer_ids: recipients.volunteers.map((volunteer) => volunteer.id),
         profile_ids: recipients.profiles.map((profile) => profile.id),
@@ -217,6 +217,10 @@ export default function TaskDialog({
   const submit = () => {
     if (!title.trim()) {
       setValidationError(copy.titleRequired);
+      return;
+    }
+    if (!dueOn) {
+      setValidationError(copy.dueRequired);
       return;
     }
     if (recipientCount === 0) {
@@ -302,6 +306,7 @@ export default function TaskDialog({
             type="date"
             value={dueOn}
             onChange={(event) => setDueOn(event.target.value)}
+            required
             fullWidth
             slotProps={{ inputLabel: { shrink: true } }}
           />

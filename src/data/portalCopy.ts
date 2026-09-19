@@ -272,6 +272,7 @@ export const portalCopy = {
       `其中 ${n} 位志愿者还没有开通门户账号，暂时看不到提醒；开通后会自动看到。`,
     previewEmpty: "还没有选择接收人。",
     titleRequired: "请填写任务标题。",
+    dueRequired: "请选择截止日期。",
     recipientsRequired: "请至少选择一位接收人。",
     create: "创建并分配",
   },

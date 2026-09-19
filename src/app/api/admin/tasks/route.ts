@@ -13,7 +13,7 @@ const createSchema = z.object({
   title: z.string().trim().min(1, "请填写任务标题。").max(200),
   description: z.string().trim().max(2000).nullable(),
   link: portalPath.nullable(),
-  due_on: z.iso.date().nullable(),
+  due_on: z.iso.date({ message: "请选择截止日期。" }),
   cohort_id: z.uuid().nullable(),
   volunteer_ids: z.array(z.uuid()).max(500).default([]),
   profile_ids: z.array(z.uuid()).max(500).default([]),
