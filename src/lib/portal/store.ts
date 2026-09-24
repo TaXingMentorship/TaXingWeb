@@ -1050,14 +1050,19 @@ export function importMembers(
 // --- Tasks -----------------------------------------------------------------
 
 /**
- * The signed-in user's assignments with their tasks, pending first. RLS
- * (migration 0017) already restricts the rows to hers — by account or through
- * the linked volunteer record — so there is no filter here.
+ * The signed-in user's assignments with their tasks, pending first. RLS lets
+ * an admin read every row (migration 0017), so the admin case needs an
+ * explicit filter here too — by account or through the linked volunteer
+ * record — to avoid pulling in everyone else's assignments.
  */
-export async function listMyTasks(): Promise<MyTask[]> {
-  const { data, error } = await createClient()
-    .from("task_assignments")
-    .select("*, task:tasks(*)")
+export async function listMyTasks(userId: string): Promise<MyTask[]> {
+  const supabase = createClient();
+  const { data: volunteerId } = await supabase.rpc("my_volunteer_id");
+  let query = supabase.from("task_assignments").select("*, task:tasks(*)");
+  query = volunteerId
+    ? query.or(`profile_id.eq.${userId},volunteer_id.eq.${volunteerId}`)
+    : query.eq("profile_id", userId);
+  const { data, error } = await query
     .order("completed_at", { ascending: true, nullsFirst: true })
     .order("created_at", { ascending: false });
   throwQueryError("读取任务", error);

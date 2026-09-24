@@ -17,7 +17,7 @@ export function useMyTasks() {
   const { realUser } = usePortalSession();
   const query = useQuery({
     queryKey: [...MY_TASKS_KEY, realUser?.id],
-    queryFn: listMyTasks,
+    queryFn: () => listMyTasks(realUser!.id),
     enabled: Boolean(realUser),
   });
   const tasks = query.data ?? [];
