@@ -20,7 +20,11 @@ import type {
   ResolvedVolunteerWithSeasons,
   VolunteerGroup,
   VolunteerSeason,
+  VolunteerSeasonChange,
   VolunteerWithSeasons,
+  MyTask,
+  Task,
+  TaskWithAssignments,
 } from "@/types/portal";
 
 type SupabaseError = {
@@ -760,6 +764,72 @@ export async function listLinkCandidates(): Promise<
     );
 }
 
+/**
+ * The signed-in user's own volunteer record, or null when the account is not
+ * linked to one. Read through `volunteers_resolved` like everything else, so
+ * the name and contact details already reflect the profile.
+ */
+export async function getMyVolunteer(
+  profileId: string,
+): Promise<ResolvedVolunteerWithSeasons | null> {
+  const supabase = createClient();
+  const volunteer = await supabase
+    .from("volunteers_resolved")
+    .select("*")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  throwQueryError("读取志愿者信息", volunteer.error);
+  if (!volunteer.data) return null;
+
+  const seasons = await supabase
+    .from("volunteer_seasons")
+    .select("*")
+    .eq("volunteer_id", (volunteer.data as ResolvedVolunteer).id)
+    .order("created_at", { ascending: true });
+  throwQueryError("读取志愿者季度", seasons.error);
+
+  return {
+    ...(volunteer.data as ResolvedVolunteer),
+    seasons: (seasons.data ?? []) as VolunteerSeason[],
+  };
+}
+
+/**
+ * Moves the signed-in volunteer to another group for one of her seasons. The
+ * function (migration 0016) checks the season is hers, refuses to leave a lead
+ * without a group, and records the change in `volunteer_season_changes`.
+ */
+export async function setMyVolunteerGroup(
+  seasonId: string,
+  groupId: string | null,
+): Promise<void> {
+  const { error } = await createClient().rpc("set_my_volunteer_group", {
+    p_season_id: seasonId,
+    p_group_id: groupId,
+  });
+  if (error) {
+    const reason = error.message.includes("LEAD_WITHOUT_GROUP")
+      ? "负责人必须属于一个组别。"
+      : error.message.includes("NOT_YOUR_SEASON")
+        ? "只能修改自己的季度。"
+        : error.message;
+    throw new Error(`修改组别失败：${reason}`);
+  }
+}
+
+/** Self-service group changes for one volunteer, newest first. Admin only (RLS). */
+export async function listVolunteerSeasonChanges(
+  volunteerId: string,
+): Promise<VolunteerSeasonChange[]> {
+  const { data, error } = await createClient()
+    .from("volunteer_season_changes")
+    .select("*")
+    .eq("volunteer_id", volunteerId)
+    .order("changed_at", { ascending: false });
+  throwQueryError("读取修改记录", error);
+  return (data ?? []) as VolunteerSeasonChange[];
+}
+
 /** Confirms (or, with `null`, removes) the link between a volunteer and an account. */
 export function linkVolunteerProfile(
   id: string,
@@ -975,4 +1045,67 @@ export function importMembers(
     { rows, dryRun: options?.dryRun ?? false },
     options?.dryRun ? "预检成员名单" : "导入成员名单",
   );
+}
+
+// --- Tasks -----------------------------------------------------------------
+
+/**
+ * The signed-in user's assignments with their tasks, pending first. RLS lets
+ * an admin read every row (migration 0017), so the admin case needs an
+ * explicit filter here too — by account or through the linked volunteer
+ * record — to avoid pulling in everyone else's assignments.
+ */
+export async function listMyTasks(userId: string): Promise<MyTask[]> {
+  const supabase = createClient();
+  const { data: volunteerId } = await supabase.rpc("my_volunteer_id");
+  let query = supabase.from("task_assignments").select("*, task:tasks(*)");
+  query = volunteerId
+    ? query.or(`profile_id.eq.${userId},volunteer_id.eq.${volunteerId}`)
+    : query.eq("profile_id", userId);
+  const { data, error } = await query
+    .order("completed_at", { ascending: true, nullsFirst: true })
+    .order("created_at", { ascending: false });
+  throwQueryError("读取任务", error);
+  return ((data ?? []) as (MyTask & { task: Task | null })[]).filter(
+    (row): row is MyTask => Boolean(row.task),
+  );
+}
+
+/** Completes (or reopens) one of the caller's own assignments. */
+export async function setMyTaskDone(assignmentId: string, done: boolean): Promise<void> {
+  const { error } = await createClient().rpc("set_my_task_done", {
+    p_assignment_id: assignmentId,
+    p_done: done,
+  });
+  if (error) throw new Error(`更新任务失败：${error.message}`);
+}
+
+/** Every task with its recipients — admin only (RLS). Newest first. */
+export async function listTasksWithAssignments(): Promise<TaskWithAssignments[]> {
+  const { data, error } = await createClient()
+    .from("tasks")
+    .select("*, assignments:task_assignments(*)")
+    .order("created_at", { ascending: false });
+  throwQueryError("读取任务", error);
+  return (data ?? []) as TaskWithAssignments[];
+}
+
+export type TaskInput = {
+  title: string;
+  description: string | null;
+  link: string | null;
+  due_on: string;
+  cohort_id: string | null;
+  /** Volunteer records — the assignee resolves to an account through the link. */
+  volunteer_ids: string[];
+  /** Portal accounts (mentors, mentees) addressed directly. */
+  profile_ids: string[];
+};
+
+export function createTask(input: TaskInput): Promise<TaskWithAssignments> {
+  return postAdminJson<TaskWithAssignments>("/api/admin/tasks", input, "创建任务");
+}
+
+export function deleteTask(id: string): Promise<{ id: string }> {
+  return adminJson<{ id: string }>("/api/admin/tasks", "DELETE", { id }, "删除任务");
 }

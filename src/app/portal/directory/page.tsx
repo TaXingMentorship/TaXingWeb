@@ -125,7 +125,7 @@ export default function DirectoryPage() {
         成员目录
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
-        浏览导师、学员、管理员与志愿者，按姓名、简介或兴趣筛选。
+        浏览导师、学员、负责人与志愿者，按姓名、简介或兴趣筛选。
       </Typography>
 
       {currentUser?.is_admin && (
