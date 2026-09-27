@@ -240,19 +240,55 @@ export async function createBoard(input: {
   return data as BulletinBoard;
 }
 
-/** Individual board switch; the cohort switch remains the global override. */
-export async function setBoardOpen(
+/**
+ * Admin edit of a board's settings. `cohort_id` is deliberately not
+ * editable: posts carry their own `cohort_id`, so moving a board between
+ * seasons would leave its posts pointing at the old one.
+ */
+export async function updateBoard(
   id: string,
-  open: boolean,
+  patch: Partial<
+    Pick<
+      BulletinBoard,
+      | "name"
+      | "description"
+      | "prompt"
+      | "is_open"
+      | "allowed_categories"
+      | "allow_anonymous"
+      | "allow_comments"
+    >
+  >,
 ): Promise<BulletinBoard> {
   const { data, error } = await createClient()
     .from("bulletin_boards")
-    .update({ is_open: open })
+    .update(patch)
     .eq("id", id)
     .select("*")
     .single();
   throwQueryError("更新留言板", error);
   return data as BulletinBoard;
+}
+
+/** Individual board switch; the cohort switch remains the global override. */
+export function setBoardOpen(
+  id: string,
+  open: boolean,
+): Promise<BulletinBoard> {
+  return updateBoard(id, { is_open: open });
+}
+
+/**
+ * Removes the board and, through `on delete cascade` on `bulletin_posts`,
+ * every post, comment and reaction on it. Admin-only via RLS
+ * (`boards_admin_all`).
+ */
+export async function deleteBoard(id: string): Promise<void> {
+  const { error } = await createClient()
+    .from("bulletin_boards")
+    .delete()
+    .eq("id", id);
+  throwQueryError("删除留言板", error);
 }
 
 /** Number of RLS-visible posts per board, keyed by board id. */

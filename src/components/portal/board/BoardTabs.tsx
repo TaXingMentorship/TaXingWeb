@@ -21,9 +21,11 @@ import Select from "@mui/material/Select";
 import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 import OutlinedInput from "@mui/material/OutlinedInput";
+import Tooltip from "@mui/material/Tooltip";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import type { SelectChangeEvent } from "@mui/material/Select";
 import type { BulletinBoard, BulletinCategory, Cohort } from "@/types/portal";
-import { createBoard } from "@/lib/portal/store";
+import { createBoard, updateBoard } from "@/lib/portal/store";
 import { allCategories, categoryLabels, portalCopy } from "@/data/portalCopy";
 
 export default function BoardTabs({
@@ -31,11 +33,14 @@ export default function BoardTabs({
   counts,
   selectedId,
   onSelect,
+  onEdit,
 }: {
   boards: BulletinBoard[];
   counts: Record<string, number>;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** Admin only. Shows a pencil on the selected tab that opens the editor. */
+  onEdit?: (board: BulletinBoard) => void;
 }) {
   return (
     <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
@@ -57,6 +62,37 @@ export default function BoardTabs({
               // Badge overflowed the Tab box and its count got clipped.
               <Stack direction="row" spacing={0.75} alignItems="center">
                 <Box component="span">{board.name}</Box>
+                {onEdit && board.id === selectedId && (
+                  // A <span role="button"> rather than IconButton: the Tab is
+                  // already a <button>, and buttons cannot nest.
+                  <Tooltip title={portalCopy.board.editButton}>
+                    <Box
+                      component="span"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={portalCopy.board.editButton}
+                      onClick={(event: React.MouseEvent) => {
+                        event.stopPropagation();
+                        onEdit(board);
+                      }}
+                      onKeyDown={(event: React.KeyboardEvent) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onEdit(board);
+                        }
+                      }}
+                      sx={{
+                        display: "inline-flex",
+                        color: "text.secondary",
+                        borderRadius: 1,
+                        "&:hover, &:focus-visible": { color: "secondary.main" },
+                      }}
+                    >
+                      <EditOutlinedIcon sx={{ fontSize: 16 }} />
+                    </Box>
+                  </Tooltip>
+                )}
                 <Chip
                   size="small"
                   color="secondary"
@@ -84,14 +120,18 @@ export default function BoardTabs({
   );
 }
 
-export function CreateBoardDialog({
+/** Shared by create and edit — `board` null means create. */
+export function BoardDialog({
   open,
+  board,
   cohortId,
   cohorts,
   onClose,
-  onCreated,
+  onSaved,
+  onDelete,
 }: {
   open: boolean;
+  board: BulletinBoard | null;
   /** The season selected in SeasonTabs — the initial choice, not the only one. */
   cohortId: string;
   /**
@@ -105,7 +145,9 @@ export function CreateBoardDialog({
    */
   cohorts: Cohort[];
   onClose: () => void;
-  onCreated: (board: BulletinBoard) => void;
+  onSaved: (board: BulletinBoard) => void;
+  /** Edit mode only: hands the board to the page's delete confirmation. */
+  onDelete: (board: BulletinBoard) => void;
 }) {
   const [targetCohortId, setTargetCohortId] = React.useState(cohortId);
   const [name, setName] = React.useState("");
@@ -118,20 +160,19 @@ export function CreateBoardDialog({
 
   React.useEffect(() => {
     if (!open) return;
-    setName("");
-    setDescription("");
-    setPrompt("");
-    setIsOpen(true);
-    setAllowAnonymous(true);
-    setAllowComments(true);
-    setCategories([]);
-    setTargetCohortId(cohortId);
-  }, [open, cohortId]);
+    setName(board?.name ?? "");
+    setDescription(board?.description ?? "");
+    setPrompt(board?.prompt ?? "");
+    setIsOpen(board?.is_open ?? true);
+    setAllowAnonymous(board?.allow_anonymous ?? true);
+    setAllowComments(board?.allow_comments ?? true);
+    setCategories(board?.allowed_categories ?? []);
+    setTargetCohortId(board?.cohort_id ?? cohortId);
+  }, [open, board, cohortId]);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      createBoard({
-        cohort_id: targetCohortId,
+    mutationFn: () => {
+      const payload = {
         name: name.trim(),
         description: description.trim() || null,
         prompt: prompt.trim() || null,
@@ -139,12 +180,20 @@ export function CreateBoardDialog({
         allow_anonymous: allowAnonymous,
         allow_comments: allowComments,
         allowed_categories: categories.length > 0 ? categories : null,
-        // Tab order is not worth a form field — every board is created at 0,
-        // so listBoards falls through to created_at. Adjust in Supabase if a
-        // board ever needs to jump the queue.
-        sort_order: 0,
-      }),
-    onSuccess: onCreated,
+      };
+      // The season is fixed once a board exists — see updateBoard.
+      return board
+        ? updateBoard(board.id, payload)
+        : createBoard({
+            ...payload,
+            cohort_id: targetCohortId,
+            // Tab order is not worth a form field — every board is created
+            // at 0, so listBoards falls through to created_at. Adjust in
+            // Supabase if a board ever needs to jump the queue.
+            sort_order: 0,
+          });
+    },
+    onSuccess: onSaved,
   });
 
   const handleCategories = (event: SelectChangeEvent<BulletinCategory[]>) => {
@@ -156,7 +205,9 @@ export function CreateBoardDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{portalCopy.board.createTitle}</DialogTitle>
+      <DialogTitle>
+        {board ? portalCopy.board.editTitle : portalCopy.board.createTitle}
+      </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {mutation.isError && (
@@ -167,7 +218,12 @@ export function CreateBoardDialog({
             label={portalCopy.board.seasonLabel}
             value={targetCohortId}
             onChange={(event) => setTargetCohortId(event.target.value)}
-            helperText={portalCopy.board.createSeasonHelp}
+            helperText={
+              board
+                ? portalCopy.board.editSeasonHelp
+                : portalCopy.board.createSeasonHelp
+            }
+            disabled={Boolean(board)}
             fullWidth
           >
             {cohorts.map((cohort) => (
@@ -254,14 +310,24 @@ export function CreateBoardDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
+        {board && (
+          <Button
+            color="error"
+            disabled={mutation.isPending}
+            onClick={() => onDelete(board)}
+            sx={{ mr: "auto" }}
+          >
+            {portalCopy.board.deleteButton}
+          </Button>
+        )}
         <Button onClick={onClose}>{portalCopy.board.cancel}</Button>
         <Button
           variant="contained"
           color="secondary"
-          disabled={!name.trim() || !cohortId || mutation.isPending}
+          disabled={!name.trim() || !targetCohortId || mutation.isPending}
           onClick={() => mutation.mutate()}
         >
-          创建
+          {board ? portalCopy.board.saveAction : portalCopy.board.createAction}
         </Button>
       </DialogActions>
     </Dialog>

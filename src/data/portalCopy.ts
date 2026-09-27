@@ -179,6 +179,16 @@ export const portalCopy = {
     createButton: "新建留言板",
     createSeasonHelp: "新留言板归属的季度。还没有留言板的季度也可以选。",
     createTitle: "新建留言板",
+    createAction: "创建",
+    editButton: "编辑留言板",
+    editTitle: "编辑留言板",
+    editSeasonHelp: "留言板所属季度不可更改。",
+    saveAction: "保存",
+    deleteButton: "删除留言板",
+    deleteBoardTitle: "删除留言板",
+    deleteBoardConfirm: (name: string, count: number) =>
+      `确定删除「${name}」？其中 ${count} 条留言及全部评论、表情将一并删除，无法恢复。`,
+    deleteBoardAction: "删除",
     nameLabel: "留言板名称",
     descriptionLabel: "简介（可选）",
     promptLabel: "引导语（可选，显示在发布框里）",
@@ -220,6 +230,7 @@ export const portalCopy = {
     resolved: "已解答",
     hiddenChip: "已隐藏",
     reactionTooltip: "点一个表情",
+    viewProfile: "查看资料",
     commentsToggle: "条评论",
     commentsEmpty: "还没有评论。",
     commentPlaceholder: "写下你的回复…",
@@ -247,7 +258,6 @@ export const portalCopy = {
     seasonOpenToggle: "本季度留言板开放",
 
     // Gating
-    volunteerReadOnly: "志愿者账号可浏览留言，但不能发布内容。",
     boardClosed: "该留言板当前已关闭，仅可浏览。",
     seasonArchived: "本季度活动已结束，留言板仅可浏览。",
     otherSeasonReadOnly: "你不是本季度的成员，可以浏览往期内容，但不能发布或互动。",
