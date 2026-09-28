@@ -17,11 +17,13 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import AddIcon from "@mui/icons-material/Add";
+import Tooltip from "@mui/material/Tooltip";
 import type { BulletinBoard, Cohort, Profile } from "@/types/portal";
 import {
   listBoards,
   listCohorts,
   listProfiles,
+  listVolunteers,
   setCohortBulletinOpen,
 } from "@/lib/portal/store";
 import { portalCopy } from "@/data/portalCopy";
@@ -53,6 +55,11 @@ export default function CohortsPage() {
     queryFn: () => listBoards(),
     enabled: isAdmin,
   });
+  const { data: volunteers } = useQuery({
+    queryKey: ["portal", "volunteers"],
+    queryFn: listVolunteers,
+    enabled: isAdmin,
+  });
 
   // Counted client-side from lists an admin can already read, the same way
   // countPostsByBoard does it — no extra queries.
@@ -63,6 +70,18 @@ export default function CohortsPage() {
     }
     return counts;
   }, [profiles]);
+
+  // Volunteers are a separate roster from profiles (see STRUCTURE.md), so a
+  // season that predates the portal shows 0 members and still has volunteers.
+  const volunteerCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const volunteer of volunteers ?? []) {
+      for (const season of volunteer.seasons) {
+        counts[season.cohort_id] = (counts[season.cohort_id] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [volunteers]);
 
   const boardCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
@@ -142,7 +161,16 @@ export default function CohortsPage() {
               <TableRow>
                 <TableCell>{copy.nameLabel}</TableCell>
                 <TableCell>{`${copy.startsAtLabel} / ${copy.endsAtLabel}`}</TableCell>
-                <TableCell align="right">{copy.memberCount}</TableCell>
+                <TableCell align="right">
+                  <Tooltip title={copy.memberCountHint}>
+                    <span>{copy.memberCount}</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell align="right">
+                  <Tooltip title={copy.volunteerCountHint}>
+                    <span>{copy.volunteerCount}</span>
+                  </Tooltip>
+                </TableCell>
                 <TableCell align="right">{copy.boardCount}</TableCell>
                 <TableCell align="center">{copy.bulletinOpenLabel}</TableCell>
                 <TableCell align="right">{copy.actions}</TableCell>
@@ -180,6 +208,9 @@ export default function CohortsPage() {
                     </TableCell>
                     <TableCell align="right">
                       {memberCounts[cohort.id] ?? 0}
+                    </TableCell>
+                    <TableCell align="right">
+                      {volunteerCounts[cohort.id] ?? 0}
                     </TableCell>
                     <TableCell align="right">
                       {boardCounts[cohort.id] ?? 0}

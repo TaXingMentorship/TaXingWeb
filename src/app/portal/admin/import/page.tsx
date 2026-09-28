@@ -95,7 +95,7 @@ export default function AdminImportPage() {
   };
 
   if (!currentUser?.is_admin) {
-    return <Alert severity="error">仅管理员可访问名单导入。</Alert>;
+    return <Alert severity="error">仅负责人可访问名单导入。</Alert>;
   }
 
   return (

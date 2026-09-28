@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -32,6 +32,7 @@ import type {
 } from "@/types/portal";
 import {
   createVolunteer,
+  listVolunteerSeasonChanges,
   updateVolunteer,
   type VolunteerSeasonInput,
 } from "@/lib/portal/store";
@@ -96,7 +97,19 @@ export default function VolunteerDialog({
       cohorts,
     ));
     setValidationError(null);
-  }, [open, volunteer, cohorts]);
+    // Reset only when the dialog opens. `volunteer` and `cohorts` are query
+    // results and get new references on every refetch — React Query refetches
+    // on window focus — which would wipe an edit in progress.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Self-service group changes the volunteer made from 我的资料 (migration
+  // 0016). Only linked volunteers can have any, so the query is skipped otherwise.
+  const { data: changes } = useQuery({
+    queryKey: ["portal", "volunteerSeasonChanges", volunteer?.id],
+    queryFn: () => listVolunteerSeasonChanges(volunteer!.id),
+    enabled: open && Boolean(volunteer?.profile_id),
+  });
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -340,8 +353,44 @@ export default function VolunteerDialog({
               }
               label={copy.isPublicLabel}
             />
-            <FormHelperText>{copy.notPublicHint}</FormHelperText>
+            <FormHelperText>
+              {isPublic ? copy.publicHint : copy.notPublicHint}
+            </FormHelperText>
           </Box>
+
+          {linked ? (
+            <Box>
+              <Typography variant="subtitle2" fontWeight={700}>
+                {copy.changesTitle}
+              </Typography>
+              <FormHelperText sx={{ mb: 1 }}>{copy.changesHint}</FormHelperText>
+              {changes && changes.length > 0 ? (
+                <Stack spacing={0.5}>
+                  {changes.map((change) => {
+                    const cohortName =
+                      cohorts.find((cohort) => cohort.id === change.cohort_id)?.name ?? "";
+                    const groupName = (id: string | null) =>
+                      (id && groups.find((group) => group.id === id)?.name) ||
+                      copy.groupPlaceholder;
+                    return (
+                      <Typography key={change.id} variant="body2" color="text.secondary">
+                        {new Date(change.changed_at).toLocaleDateString("zh-CN")} ·{" "}
+                        {cohortName} ·{" "}
+                        {copy.changeLine(
+                          groupName(change.old_group_id),
+                          groupName(change.new_group_id),
+                        )}
+                      </Typography>
+                    );
+                  })}
+                </Stack>
+              ) : (
+                <Typography variant="body2" color="text.disabled">
+                  {copy.changesEmpty}
+                </Typography>
+              )}
+            </Box>
+          ) : null}
         </Stack>
       </DialogContent>
       <DialogActions>

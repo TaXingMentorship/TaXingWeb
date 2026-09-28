@@ -26,6 +26,8 @@ import { portalCopy, profileLabels } from "@/data/portalCopy";
 import { canAccessPortalNav, portalNavItems } from "@/data/portalNav";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import PersonaSwitcher from "@/components/portal/PersonaSwitcher";
+import Badge from "@mui/material/Badge";
+import { useMyTasks } from "@/components/portal/useMyTasks";
 
 const DRAWER_WIDTH = 248;
 
@@ -34,6 +36,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const pathname = usePathname();
   const { currentUser, realUser, loading, signOut } = usePortalSession();
+  const { pending: pendingTasks } = useMyTasks();
 
   if (
     pathname === "/portal/login" ||
@@ -101,6 +104,13 @@ export default function PortalShell({ children }: { children: React.ReactNode })
                   <item.Icon />
                 </ListItemIcon>
                 <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
+                {item.path === "/portal/tasks" && pendingTasks.length > 0 && (
+                  <Badge
+                    color="error"
+                    badgeContent={pendingTasks.length}
+                    sx={{ mr: 1.5 }}
+                  />
+                )}
               </ListItemButton>
             </ListItem>
           );

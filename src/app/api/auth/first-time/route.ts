@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   if (!activationCode) {
     console.error("PORTAL_ACTIVATION_CODE is not configured.");
     return NextResponse.json(
-      { error: "会员激活暂不可用，请联系管理员。" },
+      { error: "会员激活暂不可用，请联系负责人。" },
       { status: 503 },
     );
   }
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
         listError?.message ?? "user not found",
       );
       return NextResponse.json(
-        { error: "暂时无法激活账号，请联系管理员。" },
+        { error: "暂时无法激活账号，请联系负责人。" },
         { status: 500 },
       );
     }

@@ -82,7 +82,7 @@ export default function FirstTimePasswordPage() {
               激活会员账号
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 1 }}>
-              使用受邀邮箱和管理员提供的激活码，然后设置你的私人密码。
+              使用受邀邮箱和负责人提供的激活码，然后设置你的私人密码。
             </Typography>
           </Box>
 
