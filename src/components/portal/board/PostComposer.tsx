@@ -15,8 +15,16 @@ import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Alert from "@mui/material/Alert";
 import EmojiEmotionsOutlinedIcon from "@mui/icons-material/EmojiEmotionsOutlined";
+import AddPhotoAlternateOutlinedIcon from "@mui/icons-material/AddPhotoAlternateOutlined";
+import CloseIcon from "@mui/icons-material/Close";
+import IconButton from "@mui/material/IconButton";
 import type { BulletinBoard, BulletinCategory, BulletinColor } from "@/types/portal";
 import { allCategories, categoryLabels, portalCopy } from "@/data/portalCopy";
+import {
+  BULLETIN_IMAGE_MAX_BYTES,
+  BULLETIN_MAX_IMAGES,
+  validateImageFile,
+} from "@/lib/portal/uploads";
 import EmojiPicker from "./EmojiPicker";
 import ColorPicker from "./ColorPicker";
 
@@ -29,6 +37,7 @@ export type ComposerDraft = {
   category: BulletinCategory;
   color: BulletinColor;
   isAnonymous: boolean;
+  imageFiles: File[];
 };
 
 export default function PostComposer({
@@ -56,7 +65,21 @@ export default function PostComposer({
   const [color, setColor] = React.useState<BulletinColor>("default");
   const [anonymous, setAnonymous] = React.useState(false);
   const [emojiAnchor, setEmojiAnchor] = React.useState<null | HTMLElement>(null);
+  const [imageFiles, setImageFiles] = React.useState<File[]>([]);
+  const [imageError, setImageError] = React.useState<string | null>(null);
   const bodyRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // One object URL per selected file, kept in the same order — revoked
+  // whenever the selection changes so the browser doesn't hold onto memory
+  // for images that were removed or never got submitted.
+  const imagePreviews = React.useMemo(
+    () => imageFiles.map((file) => URL.createObjectURL(file)),
+    [imageFiles],
+  );
+  React.useEffect(() => {
+    return () => imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+  }, [imagePreviews]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -66,9 +89,40 @@ export default function PostComposer({
     setColor("default");
     setAnonymous(false);
     setEmojiAnchor(null);
+    setImageFiles([]);
+    setImageError(null);
     // `categories` is derived from the board and stable for a given board.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, board.id]);
+
+  const addImages = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setImageError(null);
+
+    setImageFiles((current) => {
+      const next = [...current];
+      for (const file of Array.from(files)) {
+        if (next.length >= BULLETIN_MAX_IMAGES) {
+          setImageError(portalCopy.board.imageLimitReached);
+          break;
+        }
+        const validationError = validateImageFile(file, BULLETIN_IMAGE_MAX_BYTES);
+        if (validationError) {
+          setImageError(validationError);
+          continue;
+        }
+        next.push(file);
+      }
+      return next;
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles((current) => current.filter((_, i) => i !== index));
+    setImageError(null);
+  };
 
   /** Inserts the emoji at the caret, or appends when the field is unfocused. */
   const insertEmoji = (emoji: string) => {
@@ -135,6 +189,71 @@ export default function PostComposer({
             />
           </Box>
 
+          <Box>
+            <Button
+              size="small"
+              startIcon={<AddPhotoAlternateOutlinedIcon />}
+              disabled={imageFiles.length >= BULLETIN_MAX_IMAGES}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {portalCopy.board.addImageButton}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              hidden
+              onChange={(e) => addImages(e.target.files)}
+            />
+            {imageError && (
+              <Typography variant="caption" color="error" display="block">
+                {imageError}
+              </Typography>
+            )}
+            {imagePreviews.length > 0 && (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                {imagePreviews.map((url, index) => (
+                  <Box
+                    key={url}
+                    sx={{
+                      position: "relative",
+                      width: 72,
+                      height: 72,
+                      borderRadius: 1.5,
+                      overflow: "hidden",
+                      border: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview, not a remote/optimizable image */}
+                    <img
+                      src={url}
+                      alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    />
+                    <IconButton
+                      size="small"
+                      aria-label={portalCopy.board.removeImage}
+                      onClick={() => removeImage(index)}
+                      sx={{
+                        position: "absolute",
+                        top: 2,
+                        right: 2,
+                        bgcolor: "rgba(0,0,0,0.5)",
+                        color: "common.white",
+                        p: 0.25,
+                        "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                      }}
+                    >
+                      <CloseIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Box>
+
           {categories.length > 1 && (
             <TextField
               select
@@ -152,7 +271,13 @@ export default function PostComposer({
           )}
 
           <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={600}
+              display="block"
+              sx={{ mb: 1 }}
+            >
               {portalCopy.board.colorLabel}
             </Typography>
             <ColorPicker value={color} onChange={setColor} />
@@ -168,6 +293,7 @@ export default function PostComposer({
                   />
                 }
                 label={portalCopy.board.anonymousLabel}
+                slotProps={{ typography: { variant: "body2" } }}
               />
               <Typography variant="caption" color="text.secondary" display="block">
                 {portalCopy.board.anonymousHint}
@@ -189,6 +315,7 @@ export default function PostComposer({
               category,
               color,
               isAnonymous: board.allow_anonymous && anonymous,
+              imageFiles,
             })
           }
         >

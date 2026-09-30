@@ -116,6 +116,8 @@ export type BulletinPost = {
   color: BulletinColor;
   pinned: boolean;
   resolved: boolean;
+  /** Storage paths in the `bulletin` bucket, not URLs — sign them to display. */
+  image_paths: string[];
   hidden: boolean;
   created_at: string;
 };

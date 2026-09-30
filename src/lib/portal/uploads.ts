@@ -10,6 +10,8 @@ export const ACCEPTED_IMAGE_TYPES = [
 export const IMAGE_ACCEPT = ACCEPTED_IMAGE_TYPES.join(",");
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 export const PARTICIPATION_MAX_BYTES = 5 * 1024 * 1024;
+export const BULLETIN_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const BULLETIN_MAX_IMAGES = 4;
 
 export function validateImageFile(file: File, maxBytes: number): string | null {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type as (typeof ACCEPTED_IMAGE_TYPES)[number])) {
@@ -69,4 +71,28 @@ export async function removeParticipationScreenshot(path: string): Promise<void>
     .storage.from("participation")
     .remove([path]);
   if (error) throw new Error(`截图删除失败：${error.message}`);
+}
+
+export async function uploadBulletinImage(userId: string, file: File): Promise<string> {
+  const validationError = validateImageFile(file, BULLETIN_IMAGE_MAX_BYTES);
+  if (validationError) throw new Error(validationError);
+
+  const extension = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+  const path = `${userId}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await createClient()
+    .storage.from("bulletin")
+    .upload(path, file, {
+      contentType: file.type,
+      cacheControl: "3600",
+    });
+  if (error) throw new Error(`图片上传失败：${error.message}`);
+  return path;
+}
+
+export async function getBulletinImageSignedUrl(path: string): Promise<string> {
+  const { data, error } = await createClient()
+    .storage.from("bulletin")
+    .createSignedUrl(path, 60 * 60);
+  if (error) throw new Error(`图片读取失败：${error.message}`);
+  return data.signedUrl;
 }

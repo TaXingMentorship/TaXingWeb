@@ -327,6 +327,9 @@ export const portalCopy = {
     categoryLabel: "类别",
     colorLabel: "卡片颜色",
     emojiButton: "插入表情",
+    addImageButton: "添加图片",
+    imageLimitReached: "最多添加 4 张图片。",
+    removeImage: "移除图片",
     anonymousLabel: "匿名发布",
     // Deliberately does not promise full anonymity: `author_id` is still
     // readable through the API. See PLAN.md Phase G.
