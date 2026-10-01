@@ -131,6 +131,10 @@ Users belong to many seasons through `profiles.cohort_ids uuid[]` — filter wit
 
 Mentor↔mentee `matches` are admin-uploaded. Mentors may log sessions only for matched mentees; admins are unrestricted. This is enforced both in RLS and in the sessions route handler.
 
+### Nicknames
+
+`profiles.full_name` (shown as 「昵称」) is the imported roster name and is locked for everyone but admins (migration `0021`): the `protect_profile_privileges` trigger raises `PROFILE_NAME_LOCKED`, and `claim_roster_invite` takes the name from the invite rather than the form. A member asks for a change from 我的资料 (`request_name_change`, reason required); an admin approves or rejects it from the card at the top of 成员名单 (`review_name_change`; a rejection needs a note). `name_change_requests` has no write policies — every write is one of those functions, plus `withdraw_name_change` and `mark_name_changes_seen`. The sidebar shows a count on 成员名单 for admins and a dot on 我的资料 for a requester with an unseen decision. `NameChangeField` follows the persona (a display lens), while the lock itself follows the real account.
+
 `src/types/portal.ts` mirrors the database row shapes and is the contract between migrations, `store.ts` and the UI — change it in step with the migration.
 
 ---

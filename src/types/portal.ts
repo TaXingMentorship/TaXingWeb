@@ -320,3 +320,25 @@ export type MyTask = TaskAssignment & { task: Task };
 
 /** What `listTasksWithAssignments()` returns for the admin view. */
 export type TaskWithAssignments = Task & { assignments: TaskAssignment[] };
+
+export type NameChangeStatus = "pending" | "approved" | "rejected";
+
+/**
+ * A member's request to change their nickname (`profiles.full_name`). Nicknames
+ * are locked to the imported roster name (migration 0021); an admin approves or
+ * rejects, and a rejection always carries a note.
+ */
+export type NameChangeRequest = {
+  id: string;
+  profile_id: string;
+  old_name: string;
+  requested_name: string;
+  reason: string;
+  status: NameChangeStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  /** Null until the requester has seen the decision. */
+  requester_seen_at: string | null;
+  created_at: string;
+};

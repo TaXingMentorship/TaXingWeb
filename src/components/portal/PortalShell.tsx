@@ -28,6 +28,10 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import PersonaSwitcher from "@/components/portal/PersonaSwitcher";
 import Badge from "@mui/material/Badge";
 import { useMyTasks } from "@/components/portal/useMyTasks";
+import {
+  useMyNameChanges,
+  usePendingNameChanges,
+} from "@/components/portal/useNameChanges";
 
 const DRAWER_WIDTH = 248;
 
@@ -37,6 +41,10 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const { currentUser, realUser, loading, signOut } = usePortalSession();
   const { pending: pendingTasks } = useMyTasks();
+  // Nickname requests: a count for admins to act on, a dot for a requester
+  // with a decision they haven't seen yet.
+  const { requests: pendingNameChanges } = usePendingNameChanges();
+  const { unseen: unseenNameChanges } = useMyNameChanges();
 
   if (
     pathname === "/portal/login" ||
@@ -110,6 +118,17 @@ export default function PortalShell({ children }: { children: React.ReactNode })
                     badgeContent={pendingTasks.length}
                     sx={{ mr: 1.5 }}
                   />
+                )}
+                {item.path === "/portal/admin/roster" &&
+                  pendingNameChanges.length > 0 && (
+                    <Badge
+                      color="error"
+                      badgeContent={pendingNameChanges.length}
+                      sx={{ mr: 1.5 }}
+                    />
+                  )}
+                {item.path === "/portal/me" && unseenNameChanges.length > 0 && (
+                  <Badge color="error" variant="dot" sx={{ mr: 1.5 }} />
                 )}
               </ListItemButton>
             </ListItem>

@@ -29,6 +29,7 @@ import {
   updateProfile,
 } from "@/lib/portal/store";
 import IdentityCell from "@/components/portal/IdentityCell";
+import NameChangeReviewCard from "@/components/portal/NameChangeReviewCard";
 import PendingInvites from "@/components/portal/PendingInvites";
 import Divider from "@mui/material/Divider";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
@@ -150,6 +151,8 @@ export default function RosterPage() {
         查看本期成员信息、交流场次与活动记录提交情况。名单内容自动汇总自提交的记录，
         仅「备注」可在网站上直接编辑。
       </Typography>
+
+      <NameChangeReviewCard />
 
       <Stack
         direction={{ xs: "column", sm: "row" }}
