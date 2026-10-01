@@ -342,6 +342,7 @@ export async function createPost(input: {
   body: string;
   is_anonymous: boolean;
   color: BulletinColor;
+  image_paths: string[];
 }): Promise<void> {
   // No .select() — 0009 revoked SELECT on the base table, so reading the row
   // back would fail. Callers refetch through the view instead.

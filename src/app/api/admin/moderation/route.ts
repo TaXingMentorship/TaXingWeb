@@ -129,10 +129,22 @@ export async function DELETE(request: Request) {
   );
   if (denied) return denied;
 
-  const { error } = await createServiceRoleClient()
-    .from(table)
-    .delete()
-    .eq("id", id);
+  const supabase = createServiceRoleClient();
+
+  // A post's images live in Storage, not in the row — deleting the row alone
+  // would leave them behind with nothing pointing at them.
+  if (target === "post") {
+    const { data: post } = await supabase
+      .from("bulletin_posts")
+      .select("image_paths")
+      .eq("id", id)
+      .maybeSingle();
+    if (post?.image_paths?.length) {
+      await supabase.storage.from("bulletin").remove(post.image_paths);
+    }
+  }
+
+  const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) {
     return databaseError(target === "post" ? "删除留言" : "删除评论", error.message);
   }

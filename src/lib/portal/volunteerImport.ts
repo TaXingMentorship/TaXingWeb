@@ -45,7 +45,7 @@ function normaliseHeader(value: string): string {
 }
 
 /** Maps each column index to the field it holds; unknown columns are ignored. */
-function mapColumns(header: string[]): Map<number, Field> {
+function tryMapColumns(header: string[]): Map<number, Field> | null {
   const lookup = new Map<string, Field>();
   for (const [field, aliases] of Object.entries(HEADERS) as [
     Field,
@@ -62,18 +62,45 @@ function mapColumns(header: string[]): Map<number, Field> {
     }
   });
 
-  const missing = REQUIRED_FIELDS.filter(
+  const missing = REQUIRED_FIELDS.some(
     (field) => ![...columns.values()].includes(field),
   );
-  if (missing.length > 0) {
-    throw new VolunteerParseError(
-      `文件缺少必需的列：${missing
-        .map((field) => FIELD_LABELS[field])
-        .join("、")}。请下载模板对照表头后重试。`,
-    );
-  }
+  return missing ? null : columns;
+}
 
-  return columns;
+function mapColumns(header: string[]): Map<number, Field> {
+  const columns = tryMapColumns(header);
+  if (columns) return columns;
+
+  const found = new Set(
+    header.flatMap((cell) => {
+      const field = Object.entries(HEADERS).find(([, aliases]) =>
+        (aliases as readonly string[]).some(
+          (a) => normaliseHeader(a) === normaliseHeader(cell ?? ""),
+        ),
+      );
+      return field ? [field[0] as Field] : [];
+    }),
+  );
+  const missing = REQUIRED_FIELDS.filter((field) => !found.has(field));
+  throw new VolunteerParseError(
+    `文件缺少必需的列：${missing
+      .map((field) => FIELD_LABELS[field])
+      .join("、")}。请下载模板对照表头后重试。`,
+  );
+}
+
+/**
+ * A spreadsheet re-saved from another app (e.g. Numbers) sometimes gets a
+ * title row inserted above the real header. Scan the first few rows for one
+ * that already satisfies every required column before giving up on row 0.
+ */
+function findHeaderRowIndex(table: string[][]): number {
+  const limit = Math.min(table.length, 5);
+  for (let i = 0; i < limit; i++) {
+    if (tryMapColumns(table[i])) return i;
+  }
+  return 0;
 }
 
 const TRUTHY = new Set(["true", "1", "yes", "y", "是", "公开"]);
@@ -165,8 +192,13 @@ function cellToText(value: unknown): string {
     if (Array.isArray(cell.richText)) {
       return cell.richText.map((part) => part.text).join("");
     }
-    if (typeof cell.text === "string") return cell.text;
+    // A hyperlinked cell's `text` can itself be a nested `{ richText }` object
+    // rather than a plain string, so resolve it recursively instead of
+    // requiring `typeof cell.text === "string"` — otherwise this falls
+    // through to `String(value)` and produces the literal "[object Object]".
+    if (cell.text !== undefined) return cellToText(cell.text);
     if (cell.result !== undefined) return cellToText(cell.result);
+    if (typeof cell.hyperlink === "string") return cell.hyperlink;
   }
   return String(value);
 }
@@ -194,8 +226,10 @@ async function parseXlsx(file: File): Promise<VolunteerImportRow[]> {
     table.push(cells);
   });
 
-  const [header, ...body] = table;
-  if (!header) throw new VolunteerParseError("这个 Excel 文件是空的。");
+  if (table.length === 0) throw new VolunteerParseError("这个 Excel 文件是空的。");
+  const headerIndex = findHeaderRowIndex(table);
+  const header = table[headerIndex];
+  const body = table.slice(headerIndex + 1);
   return toRows(header, body);
 }
 
@@ -205,12 +239,15 @@ function parseCsv(file: File): Promise<VolunteerImportRow[]> {
       header: false,
       skipEmptyLines: true,
       complete: (result) => {
-        const [header, ...body] = result.data;
-        if (!header) {
+        const table = result.data;
+        if (table.length === 0) {
           reject(new VolunteerParseError("这个 CSV 文件是空的。"));
           return;
         }
         try {
+          const headerIndex = findHeaderRowIndex(table);
+          const header = table[headerIndex];
+          const body = table.slice(headerIndex + 1);
           resolve(toRows(header, body));
         } catch (error) {
           reject(error);

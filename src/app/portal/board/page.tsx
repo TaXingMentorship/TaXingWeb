@@ -49,6 +49,7 @@ import {
   toggleReaction,
 } from "@/lib/portal/store";
 import { categoryLabels, portalCopy } from "@/data/portalCopy";
+import { uploadBulletinImage } from "@/lib/portal/uploads";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import BoardTabs, { BoardDialog } from "@/components/portal/board/BoardTabs";
 import SeasonTabs from "@/components/portal/board/SeasonTabs";
@@ -240,8 +241,13 @@ function BoardPageContent() {
   };
 
   const createPostMutation = useMutation({
-    mutationFn: (draft: ComposerDraft) =>
-      createPost({
+    mutationFn: async (draft: ComposerDraft) => {
+      // Every image must land before the post does — a post referencing an
+      // image that never made it up would show a broken thumbnail forever.
+      const image_paths = await Promise.all(
+        draft.imageFiles.map((file) => uploadBulletinImage(currentUser!.id, file)),
+      );
+      return createPost({
         cohort_id: selectedBoard!.cohort_id,
         board_id: selectedBoard!.id,
         author_id: currentUser!.id,
@@ -250,7 +256,9 @@ function BoardPageContent() {
         body: draft.body,
         is_anonymous: draft.isAnonymous,
         color: draft.color,
-      }),
+        image_paths,
+      });
+    },
     onSuccess: () => {
       setComposeOpen(false);
       invalidatePosts();

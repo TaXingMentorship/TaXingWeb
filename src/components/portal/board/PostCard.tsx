@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -12,15 +13,89 @@ import IconButton from "@mui/material/IconButton";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Collapse from "@mui/material/Collapse";
+import Dialog from "@mui/material/Dialog";
+import Skeleton from "@mui/material/Skeleton";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import type { BulletinComment, BulletinPost, BulletinReaction, Profile } from "@/types/portal";
 import { categoryColors, categoryLabels, portalCopy, postColors } from "@/data/portalCopy";
+import { getBulletinImageSignedUrl } from "@/lib/portal/uploads";
 import ReactionBar from "./ReactionBar";
 import { AuthorAvatar, AuthorName } from "./AuthorIdentity";
 import PostComments from "./PostComments";
+
+/**
+ * One post image, resolved to a signed URL at render time — the `bulletin`
+ * bucket is not public, so `path` alone can't be dropped into an `<img src>`.
+ * Cached per path (not per post) since the same image never needs re-signing
+ * across cards.
+ */
+function PostImage({ path, onOpen }: { path: string; onOpen: (path: string) => void }) {
+  const { data: url } = useQuery({
+    queryKey: ["portal", "bulletinImageUrl", path],
+    queryFn: () => getBulletinImageSignedUrl(path),
+    staleTime: 55 * 60 * 1000, // just under the 1h signature lifetime
+  });
+
+  if (!url) {
+    return <Skeleton variant="rounded" sx={{ width: "100%", aspectRatio: "1 / 1" }} />;
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- signed Supabase Storage URL, not optimizable by next/image
+    <img
+      src={url}
+      alt=""
+      onClick={() => onOpen(path)}
+      style={{
+        width: "100%",
+        aspectRatio: "1 / 1",
+        objectFit: "cover",
+        borderRadius: 8,
+        cursor: "pointer",
+        display: "block",
+      }}
+    />
+  );
+}
+
+function PostImageGrid({ imagePaths }: { imagePaths: string[] }) {
+  const [openPath, setOpenPath] = React.useState<string | null>(null);
+  const { data: openUrl } = useQuery({
+    queryKey: ["portal", "bulletinImageUrl", openPath],
+    queryFn: () => getBulletinImageSignedUrl(openPath!),
+    enabled: openPath !== null,
+    staleTime: 55 * 60 * 1000,
+  });
+
+  if (imagePaths.length === 0) return null;
+
+  return (
+    <>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: imagePaths.length === 1 ? "1fr" : "repeat(2, 1fr)",
+          gap: 0.75,
+          mt: 1.5,
+          maxWidth: imagePaths.length === 1 ? 320 : "100%",
+        }}
+      >
+        {imagePaths.map((path) => (
+          <PostImage key={path} path={path} onOpen={setOpenPath} />
+        ))}
+      </Box>
+      <Dialog open={openPath !== null} onClose={() => setOpenPath(null)} maxWidth="md">
+        {openUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- signed Supabase Storage URL, not optimizable by next/image
+          <img src={openUrl} alt="" style={{ width: "100%", height: "auto", display: "block" }} />
+        )}
+      </Dialog>
+    </>
+  );
+}
 
 export type PostCardActions = {
   onToggleReaction: (postId: string, emoji: string, active: boolean) => void;
@@ -157,6 +232,8 @@ export default function PostCard({
       <Typography sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
         {post.body}
       </Typography>
+
+      <PostImageGrid imagePaths={post.image_paths} />
 
       <Stack
         direction="row"
