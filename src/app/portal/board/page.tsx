@@ -54,6 +54,7 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import BoardTabs, { BoardDialog } from "@/components/portal/board/BoardTabs";
 import SeasonTabs from "@/components/portal/board/SeasonTabs";
 import PostWall from "@/components/portal/board/PostWall";
+import LinkifiedText from "@/components/portal/board/LinkifiedText";
 import ProfileDialog from "@/components/portal/ProfileDialog";
 import PostComposer, {
   type ComposerDraft,
@@ -473,8 +474,11 @@ function BoardPageContent() {
                 />
               )}
               {selectedBoard.description && (
-                <Typography color="text.secondary" sx={{ mb: 2 }}>
-                  {selectedBoard.description}
+                <Typography
+                  color="text.secondary"
+                  sx={{ mb: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                >
+                  <LinkifiedText text={selectedBoard.description} />
                 </Typography>
               )}
 
