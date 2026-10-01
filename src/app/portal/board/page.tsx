@@ -382,12 +382,13 @@ function BoardPageContent() {
   const boardOpen = Boolean(selectedBoard?.is_open) && seasonOpen;
 
   // Reading is open across every season (migration 0008); posting, commenting
-  // and reacting stay limited to seasons you took part in — the insert
-  // policies enforce it, this keeps the UI honest about it.
+  // and reacting stay limited to seasons you took part in — admins included —
+  // and (migration 0020) to open seasons and boards. The insert policies
+  // enforce it, this keeps the UI honest about it.
   const isMember = Boolean(
     cohortId && currentUser?.cohort_ids.includes(cohortId),
   );
-  const canParticipate = canPost && (isAdmin || isMember);
+  const canParticipate = canPost && isMember;
 
   const mutationError = [
     createPostMutation.error,
