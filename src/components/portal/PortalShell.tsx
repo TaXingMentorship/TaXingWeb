@@ -26,6 +26,7 @@ import { portalCopy, profileLabels } from "@/data/portalCopy";
 import { canAccessPortalNav, portalNavItems } from "@/data/portalNav";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import PersonaSwitcher from "@/components/portal/PersonaSwitcher";
+import MascotFeedback from "@/components/portal/MascotFeedback";
 import Badge from "@mui/material/Badge";
 import { useMyTasks } from "@/components/portal/useMyTasks";
 import {
@@ -218,6 +219,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
           children
         )}
       </Box>
+      <MascotFeedback />
     </Box>
   );
 }
