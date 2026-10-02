@@ -415,6 +415,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     image_paths: [],
     hidden: false,
     created_at: "2025-03-05T09:30:00Z",
+    edited_at: null,
   },
   {
     id: "post-2",
@@ -431,6 +432,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     image_paths: [],
     hidden: false,
     created_at: "2025-03-08T14:00:00Z",
+    edited_at: null,
   },
   {
     id: "post-3",
@@ -447,6 +449,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     image_paths: [],
     hidden: false,
     created_at: "2025-03-10T20:15:00Z",
+    edited_at: null,
   },
   {
     id: "post-4",
@@ -463,6 +466,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     image_paths: [],
     hidden: false,
     created_at: "2025-03-12T11:45:00Z",
+    edited_at: null,
   },
   {
     id: "post-5",
@@ -479,6 +483,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     image_paths: [],
     hidden: true,
     created_at: "2025-03-13T08:20:00Z",
+    edited_at: null,
   },
 ];
 

@@ -14,6 +14,7 @@ import Tooltip from "@mui/material/Tooltip";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Checkbox from "@mui/material/Checkbox";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import type { BulletinComment, Profile } from "@/types/portal";
@@ -33,6 +34,7 @@ export default function PostComments({
   pending,
   onSubmit,
   onDelete,
+  onEdit,
   onToggleHidden,
   onOpenProfile,
 }: {
@@ -45,11 +47,37 @@ export default function PostComments({
   pending: boolean;
   onSubmit: (body: string, isAnonymous: boolean) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string, body: string) => Promise<unknown>;
   onToggleHidden: (id: string, hidden: boolean) => void;
   onOpenProfile: (profile: Profile) => void;
 }) {
   const [body, setBody] = React.useState("");
   const [anonymous, setAnonymous] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editBody, setEditBody] = React.useState("");
+  const [editSaving, setEditSaving] = React.useState(false);
+  const [editError, setEditError] = React.useState<string | null>(null);
+
+  const startEdit = (comment: BulletinComment) => {
+    setEditingId(comment.id);
+    setEditBody(comment.body);
+    setEditError(null);
+  };
+
+  const saveEdit = async () => {
+    const trimmed = editBody.trim();
+    if (!editingId || !trimmed) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await onEdit(editingId, trimmed);
+      setEditingId(null);
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const submit = () => {
     const trimmed = body.trim();
@@ -73,7 +101,9 @@ export default function PostComments({
             const author = comment.author_id
               ? authorOf(comment.author_id)
               : undefined;
-            const canDelete = isAdmin || comment.author_id === currentUserId;
+            const isOwn = comment.author_id === currentUserId;
+            const canDelete = isAdmin || isOwn;
+            const editing = editingId === comment.id;
             return (
               <Stack
                 key={comment.id}
@@ -110,11 +140,68 @@ export default function PostComments({
                     <Typography variant="caption" color="text.secondary">
                       {new Date(comment.created_at).toLocaleString("zh-CN")}
                     </Typography>
+                    {comment.edited_at && (
+                      <Tooltip
+                        title={portalCopy.board.editedAt(
+                          new Date(comment.edited_at).toLocaleString("zh-CN"),
+                        )}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ cursor: "help" }}
+                        >
+                          · {portalCopy.board.edited}
+                        </Typography>
+                      </Tooltip>
+                    )}
                   </Stack>
-                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                    <LinkifiedText text={comment.body} />
-                  </Typography>
+                  {editing ? (
+                    <Stack spacing={0.75} sx={{ mt: 0.5 }}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        multiline
+                        maxRows={5}
+                        autoFocus
+                        value={editBody}
+                        error={Boolean(editError)}
+                        helperText={editError ?? `${editBody.length} / ${MAX_COMMENT}`}
+                        onChange={(e) => setEditBody(e.target.value.slice(0, MAX_COMMENT))}
+                        sx={{ bgcolor: "background.paper", borderRadius: 1 }}
+                      />
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="secondary"
+                          disabled={!editBody.trim() || editSaving}
+                          onClick={() => void saveEdit()}
+                        >
+                          {portalCopy.board.commentSave}
+                        </Button>
+                        <Button
+                          size="small"
+                          disabled={editSaving}
+                          onClick={() => setEditingId(null)}
+                        >
+                          {portalCopy.board.cancel}
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                      <LinkifiedText text={comment.body} />
+                    </Typography>
+                  )}
                 </Box>
+                {isOwn && canComment && !editing && (
+                  <Tooltip title={portalCopy.board.actionEdit}>
+                    <IconButton size="small" onClick={() => startEdit(comment)}>
+                      <EditOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
                 {isAdmin && (
                   <Tooltip
                     title={

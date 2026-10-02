@@ -18,7 +18,12 @@ import EmojiEmotionsOutlinedIcon from "@mui/icons-material/EmojiEmotionsOutlined
 import AddPhotoAlternateOutlinedIcon from "@mui/icons-material/AddPhotoAlternateOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
-import type { BulletinBoard, BulletinCategory, BulletinColor } from "@/types/portal";
+import type {
+  BulletinBoard,
+  BulletinCategory,
+  BulletinColor,
+  BulletinPost,
+} from "@/types/portal";
 import { allCategories, categoryLabels, portalCopy } from "@/data/portalCopy";
 import {
   BULLETIN_IMAGE_MAX_BYTES,
@@ -44,6 +49,7 @@ export type ComposerDraft = {
 export default function PostComposer({
   open,
   board,
+  editing = null,
   pending,
   error,
   onClose,
@@ -51,6 +57,11 @@ export default function PostComposer({
 }: {
   open: boolean;
   board: BulletinBoard;
+  /**
+   * A post being edited. Title, text, category and colour are editable;
+   * images and anonymity are fixed at posting time, so those controls hide.
+   */
+  editing?: BulletinPost | null;
   pending: boolean;
   error: string | null;
   onClose: () => void;
@@ -84,17 +95,17 @@ export default function PostComposer({
 
   React.useEffect(() => {
     if (!open) return;
-    setTitle("");
-    setBody("");
-    setCategory(categories[0]);
-    setColor("default");
-    setAnonymous(false);
+    setTitle(editing?.title ?? "");
+    setBody(editing?.body ?? "");
+    setCategory(editing?.category ?? categories[0]);
+    setColor(editing?.color ?? "default");
+    setAnonymous(editing?.is_anonymous ?? false);
     setEmojiAnchor(null);
     setImageFiles([]);
     setImageError(null);
     // `categories` is derived from the board and stable for a given board.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, board.id]);
+  }, [open, board.id, editing?.id]);
 
   const addImages = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -149,13 +160,19 @@ export default function PostComposer({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{portalCopy.board.composeTitle}</DialogTitle>
+      <DialogTitle>
+        {editing ? portalCopy.board.editPostTitle : portalCopy.board.composeTitle}
+      </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          {board.prompt && (
+          {editing ? (
+            <Alert severity="info">{portalCopy.board.editHint}</Alert>
+          ) : (
+            board.prompt && (
             <Alert severity="info" sx={{ wordBreak: "break-word" }}>
               <LinkifiedText text={board.prompt} />
             </Alert>
+            )
           )}
           {error && <Alert severity="error">{error}</Alert>}
 
@@ -194,6 +211,7 @@ export default function PostComposer({
             />
           </Box>
 
+          {!editing && (
           <Box>
             <Button
               size="small"
@@ -258,6 +276,7 @@ export default function PostComposer({
               </Stack>
             )}
           </Box>
+          )}
 
           {categories.length > 1 && (
             <TextField
@@ -288,7 +307,7 @@ export default function PostComposer({
             <ColorPicker value={color} onChange={setColor} />
           </Box>
 
-          {board.allow_anonymous && (
+          {board.allow_anonymous && !editing && (
             <Box>
               <FormControlLabel
                 control={
@@ -324,7 +343,7 @@ export default function PostComposer({
             })
           }
         >
-          {portalCopy.board.submit}
+          {editing ? portalCopy.board.editSave : portalCopy.board.submit}
         </Button>
       </DialogActions>
     </Dialog>

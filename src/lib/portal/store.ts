@@ -408,6 +408,42 @@ export async function setCommentHidden(
   );
 }
 
+/**
+ * Author-only edit of a post's text, category and colour. Anonymity and
+ * images are fixed once posted. Resolves to the stored `edited_at`, or null
+ * when nothing actually changed.
+ */
+export async function editPost(
+  id: string,
+  input: {
+    title: string | null;
+    body: string;
+    category: BulletinCategory;
+    color: BulletinColor;
+  },
+): Promise<string | null> {
+  const result = await adminJson<{ edited_at: string | null }>(
+    "/api/admin/moderation",
+    "PATCH",
+    { action: "edit", target: "post", id, ...input },
+    "修改留言",
+  );
+  return result.edited_at;
+}
+
+export async function editComment(
+  id: string,
+  body: string,
+): Promise<string | null> {
+  const result = await adminJson<{ edited_at: string | null }>(
+    "/api/admin/moderation",
+    "PATCH",
+    { action: "edit", target: "comment", id, body },
+    "修改评论",
+  );
+  return result.edited_at;
+}
+
 export async function deletePost(id: string): Promise<void> {
   await adminJson("/api/admin/moderation", "DELETE", { target: "post", id }, "删除留言");
 }

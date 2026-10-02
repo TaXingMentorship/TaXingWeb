@@ -36,6 +36,8 @@ import {
   createPost,
   deleteComment,
   deletePost,
+  editComment,
+  editPost,
   listBoards,
   listCohorts,
   listComments,
@@ -159,6 +161,7 @@ function BoardPageContent() {
   const [pendingDelete, setPendingDelete] =
     React.useState<BulletinBoard | null>(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
+  const [editingPost, setEditingPost] = React.useState<BulletinPost | null>(null);
   const [openProfile, setOpenProfile] = React.useState<Profile | null>(null);
   const [filter, setFilter] = React.useState<BulletinCategory | "all">("all");
   const [sort, setSort] = React.useState<SortMode>("newest");
@@ -316,6 +319,26 @@ function BoardPageContent() {
     },
   });
 
+  const editPostMutation = useMutation({
+    mutationFn: (input: { id: string; draft: ComposerDraft }) =>
+      editPost(input.id, {
+        title: input.draft.title,
+        body: input.draft.body,
+        category: input.draft.category,
+        color: input.draft.color,
+      }),
+    onSuccess: () => {
+      setEditingPost(null);
+      queryClient.invalidateQueries({ queryKey: ["portal", "posts"] });
+    },
+  });
+
+  const editCommentMutation = useMutation({
+    mutationFn: (input: { id: string; body: string }) =>
+      editComment(input.id, input.body),
+    onSuccess: invalidateComments,
+  });
+
   const commentMutation = useMutation({
     mutationFn: (input: {
       postId: string;
@@ -398,6 +421,11 @@ function BoardPageContent() {
     onAddComment: (postId, body, isAnonymous) =>
       commentMutation.mutate({ postId, body, isAnonymous }),
     onDeleteComment: (id) => deleteCommentMutation.mutate(id),
+    onEditComment: (id, body) => editCommentMutation.mutateAsync({ id, body }),
+    onEditPost: (post) => {
+      editPostMutation.reset();
+      setEditingPost(post);
+    },
     onToggleCommentHidden: (id, hidden) =>
       commentFlagMutation.mutate({ id, hidden }),
     onTogglePostHidden: (id, hidden) =>
@@ -623,16 +651,30 @@ function BoardPageContent() {
               />
 
               <PostComposer
-                open={composeOpen}
+                open={composeOpen || editingPost !== null}
                 board={selectedBoard}
-                pending={createPostMutation.isPending}
+                editing={editingPost}
+                pending={
+                  editingPost
+                    ? editPostMutation.isPending
+                    : createPostMutation.isPending
+                }
                 error={
-                  createPostMutation.error
-                    ? (createPostMutation.error as Error).message
+                  (editingPost ? editPostMutation.error : createPostMutation.error)
+                    ? ((editingPost
+                        ? editPostMutation.error
+                        : createPostMutation.error) as Error).message
                     : null
                 }
-                onClose={() => setComposeOpen(false)}
-                onSubmit={(draft) => createPostMutation.mutate(draft)}
+                onClose={() => {
+                  setComposeOpen(false);
+                  setEditingPost(null);
+                }}
+                onSubmit={(draft) =>
+                  editingPost
+                    ? editPostMutation.mutate({ id: editingPost.id, draft })
+                    : createPostMutation.mutate(draft)
+                }
               />
             </>
           )}
