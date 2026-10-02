@@ -23,9 +23,10 @@ import FormControl from "@mui/material/FormControl";
 import OutlinedInput from "@mui/material/OutlinedInput";
 import Tooltip from "@mui/material/Tooltip";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import type { SelectChangeEvent } from "@mui/material/Select";
 import type { BulletinBoard, BulletinCategory, Cohort } from "@/types/portal";
-import { createBoard, updateBoard } from "@/lib/portal/store";
+import { createBoard, setBoardPinned, updateBoard } from "@/lib/portal/store";
 import { allCategories, categoryLabels, portalCopy } from "@/data/portalCopy";
 
 export default function BoardTabs({
@@ -62,6 +63,15 @@ export default function BoardTabs({
               // Badge overflowed the Tab box and its count got clipped.
               <Stack direction="row" spacing={0.75} alignItems="center">
                 <Box component="span">{board.name}</Box>
+                {board.sort_order < 0 && (
+                  <Tooltip title={portalCopy.board.pinnedBoard}>
+                    <PushPinOutlinedIcon
+                      color="secondary"
+                      aria-label={portalCopy.board.pinnedBoard}
+                      sx={{ fontSize: 16 }}
+                    />
+                  </Tooltip>
+                )}
                 {onEdit && board.id === selectedId && (
                   // A <span role="button"> rather than IconButton: the Tab is
                   // already a <button>, and buttons cannot nest.
@@ -156,6 +166,7 @@ export function BoardDialog({
   const [isOpen, setIsOpen] = React.useState(true);
   const [allowAnonymous, setAllowAnonymous] = React.useState(true);
   const [allowComments, setAllowComments] = React.useState(true);
+  const [isPinned, setIsPinned] = React.useState(false);
   const [categories, setCategories] = React.useState<BulletinCategory[]>([]);
 
   React.useEffect(() => {
@@ -166,12 +177,13 @@ export function BoardDialog({
     setIsOpen(board?.is_open ?? true);
     setAllowAnonymous(board?.allow_anonymous ?? true);
     setAllowComments(board?.allow_comments ?? true);
+    setIsPinned((board?.sort_order ?? 0) < 0);
     setCategories(board?.allowed_categories ?? []);
     setTargetCohortId(board?.cohort_id ?? cohortId);
   }, [open, board, cohortId]);
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const payload = {
         name: name.trim(),
         description: description.trim() || null,
@@ -182,16 +194,17 @@ export function BoardDialog({
         allowed_categories: categories.length > 0 ? categories : null,
       };
       // The season is fixed once a board exists — see updateBoard.
-      return board
+      const savedBoard = await (board
         ? updateBoard(board.id, payload)
         : createBoard({
             ...payload,
             cohort_id: targetCohortId,
-            // Tab order is not worth a form field — every board is created
-            // at 0, so listBoards falls through to created_at. Adjust in
-            // Supabase if a board ever needs to jump the queue.
             sort_order: 0,
-          });
+          }));
+      const wasPinned = savedBoard.sort_order < 0;
+      return wasPinned === isPinned
+        ? savedBoard
+        : setBoardPinned(savedBoard.id, isPinned);
     },
     onSuccess: onSaved,
   });
@@ -306,6 +319,15 @@ export function BoardDialog({
               />
             }
             label={portalCopy.board.allowCommentsLabel}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isPinned}
+                onChange={(e) => setIsPinned(e.target.checked)}
+              />
+            }
+            label={portalCopy.board.pinBoardLabel}
           />
         </Stack>
       </DialogContent>

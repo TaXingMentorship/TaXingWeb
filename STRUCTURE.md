@@ -164,7 +164,7 @@ is this new board for" are different questions.
 
 The wall is CSS multi-column masonry and the emoji picker is hand-rolled — no `@mui/lab`, no picker library, matching the MUI-only stack.
 
-**Boards are configured, not hardcoded.** Each row carries `allowed_categories`, `allow_anonymous`, `allow_comments`, `prompt` and `sort_order`, so a new kind of board (feedback wall, mentor Q&A, graduation wall) is a row an admin creates, not a code change. `sort_order` has no form field — every board is created at `0` and ordering falls through to `created_at`; change it in Supabase to make a board jump the queue.
+**Boards are configured, not hardcoded.** Each row carries `allowed_categories`, `allow_anonymous`, `allow_comments`, `prompt` and `sort_order`, so a new kind of board (feedback wall, mentor Q&A, graduation wall) is a row an admin creates, not a code change. Admins can pin multiple boards in the edit dialog: the UI stores pinned boards at `sort_order = -1`, normal boards at `0`, and the existing list order puts every pinned board first.
 
 Admins edit or delete a board from the page itself: the selected tab carries a pencil that opens `BoardDialog` in edit mode, and its 「删除留言板」 button leads to a confirmation. Both go through the browser client (`updateBoard` / `deleteBoard` in `store.ts`) — RLS `boards_admin_all` already grants admins UPDATE and DELETE on `bulletin_boards`, so unlike posts and comments no API route is involved. Deleting a board cascades to every post, comment and reaction on it, which the confirmation spells out. A board's season cannot be changed once it exists, because posts carry their own `cohort_id`.
 
