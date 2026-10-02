@@ -23,6 +23,7 @@ import type {
   VolunteerSeasonChange,
   VolunteerWithSeasons,
   MyTask,
+  NameChangeRequest,
   Task,
   TaskWithAssignments,
 } from "@/types/portal";
@@ -1145,4 +1146,85 @@ export function createTask(input: TaskInput): Promise<TaskWithAssignments> {
 
 export function deleteTask(id: string): Promise<{ id: string }> {
   return adminJson<{ id: string }>("/api/admin/tasks", "DELETE", { id }, "删除任务");
+}
+
+// ---------------------------------------------------------------------------
+// Nickname change requests (migration 0021)
+// ---------------------------------------------------------------------------
+
+const nameChangeErrors: Record<string, string> = {
+  INVALID_NAME: "请填写新的昵称（最多 200 字）。",
+  REASON_REQUIRED: "请填写修改理由（最多 500 字）。",
+  NAME_UNCHANGED: "新昵称与当前昵称相同。",
+  REQUEST_ALREADY_PENDING: "你已有一条待审核的申请，请先等待结果或撤回。",
+  REQUEST_ALREADY_REVIEWED: "这条申请已被处理，请刷新页面。",
+  REQUEST_NOT_FOUND: "找不到这条申请，可能已被撤回。",
+  REJECTION_NOTE_REQUIRED: "拒绝时请填写备注，方便申请人了解原因。",
+  ADMIN_ONLY: "只有负责人可以审核。",
+};
+
+function throwNameChangeError(operation: string, error: SupabaseError | null): void {
+  if (!error) return;
+  const code = Object.keys(nameChangeErrors).find((key) =>
+    error.message.includes(key),
+  );
+  throw new Error(code ? nameChangeErrors[code] : `${operation}失败：${error.message}`);
+}
+
+/** The signed-in user's own requests, newest first. */
+export async function listMyNameChanges(
+  profileId: string,
+): Promise<NameChangeRequest[]> {
+  const { data, error } = await createClient()
+    .from("name_change_requests")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false });
+  throwQueryError("读取昵称修改申请", error);
+  return (data ?? []) as NameChangeRequest[];
+}
+
+/** Admin view: every request still waiting, oldest first. */
+export async function listPendingNameChanges(): Promise<NameChangeRequest[]> {
+  const { data, error } = await createClient()
+    .from("name_change_requests")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+  throwQueryError("读取昵称修改申请", error);
+  return (data ?? []) as NameChangeRequest[];
+}
+
+export async function requestNameChange(input: {
+  requestedName: string;
+  reason: string;
+}): Promise<void> {
+  const { error } = await createClient().rpc("request_name_change", {
+    p_requested_name: input.requestedName,
+    p_reason: input.reason,
+  });
+  throwNameChangeError("提交申请", error);
+}
+
+export async function withdrawNameChange(): Promise<void> {
+  const { error } = await createClient().rpc("withdraw_name_change");
+  throwNameChangeError("撤回申请", error);
+}
+
+export async function markNameChangesSeen(): Promise<void> {
+  const { error } = await createClient().rpc("mark_name_changes_seen");
+  throwNameChangeError("更新状态", error);
+}
+
+export async function reviewNameChange(input: {
+  id: string;
+  approve: boolean;
+  note?: string;
+}): Promise<void> {
+  const { error } = await createClient().rpc("review_name_change", {
+    p_request_id: input.id,
+    p_approve: input.approve,
+    p_note: input.note ?? null,
+  });
+  throwNameChangeError("审核", error);
 }

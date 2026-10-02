@@ -27,6 +27,7 @@ import {
 } from "@/lib/portal/uploads";
 import EmojiPicker from "./EmojiPicker";
 import ColorPicker from "./ColorPicker";
+import LinkifiedText from "./LinkifiedText";
 
 const MAX_TITLE = 60;
 const MAX_BODY = 2000;
@@ -151,7 +152,11 @@ export default function PostComposer({
       <DialogTitle>{portalCopy.board.composeTitle}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          {board.prompt && <Alert severity="info">{board.prompt}</Alert>}
+          {board.prompt && (
+            <Alert severity="info" sx={{ wordBreak: "break-word" }}>
+              <LinkifiedText text={board.prompt} />
+            </Alert>
+          )}
           {error && <Alert severity="error">{error}</Alert>}
 
           <TextField

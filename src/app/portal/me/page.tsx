@@ -30,6 +30,7 @@ import {
 import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import MyVolunteerSection from "@/components/portal/MyVolunteerSection";
+import NameChangeField from "@/components/portal/NameChangeField";
 import { useCompleteTasksLinkingTo } from "@/components/portal/useMyTasks";
 
 const interestSuggestions = [
@@ -133,7 +134,9 @@ export default function MyProfilePage() {
 
   const handleSave = () => {
     mutation.mutate({
-      full_name: form.full_name,
+      // Nicknames are locked for everyone but admins (migration 0021): sending
+      // the field would be rejected if it were stale, so it isn't sent.
+      ...(currentUser?.is_admin ? { full_name: form.full_name } : {}),
       wechat_number: form.wechat_number,
       bio: form.bio,
       field: form.field,
@@ -211,11 +214,9 @@ export default function MyProfilePage() {
                     : "资料保存失败。"}
                 </Alert>
               )}
-              <TextField
-                label="昵称"
-                value={form.full_name ?? ""}
-                onChange={(e) => set("full_name", e.target.value)}
-                fullWidth
+              <NameChangeField
+                name={form.full_name ?? ""}
+                onNameChange={(value) => set("full_name", value)}
               />
               <TextField
                 label="微信号"

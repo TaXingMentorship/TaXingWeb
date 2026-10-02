@@ -19,6 +19,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import type { BulletinComment, Profile } from "@/types/portal";
 import { portalCopy } from "@/data/portalCopy";
 import { AuthorAvatar, AuthorName } from "./AuthorIdentity";
+import LinkifiedText from "./LinkifiedText";
 
 const MAX_COMMENT = 2000;
 
@@ -110,8 +111,8 @@ export default function PostComments({
                       {new Date(comment.created_at).toLocaleString("zh-CN")}
                     </Typography>
                   </Stack>
-                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                    {comment.body}
+                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    <LinkifiedText text={comment.body} />
                   </Typography>
                 </Box>
                 {isAdmin && (

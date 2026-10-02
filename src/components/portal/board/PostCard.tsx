@@ -25,6 +25,7 @@ import { getBulletinImageSignedUrl } from "@/lib/portal/uploads";
 import ReactionBar from "./ReactionBar";
 import { AuthorAvatar, AuthorName } from "./AuthorIdentity";
 import PostComments from "./PostComments";
+import LinkifiedText from "./LinkifiedText";
 
 /**
  * One post image, resolved to a signed URL at render time — the `bulletin`
@@ -230,7 +231,7 @@ export default function PostCard({
         </Typography>
       )}
       <Typography sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-        {post.body}
+        <LinkifiedText text={post.body} />
       </Typography>
 
       <PostImageGrid imagePaths={post.image_paths} />

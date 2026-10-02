@@ -131,6 +131,10 @@ Users belong to many seasons through `profiles.cohort_ids uuid[]` — filter wit
 
 Mentor↔mentee `matches` are admin-uploaded. Mentors may log sessions only for matched mentees; admins are unrestricted. This is enforced both in RLS and in the sessions route handler.
 
+### Nicknames
+
+`profiles.full_name` (shown as 「昵称」) is the imported roster name and is locked for everyone but admins (migration `0021`): the `protect_profile_privileges` trigger raises `PROFILE_NAME_LOCKED`, and `claim_roster_invite` takes the name from the invite rather than the form. A member asks for a change from 我的资料 (`request_name_change`, reason required); an admin approves or rejects it from the card at the top of 成员名单 (`review_name_change`; a rejection needs a note). `name_change_requests` has no write policies — every write is one of those functions, plus `withdraw_name_change` and `mark_name_changes_seen`. The sidebar shows a count on 成员名单 for admins and a dot on 我的资料 for a requester with an unseen decision. `NameChangeField` follows the persona (a display lens), while the lock itself follows the real account.
+
 `src/types/portal.ts` mirrors the database row shapes and is the contract between migrations, `store.ts` and the UI — change it in step with the migration.
 
 ---
@@ -171,7 +175,9 @@ Admins edit or delete a board from the page itself: the selected tab carries a p
 | Own season | yes | yes, if the board and season are open |
 | Other seasons | yes | **no** |
 
-Reading is open across all seasons (migration `0008`); the insert policies still require `cohort_id = any(current_cohort_ids())`, so a non-member browses a past season read-only. Writing is open to admins, participants **and volunteers** (migration `0015` added `is_volunteer()` to the three insert policies) — a volunteer-only account is a full member of the seasons in its `cohort_ids`. The UI mirrors this with `canParticipate = canPost && (isAdmin || isMember)`. A board accepts posts only when `board.is_open && cohort.bulletin_open` — the season flag archives a whole season at once.
+Reading is open across all seasons (migration `0008`); the insert policies still require `cohort_id = any(current_cohort_ids())`, so a non-member browses a past season read-only. Writing is open to admins, participants **and volunteers** (migration `0015` added `is_volunteer()` to the three insert policies) — a volunteer-only account is a full member of the seasons in its `cohort_ids`. The UI mirrors this with `canParticipate = canPost && isMember` — admins are bound by it too. A board accepts posts, comments and reactions only when `board.is_open && cohort.bulletin_open`, and since migration `0020` the database enforces that (`bulletin_board_is_writable` / `bulletin_post_is_writable`) instead of leaving it to the UI — the season flag archives a whole season at once, for admins as well.
+
+Post and comment text, and a board's description and prompt, render through `LinkifiedText`: bare `http(s)://` and `www.` URLs become links, nothing else does, and it never uses `innerHTML`.
 
 Since migration `0007`, RLS allows **no** client-side UPDATE on `bulletin_posts` or `bulletin_comments`. Every flag change goes through `/api/admin/moderation`, which authorizes in code: `resolved` for the post's author or an admin; `pinned`, `hidden` and all comment changes for admins only. DELETE is unchanged — authors may still delete their own posts and comments. Do not add a client-side update path for these tables; extend the route instead.
 

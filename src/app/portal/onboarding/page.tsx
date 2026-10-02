@@ -202,12 +202,20 @@ export default function OnboardingPage() {
                 </Stack>
               )}
 
+              {/* The name comes from the roster import; changing it later needs
+                  an admin (migration 0021). Only a blank import leaves it open. */}
               <TextField
                 label="昵称"
                 required
                 fullWidth
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
+                disabled={Boolean(invite?.fullName?.trim())}
+                helperText={
+                  invite?.fullName?.trim()
+                    ? "昵称以导入名单为准，激活后如需修改，请在「我的资料」提交申请。"
+                    : undefined
+                }
                 inputProps={{ maxLength: 200 }}
               />
               <TextField
