@@ -258,7 +258,7 @@ export const portalCopy = {
       members: "指定成员",
       mentors: "某季度全部导师",
       mentees: "某季度全部学员",
-      participants: "本季度所有导师与学员",
+      participants: "某季度全部导师与学员",
     },
     seasonLabel: "季度",
     allSeasons: "全部季度",

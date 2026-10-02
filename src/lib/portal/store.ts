@@ -1105,7 +1105,8 @@ export function importMembers(
 export async function listMyTasks(userId: string): Promise<MyTask[]> {
   const supabase = createClient();
   const { error: syncError } = await supabase.rpc("sync_my_dynamic_task_assignments");
-  throwQueryError("同步任务", syncError);
+  // The catch-up is a safety net; a failure must not hide tasks already assigned.
+  if (syncError) console.warn("同步任务失败", syncError.message);
   const { data: volunteerId } = await supabase.rpc("my_volunteer_id");
   let query = supabase.from("task_assignments").select("*, task:tasks(*)");
   query = volunteerId
