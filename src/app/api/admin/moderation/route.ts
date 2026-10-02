@@ -103,8 +103,9 @@ async function authorizeAuthorOrAdmin(
 /**
  * Author-only edit (migration 0023). Unlike every other change in this route
  * there is no admin override: moderators can hide or delete, never reword.
- * The archive rule is enforced here because the service-role client skips RLS
- * and 0020 only guards inserts — a closed board or season is read-only.
+ * The archive rule and season membership are enforced here because the
+ * service-role client skips RLS and 0015 / 0020 only guard inserts — a closed
+ * board or season is read-only, and so is a season you have left.
  */
 async function editContent(
   edit: z.infer<typeof editSchema>,
@@ -150,6 +151,21 @@ async function editContent(
   if (authorId !== user.id) {
     return NextResponse.json(
       { error: "只能修改自己发布的内容。" },
+      { status: 403 },
+    );
+  }
+
+  // Same gate as the insert policies (0015 / 0020): a current member of the
+  // season, in a writing role. Someone who has since left the season can no
+  // longer reword what they posted there.
+  const profile = user.profile;
+  const canWrite =
+    profile?.is_admin ||
+    profile?.participant_role != null ||
+    profile?.is_volunteer;
+  if (!canWrite || !profile?.cohort_ids.includes(cohortId)) {
+    return NextResponse.json(
+      { error: "你已不在该季度，内容不能再修改。" },
       { status: 403 },
     );
   }
