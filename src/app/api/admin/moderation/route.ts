@@ -124,7 +124,9 @@ async function editContent(
   if (edit.target === "post") {
     const { data: row } = await supabase
       .from("bulletin_posts")
-      .select("author_id, cohort_id, board_id, title, body, category, color")
+      .select(
+        "author_id, cohort_id, board_id, hidden, title, body, category, color",
+      )
       .eq("id", edit.id)
       .maybeSingle();
     if (!row) return NextResponse.json({ error: "找不到该留言。" }, { status: 404 });
@@ -133,7 +135,7 @@ async function editContent(
   } else {
     const { data: row } = await supabase
       .from("bulletin_comments")
-      .select("author_id, cohort_id, post_id, body")
+      .select("author_id, cohort_id, post_id, hidden, body")
       .eq("id", edit.id)
       .maybeSingle();
     if (!row) return NextResponse.json({ error: "找不到该评论。" }, { status: 404 });
@@ -151,6 +153,16 @@ async function editContent(
   if (authorId !== user.id) {
     return NextResponse.json(
       { error: "只能修改自己发布的内容。" },
+      { status: 403 },
+    );
+  }
+
+  // The author still sees their hidden content, but must not be able to
+  // reword what a moderator pulled — an admin could unhide it later without
+  // noticing the change.
+  if (before.hidden) {
+    return NextResponse.json(
+      { error: "该内容已被管理员隐藏，不能修改。" },
       { status: 403 },
     );
   }
@@ -192,7 +204,14 @@ async function editContent(
   let patch: Record<string, unknown>;
   if (edit.target === "post") {
     const allowed = board.allowed_categories as string[] | null;
-    if (allowed?.length && !allowed.includes(edit.category)) {
+    // Only when the category is being changed: an admin may have narrowed the
+    // board's categories since this post was written, and that must not block
+    // fixing a typo in it.
+    if (
+      edit.category !== before.category &&
+      allowed?.length &&
+      !allowed.includes(edit.category)
+    ) {
       return invalidBody("该留言板不支持这个分类。");
     }
     patch = {

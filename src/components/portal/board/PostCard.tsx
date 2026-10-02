@@ -307,7 +307,7 @@ export default function PostCard({
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
         {/* Author only — admins moderate but never reword. `canPost` already
             means an open board and season you belong to. */}
-        {isOwnPost && canPost && (
+        {isOwnPost && canPost && !post.hidden && (
           <MenuItem
             onClick={() => {
               closeMenu();

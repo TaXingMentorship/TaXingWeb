@@ -195,7 +195,7 @@ export default function PostComments({
                     </Typography>
                   )}
                 </Box>
-                {isOwn && canComment && !editing && (
+                {isOwn && canComment && !comment.hidden && !editing && (
                   <Tooltip title={portalCopy.board.actionEdit}>
                     <IconButton size="small" onClick={() => startEdit(comment)}>
                       <EditOutlinedIcon fontSize="small" />
