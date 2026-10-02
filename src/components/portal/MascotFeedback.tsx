@@ -12,6 +12,8 @@ import ButtonBase from "@mui/material/ButtonBase";
 import { keyframes } from "@mui/material/styles";
 import { portalCopy } from "@/data/portalCopy";
 import { MASCOT_FEEDBACK_HREF } from "@/data/mascot";
+import MascotHat from "@/components/portal/MascotHat";
+import { useMyTasks } from "@/components/portal/useMyTasks";
 
 const { mascot: copy } = portalCopy;
 
@@ -54,6 +56,8 @@ function writeStorage(key: string, value: string | null) {
 }
 
 export default function MascotFeedback() {
+  const { pending } = useMyTasks();
+  const pendingIds = React.useMemo(() => pending.map((item) => item.id), [pending]);
   const [open, setOpen] = React.useState(false);
   const [greeting, setGreeting] = React.useState(false);
   const [collapsed, setCollapsed] = React.useState(false);
@@ -143,6 +147,18 @@ export default function MascotFeedback() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                 {copy.bubbleBody}
               </Typography>
+              <Typography variant="body2" fontWeight={600} sx={{ mb: 1.5 }}>
+                {pending.length > 0 ? (
+                  <>
+                    {copy.tasksLeft(pending.length)}{" "}
+                    <Link href="/portal/tasks" onClick={() => setOpen(false)}>
+                      {copy.tasksLink}
+                    </Link>
+                  </>
+                ) : (
+                  copy.tasksDone
+                )}
+              </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Button
                   component={Link}
@@ -219,6 +235,7 @@ export default function MascotFeedback() {
               draggable={false}
             />
           </Box>
+          <MascotHat taskIds={pendingIds} />
         </Box>
       </ButtonBase>
     </Box>
