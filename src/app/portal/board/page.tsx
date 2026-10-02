@@ -18,6 +18,7 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Chip from "@mui/material/Chip";
 import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import { createTheme, ThemeProvider, useTheme } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import type {
   Cohort,
@@ -78,14 +79,63 @@ function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
  * body lives in a child component.
  */
 export default function BoardPage() {
+  const baseTheme = useTheme();
+  const boardTheme = React.useMemo(
+    () =>
+      createTheme(baseTheme, {
+        palette: {
+          secondary: {
+            main: "#FEBD59",
+            contrastText: "#fff",
+          },
+        },
+        components: {
+          MuiButton: {
+            styleOverrides: {
+              root: {
+                "&:not(.MuiButton-colorError)": {
+                  backgroundColor: "#FEBD59",
+                  borderColor: "#FEBD59",
+                  color: "#fff",
+                  "&:hover": {
+                    backgroundColor: "#F5AC3D",
+                    borderColor: "#F5AC3D",
+                  },
+                  "&.Mui-disabled": {
+                    backgroundColor: "rgba(254, 189, 89, 0.45)",
+                    borderColor: "transparent",
+                    color: "rgba(255, 255, 255, 0.75)",
+                  },
+                },
+              },
+            },
+          },
+          MuiToggleButton: {
+            styleOverrides: {
+              root: {
+                "&.Mui-selected": {
+                  backgroundColor: "#FEBD59",
+                  color: "#fff",
+                  "&:hover": { backgroundColor: "#F5AC3D" },
+                },
+              },
+            },
+          },
+        },
+      }),
+    [baseTheme],
+  );
+
   return (
-    <React.Suspense
-      fallback={
-        <Typography color="text.secondary">{portalCopy.board.loading}</Typography>
-      }
-    >
-      <BoardPageContent />
-    </React.Suspense>
+    <ThemeProvider theme={boardTheme}>
+      <React.Suspense
+        fallback={
+          <Typography color="text.secondary">{portalCopy.board.loading}</Typography>
+        }
+      >
+        <BoardPageContent />
+      </React.Suspense>
+    </ThemeProvider>
   );
 }
 

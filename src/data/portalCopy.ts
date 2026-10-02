@@ -311,6 +311,8 @@ export const portalCopy = {
     openLabel: "开放发布（关闭后仅可浏览）",
     allowAnonymousLabel: "允许匿名发布",
     allowCommentsLabel: "允许评论",
+    pinBoardLabel: "置顶留言板（显示在普通留言板前）",
+    pinnedBoard: "已置顶留言板",
     categoriesLabel: "可选类别（不选则全部可用）",
     postCount: "条留言",
     closed: "仅浏览",

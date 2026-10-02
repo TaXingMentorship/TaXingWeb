@@ -262,6 +262,7 @@ export async function updateBoard(
       | "allowed_categories"
       | "allow_anonymous"
       | "allow_comments"
+      | "sort_order"
     >
   >,
 ): Promise<BulletinBoard> {
@@ -281,6 +282,14 @@ export function setBoardOpen(
   open: boolean,
 ): Promise<BulletinBoard> {
   return updateBoard(id, { is_open: open });
+}
+
+/** Uses the existing sort order as the pin state: -1 is pinned, 0 is normal. */
+export async function setBoardPinned(
+  id: string,
+  pinned: boolean,
+): Promise<BulletinBoard> {
+  return updateBoard(id, { sort_order: pinned ? -1 : 0 });
 }
 
 /**
