@@ -167,7 +167,7 @@ export const portalCopy = {
   },
   tasks: {
     title: "我的任务",
-    subtitle: "负责人分配给你的待办事项。处理完后记得标记完成。",
+    subtitle: "请查收活动任务📮，处理完后记得标记完成哦！",
     pendingTab: "待办",
     doneTab: "已完成",
     empty: "暂时没有待办任务。",
@@ -258,6 +258,7 @@ export const portalCopy = {
       members: "指定成员",
       mentors: "某季度全部导师",
       mentees: "某季度全部学员",
+      participants: "本季度所有导师与学员",
     },
     seasonLabel: "季度",
     allSeasons: "全部季度",
@@ -271,6 +272,8 @@ export const portalCopy = {
     previewNoAccount: (n: number) =>
       `其中 ${n} 位志愿者还没有开通门户账号，暂时看不到提醒；开通后会自动看到。`,
     previewEmpty: "还没有选择接收人。",
+    previewDynamicEmpty: "当前没有符合条件的成员。",
+    previewDynamic: "之后加入该季度且身份符合的导师或学员也会自动收到，包括任务过期后加入的人。",
     titleRequired: "请填写任务标题。",
     dueRequired: "请选择截止日期。",
     recipientsRequired: "请至少选择一位接收人。",

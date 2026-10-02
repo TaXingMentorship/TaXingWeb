@@ -297,6 +297,8 @@ export type Task = {
   link: string | null;
   due_on: string | null;
   cohort_id: string | null;
+  /** Non-empty for a cohort-wide audience that also applies to future members. */
+  audience_roles: ParticipantRole[];
   created_by: string | null;
   created_at: string;
 };
@@ -304,7 +306,7 @@ export type Task = {
 /**
  * One recipient of a task. Addressed by volunteer record so a task assigned
  * before the person activates her account is still waiting afterwards;
- * `profile_id` is the direct form for non-volunteers (unused by the UI so far).
+ * `profile_id` is the direct form for mentors and mentees.
  */
 export type TaskAssignment = {
   id: string;

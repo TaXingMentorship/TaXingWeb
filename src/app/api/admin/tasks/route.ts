@@ -15,18 +15,35 @@ const createSchema = z.object({
   link: portalPath.nullable(),
   due_on: z.iso.date({ message: "请选择截止日期。" }),
   cohort_id: z.uuid().nullable(),
+  audience_roles: z.array(z.enum(["mentor", "mentee"])).max(2).default([]),
   volunteer_ids: z.array(z.uuid()).max(500).default([]),
   profile_ids: z.array(z.uuid()).max(500).default([]),
-}).refine((input) => input.volunteer_ids.length + input.profile_ids.length > 0, {
-  message: "请至少选择一位接收人。",
-});
+})
+  .refine(
+    (input) =>
+      input.volunteer_ids.length +
+        input.profile_ids.length +
+        input.audience_roles.length >
+      0,
+    { message: "请至少选择一位接收人。" },
+  )
+  .refine(
+    (input) => input.audience_roles.length === 0 || input.cohort_id !== null,
+    { message: "动态接收范围必须选择季度。" },
+  )
+  .refine(
+    (input) =>
+      input.audience_roles.length === 0 ||
+      (input.volunteer_ids.length === 0 && input.profile_ids.length === 0),
+    { message: "动态接收范围不能同时指定固定接收人。" },
+  );
 
 const deleteSchema = z.object({ id: z.uuid() });
 
 /**
  * Creates the task and its recipients together. The recipient list arrives
- * already expanded — the admin page resolves "整组" / "全季度" from the roster
- * it has loaded, and the preview it shows is exactly what is posted.
+ * Fixed recipient lists arrive already expanded. Dynamic mentor/mentee
+ * audiences are persisted on the task and assigned by database triggers.
  */
 export async function POST(request: Request) {
   const actor = await requireApiRole("admin");
@@ -69,13 +86,16 @@ export async function POST(request: Request) {
     .single();
   if (error) return databaseError("创建任务", error.message);
 
-  const { error: assignError } = await supabase
-    .from("task_assignments")
-    .insert(recipients.map((recipient) => ({ task_id: created.id, ...recipient })));
-  if (assignError) {
-    // No partial task: a task with nobody to do it is not worth keeping.
-    await supabase.from("tasks").delete().eq("id", created.id);
-    return databaseError("分配任务", assignError.message);
+  if (recipients.length > 0) {
+    const { error: assignError } = await supabase
+      .from("task_assignments")
+      .insert(recipients.map((recipient) => ({ task_id: created.id, ...recipient })));
+    if (assignError) {
+      // No partial task: a fixed-recipient task with nobody to do it is not
+      // worth keeping. Dynamic assignments created by the task trigger cascade.
+      await supabase.from("tasks").delete().eq("id", created.id);
+      return databaseError("分配任务", assignError.message);
+    }
   }
 
   const { data, error: readError } = await supabase

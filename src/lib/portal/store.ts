@@ -1095,6 +1095,8 @@ export function importMembers(
  */
 export async function listMyTasks(userId: string): Promise<MyTask[]> {
   const supabase = createClient();
+  const { error: syncError } = await supabase.rpc("sync_my_dynamic_task_assignments");
+  throwQueryError("同步任务", syncError);
   const { data: volunteerId } = await supabase.rpc("my_volunteer_id");
   let query = supabase.from("task_assignments").select("*, task:tasks(*)");
   query = volunteerId
@@ -1134,6 +1136,8 @@ export type TaskInput = {
   link: string | null;
   due_on: string;
   cohort_id: string | null;
+  /** Cohort-wide roles that receive this task now and when they join later. */
+  audience_roles: ParticipantRole[];
   /** Volunteer records — the assignee resolves to an account through the link. */
   volunteer_ids: string[];
   /** Portal accounts (mentors, mentees) addressed directly. */
