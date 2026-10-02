@@ -379,10 +379,17 @@ addressed one of two ways:
   appear with no re-assignment. The create dialog counts recipients without an
   account for the same reason: a reminder nobody can see should not look sent.
 - **Mentors and mentees by account** (`profile_id`) — they always have one.
+  Cohort-wide mentor/mentee tasks also store `tasks.audience_roles`. Database
+  triggers assign current matching profiles when the task is created and add
+  assignments when a profile is created or later gains a matching role/cohort.
+  Due dates do not limit this matching, so late joiners also receive overdue
+  tasks. `sync_my_dynamic_task_assignments()` runs before the user's task read
+  as an idempotent concurrency-safe catch-up.
 
 Writes follow the usual split. `/api/admin/tasks` creates task + recipients
-(the dialog expands 整组 / 全季度 / 全部导师 client-side and posts the exact
-list it previews) and deletes. Someone who is both a volunteer and a mentor
+(the dialog expands fixed volunteer/member selections client-side; dynamic
+全部导师 / 全部学员 scopes are persisted and expanded in the database) and
+deletes. Someone who is both a volunteer and a mentor
 can be picked through either door; the route drops the `profile_id` copy when
 the volunteer row links to the same account, so a person gets one assignment.
 A recipient can only complete or reopen her own row, through

@@ -30,11 +30,13 @@ type RecipientMode =
   | "season"
   | "members"
   | "mentors"
-  | "mentees";
+  | "mentees"
+  | "participants";
 
 const VOLUNTEER_MODES: RecipientMode[] = ["individuals", "group", "season"];
-const MEMBER_MODES: RecipientMode[] = ["members", "mentors", "mentees"];
+const MEMBER_MODES: RecipientMode[] = ["members", "mentors", "mentees", "participants"];
 const PICK_MODES: RecipientMode[] = ["individuals", "members"];
+const DYNAMIC_MEMBER_MODES: RecipientMode[] = ["mentors", "mentees", "participants"];
 
 const CUSTOM = "custom";
 const ALL_SEASONS = "";
@@ -97,6 +99,7 @@ export default function TaskDialog({
   const [validationError, setValidationError] = React.useState<string | null>(null);
 
   const isPickMode = PICK_MODES.includes(mode);
+  const isDynamicMemberMode = DYNAMIC_MEMBER_MODES.includes(mode);
   const newestCohortId = cohorts[0]?.id ?? "";
   const cohortId = cohortChoice ?? newestCohortId;
   const groupId = groupChoice || (groups[0]?.id ?? "");
@@ -184,13 +187,19 @@ export default function TaskDialog({
         };
       }
       case "mentors":
-      case "mentees": {
-        const role = mode === "mentors" ? "mentor" : "mentee";
+      case "mentees":
+      case "participants": {
+        const roles =
+          mode === "participants"
+            ? ["mentor", "mentee"]
+            : [mode === "mentors" ? "mentor" : "mentee"];
         return {
           volunteers: [],
           profiles: profiles.filter(
             (profile) =>
-              profile.participant_role === role && profile.cohort_ids.includes(cohortId),
+              profile.participant_role !== null &&
+              roles.includes(profile.participant_role) &&
+              profile.cohort_ids.includes(cohortId),
           ),
         };
       }
@@ -208,8 +217,18 @@ export default function TaskDialog({
         link: link.trim() || null,
         due_on: dueOn,
         cohort_id: isPickMode ? null : cohortId || null,
+        audience_roles:
+          mode === "participants"
+            ? ["mentor", "mentee"]
+            : mode === "mentors"
+              ? ["mentor"]
+              : mode === "mentees"
+                ? ["mentee"]
+                : [],
         volunteer_ids: recipients.volunteers.map((volunteer) => volunteer.id),
-        profile_ids: recipients.profiles.map((profile) => profile.id),
+        profile_ids: isDynamicMemberMode
+          ? []
+          : recipients.profiles.map((profile) => profile.id),
       }),
     onSuccess: onSaved,
   });
@@ -223,7 +242,7 @@ export default function TaskDialog({
       setValidationError(copy.dueRequired);
       return;
     }
-    if (recipientCount === 0) {
+    if (recipientCount === 0 && !isDynamicMemberMode) {
       setValidationError(copy.recipientsRequired);
       return;
     }
@@ -402,7 +421,16 @@ export default function TaskDialog({
           )}
 
           <Alert severity={recipientCount === 0 ? "warning" : "info"}>
-            {recipientCount === 0 ? copy.previewEmpty : copy.previewCount(recipientCount)}
+            {recipientCount === 0
+              ? isDynamicMemberMode
+                ? copy.previewDynamicEmpty
+                : copy.previewEmpty
+              : copy.previewCount(recipientCount)}
+            {isDynamicMemberMode && (
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                {copy.previewDynamic}
+              </Typography>
+            )}
             {withoutAccount > 0 && (
               <Typography variant="body2" sx={{ mt: 0.5 }}>
                 {copy.previewNoAccount(withoutAccount)}
