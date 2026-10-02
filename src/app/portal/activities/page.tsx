@@ -8,9 +8,12 @@ import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import Divider from "@mui/material/Divider";
 import Chip from "@mui/material/Chip";
+import Button from "@mui/material/Button";
 import DescriptionIcon from "@mui/icons-material/Description";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import ExploreIcon from "@mui/icons-material/Explore";
+import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import { listCohorts } from "@/lib/portal/store";
 import { portalCopy } from "@/data/portalCopy";
@@ -44,6 +47,17 @@ const activities: Activity[] = [
   { week: "Week 5–8", dates: "11月9日 – 12月6日", title: "Office Hour 活动", track: "side" },
   { week: "Week 5–7", dates: "11月9日 – 11月29日", title: "圆桌分享会", track: "side" },
   { week: "Week 8", dates: "11月30日 – 12月6日", title: "毕业活动", track: "side" },
+];
+
+const importantFiles = [
+  {
+    title: "2026 秋季她行活动 Mentor 守则",
+    href: "/documents/2026-fall-mentor-guide.pdf",
+  },
+  {
+    title: "2026 秋季她行活动 Mentee 守则",
+    href: "/documents/2026-fall-mentee-guide.pdf",
+  },
 ];
 
 export default function ActivitiesPage() {
@@ -82,9 +96,40 @@ export default function ActivitiesPage() {
             </Stack>
             <Divider sx={{ my: 2 }} />
             {section.key === "files" ? (
-              <Typography color="text.secondary">
-                {portalCopy.activities.empty}
-              </Typography>
+              <Stack spacing={1.5}>
+                {importantFiles.map((file) => (
+                  <Stack
+                    key={file.href}
+                    direction={{ xs: "column", sm: "row" }}
+                    justifyContent="space-between"
+                    alignItems={{ xs: "flex-start", sm: "center" }}
+                    spacing={1.5}
+                    sx={{
+                      p: 2,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      borderRadius: 2,
+                      bgcolor: "#fffaf2",
+                    }}
+                  >
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                      <PictureAsPdfOutlinedIcon color="secondary" />
+                      <Typography fontWeight={700}>{file.title}</Typography>
+                    </Stack>
+                    <Button
+                      component="a"
+                      href={file.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      variant="outlined"
+                      color="secondary"
+                      endIcon={<OpenInNewIcon />}
+                    >
+                      查看 PDF
+                    </Button>
+                  </Stack>
+                ))}
+              </Stack>
             ) : (
               <Stack spacing={1.5}>
                 {activities
