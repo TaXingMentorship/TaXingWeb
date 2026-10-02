@@ -384,7 +384,9 @@ addressed one of two ways:
   assignments when a profile is created or later gains a matching role/cohort.
   Due dates do not limit this matching, so late joiners also receive overdue
   tasks. `sync_my_dynamic_task_assignments()` runs before the user's task read
-  as an idempotent concurrency-safe catch-up.
+  as an idempotent concurrency-safe catch-up; if it fails the read carries on
+  with the assignments that already exist. Assignments are never revoked: a
+  member who later leaves the cohort or changes role keeps tasks already given.
 
 Writes follow the usual split. `/api/admin/tasks` creates task + recipients
 (the dialog expands fixed volunteer/member selections client-side; dynamic
