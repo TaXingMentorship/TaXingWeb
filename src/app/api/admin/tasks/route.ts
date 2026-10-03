@@ -16,6 +16,8 @@ const createSchema = z.object({
   due_on: z.iso.date({ message: "请选择截止日期。" }),
   cohort_id: z.uuid().nullable(),
   audience_roles: z.array(z.enum(["mentor", "mentee"])).max(2).default([]),
+  audience_volunteers: z.boolean().default(false),
+  audience_group_id: z.uuid().nullable().default(null),
   volunteer_ids: z.array(z.uuid()).max(500).default([]),
   profile_ids: z.array(z.uuid()).max(500).default([]),
 })
@@ -23,17 +25,23 @@ const createSchema = z.object({
     (input) =>
       input.volunteer_ids.length +
         input.profile_ids.length +
-        input.audience_roles.length >
+        input.audience_roles.length +
+        (input.audience_volunteers ? 1 : 0) >
       0,
     { message: "请至少选择一位接收人。" },
   )
+  .refine((input) => input.audience_group_id === null || input.audience_volunteers, {
+    message: "组别范围必须同时选择志愿者。",
+  })
   .refine(
-    (input) => input.audience_roles.length === 0 || input.cohort_id !== null,
+    (input) =>
+      (input.audience_roles.length === 0 && !input.audience_volunteers) ||
+      input.cohort_id !== null,
     { message: "动态接收范围必须选择季度。" },
   )
   .refine(
     (input) =>
-      input.audience_roles.length === 0 ||
+      (input.audience_roles.length === 0 && !input.audience_volunteers) ||
       (input.volunteer_ids.length === 0 && input.profile_ids.length === 0),
     { message: "动态接收范围不能同时指定固定接收人。" },
   );
@@ -42,8 +50,8 @@ const deleteSchema = z.object({ id: z.uuid() });
 
 /**
  * Creates the task and its recipients together. The recipient list arrives
- * Fixed recipient lists arrive already expanded. Dynamic mentor/mentee
- * audiences are persisted on the task and assigned by database triggers.
+ * Fixed recipient lists arrive already expanded. Dynamic mentor/mentee and
+ * season-wide volunteer audiences are persisted on the task and assigned by database triggers.
  */
 export async function POST(request: Request) {
   const actor = await requireApiRole("admin");

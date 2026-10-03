@@ -273,6 +273,7 @@ export const portalCopy = {
       `其中 ${n} 位志愿者还没有开通门户账号，暂时看不到提醒；开通后会自动看到。`,
     previewEmpty: "还没有选择接收人。",
     previewDynamicEmpty: "当前没有符合条件的成员。",
+    previewDynamicVolunteers: "之后被加入该季度（或该组）的志愿者（导入或手动添加）也会自动收到，包括任务过期后加入的人。",
     previewDynamic: "之后加入该季度且身份符合的导师或学员也会自动收到，包括任务过期后加入的人。",
     titleRequired: "请填写任务标题。",
     dueRequired: "请选择截止日期。",
