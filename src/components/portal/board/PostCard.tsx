@@ -12,6 +12,7 @@ import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import Tooltip from "@mui/material/Tooltip";
 import Collapse from "@mui/material/Collapse";
 import Dialog from "@mui/material/Dialog";
 import Skeleton from "@mui/material/Skeleton";
@@ -102,6 +103,9 @@ export type PostCardActions = {
   onToggleReaction: (postId: string, emoji: string, active: boolean) => void;
   onAddComment: (postId: string, body: string, isAnonymous: boolean) => void;
   onDeleteComment: (id: string) => void;
+  /** Author-only; resolves once saved so the inline editor can close. */
+  onEditComment: (id: string, body: string) => Promise<unknown>;
+  onEditPost: (post: BulletinPost) => void;
   onToggleCommentHidden: (id: string, hidden: boolean) => void;
   onTogglePostHidden: (id: string, hidden: boolean) => void;
   onTogglePinned: (id: string, pinned: boolean) => void;
@@ -179,6 +183,21 @@ export default function PostCard({
           <Typography variant="caption" color="text.secondary">
             {new Date(post.created_at).toLocaleString("zh-CN")}
           </Typography>
+          {post.edited_at && (
+            <Tooltip
+              title={portalCopy.board.editedAt(
+                new Date(post.edited_at).toLocaleString("zh-CN"),
+              )}
+            >
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ ml: 0.75, cursor: "help" }}
+              >
+                · {portalCopy.board.edited}
+              </Typography>
+            </Tooltip>
+          )}
         </Box>
         {(isAdmin || isOwnPost) && (
           <IconButton size="small" onClick={(e) => setMenuAnchor(e.currentTarget)}>
@@ -278,6 +297,7 @@ export default function PostCard({
               actions.onAddComment(post.id, body, isAnonymous)
             }
             onDelete={actions.onDeleteComment}
+            onEdit={actions.onEditComment}
             onToggleHidden={actions.onToggleCommentHidden}
             onOpenProfile={actions.onOpenProfile}
           />
@@ -285,6 +305,18 @@ export default function PostCard({
       )}
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
+        {/* Author only — admins moderate but never reword. `canPost` already
+            means an open board and season you belong to. */}
+        {isOwnPost && canPost && !post.hidden && (
+          <MenuItem
+            onClick={() => {
+              closeMenu();
+              actions.onEditPost(post);
+            }}
+          >
+            {portalCopy.board.actionEdit}
+          </MenuItem>
+        )}
         {isAdmin && (
           <MenuItem
             onClick={() => {

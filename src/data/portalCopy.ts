@@ -326,6 +326,13 @@ export const portalCopy = {
     // Composer
     composeButton: "发布留言",
     composeTitle: "发布留言",
+    editPostTitle: "修改留言",
+    editSave: "保存修改",
+    editHint: "图片和匿名设置发布后不能修改。",
+    actionEdit: "编辑",
+    edited: "已编辑",
+    editedAt: (time: string) => `编辑于 ${time}`,
+    commentSave: "保存",
     titleLabel: "标题（可选）",
     bodyLabel: "想说的话",
     bodyPlaceholder: "分享你的想法…",

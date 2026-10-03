@@ -120,6 +120,8 @@ export type BulletinPost = {
   image_paths: string[];
   hidden: boolean;
   created_at: string;
+  /** null until the author first changes the text. */
+  edited_at: string | null;
 };
 
 export type BulletinComment = {
@@ -132,6 +134,8 @@ export type BulletinComment = {
   is_anonymous: boolean;
   hidden: boolean;
   created_at: string;
+  /** null until the author first changes the text. */
+  edited_at: string | null;
 };
 
 export type BulletinReaction = {
