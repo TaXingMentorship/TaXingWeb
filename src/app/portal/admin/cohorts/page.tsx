@@ -63,25 +63,60 @@ export default function CohortsPage() {
 
   // Counted client-side from lists an admin can already read, the same way
   // countPostsByBoard does it — no extra queries.
-  const memberCounts = React.useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const profile of (profiles ?? []) as Profile[]) {
-      for (const id of profile.cohort_ids) counts[id] = (counts[id] ?? 0) + 1;
-    }
-    return counts;
-  }, [profiles]);
+  //
+  // One person is one key, so the columns can overlap (a mentor who also
+  // volunteers is in both) but the total never double-counts. A volunteer is
+  // keyed by their account when they have one, so the roster row and the
+  // profile are the same person.
+  const counts = React.useMemo(() => {
+    type Row = {
+      mentor: number;
+      mentee: number;
+      volunteer: Set<string>;
+      uncategorised: number;
+      total: Set<string>;
+    };
+    const byCohort: Record<string, Row> = {};
+    const row = (id: string): Row =>
+      (byCohort[id] ??= {
+        mentor: 0,
+        mentee: 0,
+        volunteer: new Set(),
+        uncategorised: 0,
+        total: new Set(),
+      });
 
-  // Volunteers are a separate roster from profiles (see STRUCTURE.md), so a
-  // season that predates the portal shows 0 members and still has volunteers.
-  const volunteerCounts = React.useMemo(() => {
-    const counts: Record<string, number> = {};
+    // Volunteers on the roster for a season, with or without an account.
+    const rostered = new Map<string, Set<string>>();
     for (const volunteer of volunteers ?? []) {
+      const key = volunteer.profile_id ?? `v:${volunteer.id}`;
       for (const season of volunteer.seasons) {
-        counts[season.cohort_id] = (counts[season.cohort_id] ?? 0) + 1;
+        row(season.cohort_id).volunteer.add(key);
+        row(season.cohort_id).total.add(key);
+        const keys = rostered.get(season.cohort_id) ?? new Set<string>();
+        keys.add(key);
+        rostered.set(season.cohort_id, keys);
       }
     }
-    return counts;
-  }, [volunteers]);
+
+    for (const profile of (profiles ?? []) as Profile[]) {
+      for (const id of profile.cohort_ids) {
+        const r = row(id);
+        r.total.add(profile.id);
+        if (profile.participant_role === "mentor") r.mentor += 1;
+        if (profile.participant_role === "mentee") r.mentee += 1;
+        if (profile.is_volunteer) r.volunteer.add(profile.id);
+        if (
+          !profile.participant_role &&
+          !profile.is_volunteer &&
+          !rostered.get(id)?.has(profile.id)
+        ) {
+          r.uncategorised += 1;
+        }
+      }
+    }
+    return byCohort;
+  }, [profiles, volunteers]);
 
   const boardCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
@@ -162,13 +197,28 @@ export default function CohortsPage() {
                 <TableCell>{copy.nameLabel}</TableCell>
                 <TableCell>{`${copy.startsAtLabel} / ${copy.endsAtLabel}`}</TableCell>
                 <TableCell align="right">
-                  <Tooltip title={copy.memberCountHint}>
-                    <span>{copy.memberCount}</span>
+                  <Tooltip title={copy.mentorCountHint}>
+                    <span>{copy.mentorCount}</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell align="right">
+                  <Tooltip title={copy.menteeCountHint}>
+                    <span>{copy.menteeCount}</span>
                   </Tooltip>
                 </TableCell>
                 <TableCell align="right">
                   <Tooltip title={copy.volunteerCountHint}>
                     <span>{copy.volunteerCount}</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell align="right">
+                  <Tooltip title={copy.totalCountHint}>
+                    <span>{copy.totalCount}</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell align="right">
+                  <Tooltip title={copy.uncategorisedCountHint}>
+                    <span>{copy.uncategorisedCount}</span>
                   </Tooltip>
                 </TableCell>
                 <TableCell align="right">{copy.boardCount}</TableCell>
@@ -207,10 +257,19 @@ export default function CohortsPage() {
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      {memberCounts[cohort.id] ?? 0}
+                      {counts[cohort.id]?.mentor ?? 0}
                     </TableCell>
                     <TableCell align="right">
-                      {volunteerCounts[cohort.id] ?? 0}
+                      {counts[cohort.id]?.mentee ?? 0}
+                    </TableCell>
+                    <TableCell align="right">
+                      {counts[cohort.id]?.volunteer.size ?? 0}
+                    </TableCell>
+                    <TableCell align="right">
+                      {counts[cohort.id]?.total.size ?? 0}
+                    </TableCell>
+                    <TableCell align="right">
+                      {counts[cohort.id]?.uncategorised ?? 0}
                     </TableCell>
                     <TableCell align="right">
                       {boardCounts[cohort.id] ?? 0}

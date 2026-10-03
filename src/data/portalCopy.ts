@@ -407,7 +407,8 @@ export const portalCopy = {
   },
   cohorts: {
     title: "季度管理",
-    subtitle: "每期活动是一个季度。留言板、名单导入、配对记录都挂在季度上。",
+    subtitle:
+      "每期活动是一个季度。留言板、名单导入、配对记录都挂在季度上。人数按人去重：同一个人只算一次，同时是导师和志愿者会出现在两列里，但总人数里只有一个。",
     createButton: "新建季度",
     createTitle: "新建季度",
     editTitle: "编辑季度",
@@ -417,10 +418,19 @@ export const portalCopy = {
     bulletinOpenLabel: "留言板开放",
     unset: "未设置",
     archived: "已归档",
-    memberCount: "成员",
-    memberCountHint: "有门户账号、且加入了该季度的导师 / 学员 / 负责人。",
+    mentorCount: "导师",
+    mentorCountHint: "有门户账号、且加入了该季度的导师。",
+    menteeCount: "学员",
+    menteeCountHint: "有门户账号、且加入了该季度的学员。",
     volunteerCount: "志愿者",
-    volunteerCountHint: "志愿者名单里参与了该季度的人，不要求有门户账号。",
+    volunteerCountHint:
+      "志愿者名单里参与了该季度的人（不要求有门户账号），加上该季度账号标了志愿者的人。",
+    totalCount: "总人数",
+    totalCountHint:
+      "该季度的不重复人数。一个人同时是导师和志愿者只算一次，所以不等于前几列相加。",
+    uncategorisedCount: "未分类",
+    uncategorisedCountHint:
+      "加入了该季度、有账号，但既不是导师、学员，也不是志愿者的人（例如只有管理员身份）。",
     boardCount: "留言板",
     actions: "操作",
     edit: "编辑",
@@ -439,6 +449,7 @@ export const portalCopy = {
     title: "志愿者名单",
     subtitle: "她行的志愿者们，按组别与季度浏览。",
     allTab: "全部",
+    noGroupTab: "未分组",
     myGroupHint: "我所在的组",
     searchLabel: "搜索志愿者",
     searchPlaceholder: "搜索姓名、邮箱或微信…",

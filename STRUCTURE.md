@@ -331,6 +331,19 @@ cannot be stale. The volunteer row's own values remain as `own_*` columns, which
 is what the edit dialog shows as the fallback while the linked fields are
 read-only.
 
+### Seasons reach the account
+
+`volunteer_seasons` is the roster's record of participation, but 成员名单 and the
+directory read `profiles.cohort_ids`, which `claim_roster_invite` writes once, at
+first login, from the invites that exist then. Migration `0025`
+(`sync_volunteer_access`) keeps the two in step: every `volunteer_seasons` row
+guarantees a `roster_invites` row for that season and — if the volunteer has an
+account — a `cohort_ids` entry. It also fires when a volunteer gains an email or
+an account link, carrying over seasons recorded earlier. **Additive only:**
+removing a season from the roster never removes it from the account, because
+membership grants bulletin access. A volunteer with no email and no account has
+nowhere to carry a season and is skipped.
+
 Unlinking an email-matched volunteer is a no-op: the trigger relinks them
 immediately, and correctly — the emails match. Unlink is only meaningful for a
 link an admin confirmed by name.

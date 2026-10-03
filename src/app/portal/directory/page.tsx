@@ -6,24 +6,25 @@ import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import InputAdornment from "@mui/material/InputAdornment";
 import Autocomplete from "@mui/material/Autocomplete";
-import Avatar from "@mui/material/Avatar";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import SearchIcon from "@mui/icons-material/Search";
 import Alert from "@mui/material/Alert";
 import type { ParticipantRole, Profile } from "@/types/portal";
-import { listCohorts, listProfiles, listVolunteers } from "@/lib/portal/store";
-import { profileLabels } from "@/data/portalCopy";
+import {
+  listCohorts,
+  listProfiles,
+  listVolunteerGroups,
+  listVolunteers,
+} from "@/lib/portal/store";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import ProfileDialog from "@/components/portal/ProfileDialog";
+import DirectoryCard from "@/components/portal/DirectoryCard";
+import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
 
 export default function DirectoryPage() {
   const { currentUser } = usePortalSession();
@@ -44,6 +45,10 @@ export default function DirectoryPage() {
   const { data: volunteers } = useQuery({
     queryKey: ["portal", "volunteers"],
     queryFn: listVolunteers,
+  });
+  const { data: groups } = useQuery({
+    queryKey: ["portal", "volunteer-groups"],
+    queryFn: listVolunteerGroups,
   });
 
   /**
@@ -73,6 +78,18 @@ export default function DirectoryPage() {
     if (!currentUser?.is_admin || cohortId || !cohorts?.length) return;
     setCohortId(cohorts[0].id);
   }, [cohortId, cohorts, currentUser?.is_admin]);
+
+  /**
+   * Group and lead are per season, so the volunteer tab needs one. Admins have
+   * the picker; everyone else sees their newest season (`cohorts` is newest
+   * first).
+   */
+  const volunteerCohortId = React.useMemo(() => {
+    if (currentUser?.is_admin) return cohortId;
+    return (
+      cohorts?.find((c) => currentUser?.cohort_ids.includes(c.id))?.id ?? ""
+    );
+  }, [cohortId, cohorts, currentUser]);
 
   const visible = React.useMemo(() => {
     if (!profiles || !currentUser) return [];
@@ -177,49 +194,23 @@ export default function DirectoryPage() {
       ) : filtered.length === 0 ? (
         <Alert severity="info">没有符合条件的成员。</Alert>
       ) : (
-        <Grid container spacing={2}>
-          {filtered.map((p) => (
-            <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Card sx={{ height: "100%", borderRadius: 3 }}>
-                <CardActionArea onClick={() => setSelected(p)} sx={{ height: "100%" }}>
-                  <CardContent>
-                    <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5 }}>
-                      <Avatar src={p.avatar_url ?? undefined} sx={{ width: 52, height: 52 }} />
-                      <Box>
-                        <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
-                          {p.full_name}
-                        </Typography>
-                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                          {profileLabels(p).map((label) => (
-                            <Chip key={label} size="small" label={label} color="secondary" variant="outlined" />
-                          ))}
-                        </Stack>
-                      </Box>
-                    </Stack>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                        minHeight: 40,
-                      }}
-                    >
-                      {p.bio ?? "暂无简介"}
-                    </Typography>
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                      {p.interests.slice(0, 3).map((i) => (
-                        <Chip key={i} size="small" label={i} />
-                      ))}
-                    </Stack>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        tab === "volunteer" ? (
+          <VolunteerDirectory
+            profiles={filtered}
+            volunteers={volunteers ?? []}
+            groups={groups ?? []}
+            cohortId={volunteerCohortId}
+            onSelect={setSelected}
+          />
+        ) : (
+          <Grid container spacing={2}>
+            {filtered.map((p) => (
+              <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                <DirectoryCard profile={p} onSelect={setSelected} />
+              </Grid>
+            ))}
+          </Grid>
+        )
       )}
 
       <ProfileDialog profile={selected} onClose={() => setSelected(null)} />
