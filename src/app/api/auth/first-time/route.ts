@@ -58,6 +58,22 @@ export async function POST(request: Request) {
   }
 
   if (!invite) {
+    // The activation code already matched, so saying the email was activated
+    // before reveals nothing a code holder couldn't learn; it beats a vague
+    // "incorrect" for someone who simply retried after activating.
+    const { data: claimed, error: claimedLookupError } = await service
+      .from("roster_invites")
+      .select("id")
+      .eq("email", parsed.data.email)
+      .not("claimed_user_id", "is", null)
+      .limit(1)
+      .maybeSingle();
+    if (!claimedLookupError && claimed) {
+      return NextResponse.json(
+        { error: "该邮箱已激活过，请直接登录；忘记密码可使用「忘记密码」重置。" },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: "受邀邮箱或激活码不正确。" },
       { status: 403 },
