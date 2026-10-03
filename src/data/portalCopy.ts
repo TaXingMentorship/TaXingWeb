@@ -449,6 +449,7 @@ export const portalCopy = {
     title: "志愿者名单",
     subtitle: "她行的志愿者们，按组别与季度浏览。",
     allTab: "全部",
+    noGroupTab: "未分组",
     myGroupHint: "我所在的组",
     searchLabel: "搜索志愿者",
     searchPlaceholder: "搜索姓名、邮箱或微信…",
