@@ -1184,6 +1184,10 @@ export type TaskInput = {
   cohort_id: string | null;
   /** Cohort-wide roles that receive this task now and when they join later. */
   audience_roles: ParticipantRole[];
+  /** Every volunteer of the cohort, now and when they join later. */
+  audience_volunteers: boolean;
+  /** Narrows audience_volunteers to one group of the season. */
+  audience_group_id: string | null;
   /** Volunteer records — the assignee resolves to an account through the link. */
   volunteer_ids: string[];
   /** Portal accounts (mentors, mentees) addressed directly. */

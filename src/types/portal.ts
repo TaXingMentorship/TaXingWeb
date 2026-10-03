@@ -303,6 +303,10 @@ export type Task = {
   cohort_id: string | null;
   /** Non-empty for a cohort-wide audience that also applies to future members. */
   audience_roles: ParticipantRole[];
+  /** True for a season-wide volunteer audience that also applies to future volunteers. */
+  audience_volunteers: boolean;
+  /** With audience_volunteers: only this group (and its leads, if the group includes them). */
+  audience_group_id: string | null;
   created_by: string | null;
   created_at: string;
 };

@@ -380,6 +380,10 @@ addressed one of two ways:
   `volunteers.profile_id` (`is_my_assignment()`), so activation makes the task
   appear with no re-assignment. The create dialog counts recipients without an
   account for the same reason: a reminder nobody can see should not look sent.
+  A 某季度全部志愿者 / 某季度的一个组 task is dynamic (migration `0024`):
+  `tasks.audience_volunteers` plus the cohort (and `audience_group_id` for a group), with triggers on `tasks` and `volunteer_seasons` assigning
+  everyone on that season's roster now and anyone added later (import or roster
+  edit). Only hand-picked individuals stay a fixed snapshot.
 - **Mentors and mentees by account** (`profile_id`) — they always have one.
   Cohort-wide mentor/mentee tasks also store `tasks.audience_roles`. Database
   triggers assign current matching profiles when the task is created and add
