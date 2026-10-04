@@ -58,6 +58,8 @@ import VolunteerGroupsSection from "@/components/portal/VolunteerGroupsSection";
 import Divider from "@mui/material/Divider";
 
 const ALL = "all";
+/** Tab for volunteers who took part in a season without being given a group. */
+const NONE = "none";
 const STORAGE_KEY = "taxing.portal.volunteers.group";
 const ROWS_PER_PAGE = 25;
 /** Season chips shown inline before folding into a "+N" that opens the history. */
@@ -186,7 +188,7 @@ function VolunteersPageContent() {
     if (isAdmin) return ALL;
     try {
       const remembered = window.localStorage.getItem(STORAGE_KEY);
-      if (remembered === ALL) return ALL;
+      if (remembered === ALL || remembered === NONE) return remembered;
       if (remembered && groupById.has(remembered)) return remembered;
     } catch {
       // Storage unavailable — fall through to the role default.
@@ -203,7 +205,10 @@ function VolunteersPageContent() {
   }, [requestedGroup, groups, defaultGroup]);
 
   const groupId =
-    requestedGroup && (requestedGroup === ALL || groupById.has(requestedGroup))
+    requestedGroup &&
+    (requestedGroup === ALL ||
+      requestedGroup === NONE ||
+      groupById.has(requestedGroup))
       ? requestedGroup
       : (fallbackGroup ?? ALL);
 
@@ -246,27 +251,62 @@ function VolunteersPageContent() {
     [groupById],
   );
 
-  const filtered = React.useMemo(() => {
+  /**
+   * Whether a volunteer belongs under a tab, looking only at the seasons that
+   * survive the season filter. 未分组 means a season on the roster with no group
+   * yet — the ones an admin still has to place.
+   */
+  const matchesGroup = React.useCallback(
+    (seasons: VolunteerSeason[], target: string) => {
+      if (target === ALL) return true;
+      if (target === NONE) return seasons.some((s) => !s.group_id);
+      return seasons.some((s) => inGroup(s, target));
+    },
+    [inGroup],
+  );
+
+  // Season and search narrow the list first; the group tabs then slice what is
+  // left, so each tab's count answers "how many would I see if I clicked it".
+  const scoped = React.useMemo(() => {
     if (!volunteers) return [];
     const query = deferredSearch.trim().toLowerCase();
 
-    return volunteers.filter((volunteer) => {
+    return volunteers.flatMap((volunteer) => {
       const seasons =
         cohortId === ALL
           ? volunteer.seasons
           : volunteer.seasons.filter((season) => season.cohort_id === cohortId);
-      if (seasons.length === 0) return false;
-
-      if (groupId !== ALL && !seasons.some((s) => inGroup(s, groupId))) {
-        return false;
+      if (seasons.length === 0) return [];
+      if (
+        query &&
+        ![volunteer.full_name, volunteer.email, volunteer.wechat_number]
+          .filter(Boolean)
+          .some((field) => field!.toLowerCase().includes(query))
+      ) {
+        return [];
       }
-
-      if (!query) return true;
-      return [volunteer.full_name, volunteer.email, volunteer.wechat_number]
-        .filter(Boolean)
-        .some((field) => field!.toLowerCase().includes(query));
+      return [{ volunteer, seasons }];
     });
-  }, [volunteers, deferredSearch, cohortId, groupId, inGroup]);
+  }, [volunteers, deferredSearch, cohortId]);
+
+  const tabCounts = React.useMemo(() => {
+    const counts = new Map<string, number>([[ALL, scoped.length]]);
+    for (const target of [...(groups ?? []).map((g) => g.id), NONE]) {
+      counts.set(
+        target,
+        scoped.filter(({ seasons }) => matchesGroup(seasons, target)).length,
+      );
+    }
+    return counts;
+  }, [scoped, groups, matchesGroup]);
+
+  const filtered = React.useMemo(
+    () =>
+      scoped
+        .filter(({ seasons }) => matchesGroup(seasons, groupId))
+        .map(({ volunteer }) => volunteer),
+    [scoped, groupId, matchesGroup],
+  );
 
   const visible = filtered.slice(
     page * ROWS_PER_PAGE,
@@ -290,6 +330,18 @@ function VolunteersPageContent() {
     setEditing(volunteer);
     setDialogOpen(true);
   };
+
+  const tabLabel = (name: string, id: string) => (
+    <span>
+      {name}
+      <Box
+        component="span"
+        sx={{ ml: 0.75, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
+      >
+        {tabCounts.get(id) ?? 0}
+      </Box>
+    </span>
+  );
 
   return (
     <Box>
@@ -326,7 +378,7 @@ function VolunteersPageContent() {
         aria-label={copy.title}
         sx={{ mb: 2 }}
       >
-        <Tab value={ALL} label={copy.allTab} />
+        <Tab value={ALL} label={tabLabel(copy.allTab, ALL)} />
         {orderedGroups.map((group) => (
           <Tab
             key={group.id}
@@ -343,10 +395,10 @@ function VolunteersPageContent() {
                       bgcolor: "secondary.main",
                     }}
                   />
-                  <span>{group.name}</span>
+                  <span>{tabLabel(group.name, group.id)}</span>
                 </Stack>
               ) : (
-                group.name
+                tabLabel(group.name, group.id)
               )
             }
             aria-label={
@@ -356,6 +408,7 @@ function VolunteersPageContent() {
             }
           />
         ))}
+        <Tab value={NONE} label={tabLabel(copy.noGroupTab, NONE)} />
       </Tabs>
 
       <Stack
