@@ -28,6 +28,7 @@ import type {
 } from "@/types/portal";
 import { createTask, updateTask, type TaskInput } from "@/lib/portal/store";
 import { participantRoleLabels, portalCopy } from "@/data/portalCopy";
+import { portalNavItems } from "@/data/portalNav";
 
 type RecipientMode =
   | "individuals"
@@ -43,6 +44,15 @@ const MEMBER_MODES: RecipientMode[] = ["members", "mentors", "mentees", "partici
 const PICK_MODES: RecipientMode[] = ["individuals", "members"];
 const DYNAMIC_MEMBER_MODES: RecipientMode[] = ["mentors", "mentees", "participants"];
 const DYNAMIC_MODES: RecipientMode[] = [...DYNAMIC_MEMBER_MODES, "season", "group"];
+
+/**
+ * Pages a task can send someone to: every portal page a recipient can open
+ * (admin pages and the home page are not useful targets). The field is free
+ * text as well, so deep links like /portal/volunteers?group=none keep working.
+ */
+const LINK_OPTIONS = portalNavItems
+  .filter((item) => item.access !== "admin" && item.path !== "/portal")
+  .map((item) => ({ label: item.label, path: item.path }));
 
 const CUSTOM = "custom";
 const ALL_SEASONS = "";
@@ -414,13 +424,40 @@ export default function TaskDialog({
             multiline
             minRows={2}
           />
-          <TextField
-            label={copy.linkLabel}
-            helperText={copy.linkHelper}
-            value={link}
-            onChange={(event) => setLink(event.target.value)}
-            fullWidth
-            placeholder="/portal/me"
+          <Autocomplete
+            freeSolo
+            options={LINK_OPTIONS.map((option) => option.path)}
+            inputValue={link}
+            onInputChange={(_, value) => setLink(value)}
+            filterOptions={(options, { inputValue }) => {
+              const query = inputValue.trim().toLowerCase();
+              return options.filter((path) => {
+                const label = LINK_OPTIONS.find((option) => option.path === path)?.label ?? "";
+                return !query || path.toLowerCase().includes(query) || label.includes(query);
+              });
+            }}
+            renderOption={(props, path) => {
+              const { key, ...optionProps } = props;
+              const label = LINK_OPTIONS.find((option) => option.path === path)?.label;
+              return (
+                <li key={key} {...optionProps}>
+                  <Stack>
+                    <Typography>{label}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {path}
+                    </Typography>
+                  </Stack>
+                </li>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label={copy.linkLabel}
+                helperText={copy.linkHelper}
+                placeholder={copy.linkPlaceholder}
+              />
+            )}
           />
           <TextField
             label={copy.dueLabel}
