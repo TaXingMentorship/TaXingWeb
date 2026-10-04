@@ -25,6 +25,7 @@ import DialogContentText from "@mui/material/DialogContentText";
 import LinearProgress from "@mui/material/LinearProgress";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import type {
   Profile,
@@ -57,6 +58,7 @@ export default function AdminTasksPage() {
   const isAdmin = currentUser?.is_admin ?? false;
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<TaskWithAssignments | null>(null);
   const [detail, setDetail] = React.useState<TaskWithAssignments | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<TaskWithAssignments | null>(null);
 
@@ -225,6 +227,15 @@ export default function AdminTasksPage() {
                             <PeopleOutlineIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title={copy.editButton}>
+                          <IconButton
+                            size="small"
+                            aria-label={`${copy.editButton}：${task.title}`}
+                            onClick={() => setEditing(task)}
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title={copy.deleteButton}>
                           <IconButton
                             size="small"
@@ -246,14 +257,19 @@ export default function AdminTasksPage() {
       </Paper>
 
       <TaskDialog
-        open={dialogOpen}
+        open={dialogOpen || Boolean(editing)}
+        task={editing}
         volunteers={volunteers ?? []}
         profiles={profiles ?? []}
         cohorts={cohorts ?? []}
         groups={groups ?? []}
-        onClose={() => setDialogOpen(false)}
+        onClose={() => {
+          setDialogOpen(false);
+          setEditing(null);
+        }}
         onSaved={() => {
           setDialogOpen(false);
+          setEditing(null);
           invalidate();
         }}
       />

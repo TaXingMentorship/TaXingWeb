@@ -309,6 +309,8 @@ export type Task = {
   audience_group_id: string | null;
   created_by: string | null;
   created_at: string;
+  /** Last time the content (title, description, link, due date) was edited. */
+  updated_at: string;
 };
 
 /**
@@ -323,6 +325,10 @@ export type TaskAssignment = {
   profile_id: string | null;
   completed_at: string | null;
   created_at: string;
+  /** Last time this person was (re-)alerted; a new assignment starts at its creation. */
+  notified_at: string;
+  /** Last time this person opened 我的任务. Null until then. */
+  seen_at: string | null;
 };
 
 /** What `listMyTasks()` returns — the assignment with its task joined in. */

@@ -1198,6 +1198,30 @@ export function createTask(input: TaskInput): Promise<TaskWithAssignments> {
   return postAdminJson<TaskWithAssignments>("/api/admin/tasks", input, "创建任务");
 }
 
+/**
+ * Edits a published task. Recipients can only be added, never removed. Content
+ * changes re-alert everyone who has not finished; `notifyAll` also re-alerts
+ * those who have (their completion is kept).
+ */
+export function updateTask(
+  id: string,
+  input: TaskInput,
+  notifyAll: boolean,
+): Promise<TaskWithAssignments> {
+  return adminJson<TaskWithAssignments>(
+    "/api/admin/tasks",
+    "PATCH",
+    { id, ...input, notify_all: notifyAll },
+    "修改任务",
+  );
+}
+
+/** The member has opened 我的任务: clears every 新任务 / 已更新 mark. */
+export async function markMyTasksSeen(): Promise<void> {
+  const { error } = await createClient().rpc("mark_my_tasks_seen");
+  if (error) throw new Error(`标记任务已读失败：${error.message}`);
+}
+
 export function deleteTask(id: string): Promise<{ id: string }> {
   return adminJson<{ id: string }>("/api/admin/tasks", "DELETE", { id }, "删除任务");
 }

@@ -15,13 +15,18 @@ import Alert from "@mui/material/Alert";
 import Autocomplete from "@mui/material/Autocomplete";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
+import Chip from "@mui/material/Chip";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import FormHelperText from "@mui/material/FormHelperText";
 import type {
   Cohort,
   Profile,
   ResolvedVolunteerWithSeasons,
+  TaskWithAssignments,
   VolunteerGroup,
 } from "@/types/portal";
-import { createTask } from "@/lib/portal/store";
+import { createTask, updateTask, type TaskInput } from "@/lib/portal/store";
 import { participantRoleLabels, portalCopy } from "@/data/portalCopy";
 
 type RecipientMode =
@@ -60,8 +65,35 @@ export function volunteersInGroup(
   );
 }
 
+/** The recipient mode a saved task was created with. */
+function modeOfTask(task: TaskWithAssignments): RecipientMode {
+  const roles = task.audience_roles;
+  if (roles.length > 1) return "participants";
+  if (roles[0] === "mentor") return "mentors";
+  if (roles[0] === "mentee") return "mentees";
+  if (task.audience_volunteers) return task.audience_group_id ? "group" : "season";
+  return task.assignments.some((assignment) => assignment.volunteer_id)
+    ? "individuals"
+    : "members";
+}
+
+/**
+ * What an edit may change the audience into. Assignments are never revoked,
+ * so only widening is offered; fixed lists stay fixed and just gain people.
+ */
+const WIDER_MODES: Record<RecipientMode, RecipientMode[]> = {
+  individuals: ["individuals"],
+  members: ["members"],
+  group: ["group", "season"],
+  season: ["season"],
+  mentors: ["mentors", "participants"],
+  mentees: ["mentees", "participants"],
+  participants: ["participants"],
+};
+
 export default function TaskDialog({
   open,
+  task = null,
   volunteers,
   profiles,
   cohorts,
@@ -70,6 +102,8 @@ export default function TaskDialog({
   onSaved,
 }: {
   open: boolean;
+  /** Set to edit a published task instead of creating one. */
+  task?: TaskWithAssignments | null;
   volunteers: ResolvedVolunteerWithSeasons[];
   /** Portal accounts, for the 导师与学员 modes. */
   profiles: Profile[];
@@ -79,6 +113,7 @@ export default function TaskDialog({
   onSaved: () => void;
 }) {
   const copy = portalCopy.adminTasks;
+  const isEdit = Boolean(task);
 
   const [preset, setPreset] = React.useState<string>(CUSTOM);
   const [title, setTitle] = React.useState("");
@@ -98,6 +133,18 @@ export default function TaskDialog({
   >([]);
   const [pickedProfiles, setPickedProfiles] = React.useState<Profile[]>([]);
   const [validationError, setValidationError] = React.useState<string | null>(null);
+  const [notifyAll, setNotifyAll] = React.useState(false);
+
+  // People already on the task: kept locked in the pickers, and what the
+  // preview measures "added" against.
+  const assignedVolunteerIds = React.useMemo(
+    () => new Set((task?.assignments ?? []).flatMap((a) => (a.volunteer_id ? [a.volunteer_id] : []))),
+    [task],
+  );
+  const assignedProfileIds = React.useMemo(
+    () => new Set((task?.assignments ?? []).flatMap((a) => (a.profile_id ? [a.profile_id] : []))),
+    [task],
+  );
 
   const isPickMode = PICK_MODES.includes(mode);
   const isDynamicMemberMode = DYNAMIC_MEMBER_MODES.includes(mode);
@@ -106,9 +153,26 @@ export default function TaskDialog({
   const cohortId = cohortChoice ?? newestCohortId;
   const groupId = groupChoice || (groups[0]?.id ?? "");
 
+  // Resets (or prefills) only when the dialog opens or switches task: React
+  // Query refetches `volunteers` / `profiles` on window focus, and that must
+  // not wipe a form mid-edit.
   React.useEffect(() => {
     if (!open) return;
     setPreset(CUSTOM);
+    setValidationError(null);
+    setNotifyAll(false);
+    if (task) {
+      setTitle(task.title);
+      setDescription(task.description ?? "");
+      setLink(task.link ?? "");
+      setDueOn(task.due_on ?? "");
+      setMode(modeOfTask(task));
+      setCohortChoice(task.cohort_id ?? ALL_SEASONS);
+      setGroupChoice(task.audience_group_id ?? "");
+      setPickedVolunteers(volunteers.filter((volunteer) => assignedVolunteerIds.has(volunteer.id)));
+      setPickedProfiles(profiles.filter((profile) => assignedProfileIds.has(profile.id)));
+      return;
+    }
     setTitle("");
     setDescription("");
     setLink("");
@@ -118,8 +182,8 @@ export default function TaskDialog({
     setGroupChoice("");
     setPickedVolunteers([]);
     setPickedProfiles([]);
-    setValidationError(null);
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, task]);
 
   const applyPreset = (key: string) => {
     setPreset(key);
@@ -211,9 +275,26 @@ export default function TaskDialog({
   const recipientCount = recipients.volunteers.length + recipients.profiles.length;
   const withoutAccount = recipients.volunteers.filter((volunteer) => !volunteer.profile_id).length;
 
+  const contentChanged =
+    task !== null &&
+    (title.trim() !== task.title ||
+      (description.trim() || null) !== task.description ||
+      (link.trim() || null) !== task.link ||
+      dueOn !== (task.due_on ?? ""));
+  const assignmentsDone = task?.assignments.filter((a) => a.completed_at).length ?? 0;
+  const assignmentsPending = (task?.assignments.length ?? 0) - assignmentsDone;
+  const addedCount = isEdit
+    ? recipients.volunteers.filter((volunteer) => !assignedVolunteerIds.has(volunteer.id)).length +
+      recipients.profiles.filter((profile) => {
+        if (assignedProfileIds.has(profile.id)) return false;
+        const linked = volunteers.find((volunteer) => volunteer.profile_id === profile.id);
+        return !(linked && assignedVolunteerIds.has(linked.id));
+      }).length
+    : 0;
+
   const mutation = useMutation({
-    mutationFn: () =>
-      createTask({
+    mutationFn: () => {
+      const input: TaskInput = {
         title: title.trim(),
         description: description.trim() || null,
         link: link.trim() || null,
@@ -234,7 +315,9 @@ export default function TaskDialog({
         profile_ids: isDynamicMemberMode
           ? []
           : recipients.profiles.map((profile) => profile.id),
-      }),
+      };
+      return task ? updateTask(task.id, input, notifyAll) : createTask(input);
+    },
     onSuccess: onSaved,
   });
 
@@ -271,6 +354,17 @@ export default function TaskDialog({
     );
   };
 
+  // Fixed recipients already on the task cannot be removed from the pickers.
+  const keepAssigned = <T extends { id: string }>(
+    next: T[],
+    all: T[],
+    assigned: Set<string>,
+  ) => [...all.filter((item) => assigned.has(item.id)), ...next.filter((item) => !assigned.has(item.id))];
+
+  const allowedModes = task ? WIDER_MODES[modeOfTask(task)] : [...VOLUNTEER_MODES, ...MEMBER_MODES];
+  const volunteerModes = VOLUNTEER_MODES.filter((key) => allowedModes.includes(key));
+  const memberModes = MEMBER_MODES.filter((key) => allowedModes.includes(key));
+
   const changeMode = (next: RecipientMode) => {
     setMode(next);
     // "All seasons" only exists for the pick modes; a whole-season mode needs
@@ -280,7 +374,7 @@ export default function TaskDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{copy.createTitle}</DialogTitle>
+      <DialogTitle>{isEdit ? copy.editTitle : copy.createTitle}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {validationError ? <Alert severity="error">{validationError}</Alert> : null}
@@ -288,6 +382,8 @@ export default function TaskDialog({
             <Alert severity="error">{(mutation.error as Error).message}</Alert>
           ) : null}
 
+          {isEdit && <Alert severity="info">{copy.editLockedHint}</Alert>}
+          {!isEdit && (
           <TextField
             select
             label={copy.presetLabel}
@@ -302,6 +398,7 @@ export default function TaskDialog({
               </MenuItem>
             ))}
           </TextField>
+          )}
           <TextField
             label={copy.titleLabel}
             value={title}
@@ -344,16 +441,21 @@ export default function TaskDialog({
             label={copy.recipientModeLabel}
             value={mode}
             onChange={(event) => changeMode(event.target.value as RecipientMode)}
+            disabled={isEdit && allowedModes.length === 1}
             fullWidth
           >
-            <ListSubheader>{copy.recipientGroups.volunteers}</ListSubheader>
-            {VOLUNTEER_MODES.map((key) => (
+            {volunteerModes.length > 0 && (
+              <ListSubheader>{copy.recipientGroups.volunteers}</ListSubheader>
+            )}
+            {volunteerModes.map((key) => (
               <MenuItem key={key} value={key}>
                 {copy.recipientModes[key]}
               </MenuItem>
             ))}
-            <ListSubheader>{copy.recipientGroups.members}</ListSubheader>
-            {MEMBER_MODES.map((key) => (
+            {memberModes.length > 0 && (
+              <ListSubheader>{copy.recipientGroups.members}</ListSubheader>
+            )}
+            {memberModes.map((key) => (
               <MenuItem key={key} value={key}>
                 {copy.recipientModes[key]}
               </MenuItem>
@@ -365,7 +467,9 @@ export default function TaskDialog({
             label={copy.seasonLabel}
             value={cohortId}
             onChange={(event) => changeSeason(event.target.value)}
+            disabled={isEdit}
             helperText={isPickMode ? copy.seasonFilterHelper : undefined}
+            slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
             fullWidth
           >
             {isPickMode && <MenuItem value={ALL_SEASONS}>{copy.allSeasons}</MenuItem>}
@@ -381,6 +485,7 @@ export default function TaskDialog({
               label={copy.groupLabel}
               value={groupId}
               onChange={(event) => setGroupChoice(event.target.value)}
+              disabled={isEdit}
               fullWidth
             >
               {groups.map((group) => (
@@ -395,7 +500,23 @@ export default function TaskDialog({
               multiple
               options={volunteerOptions}
               value={pickedVolunteers}
-              onChange={(_, value) => setPickedVolunteers(value)}
+              onChange={(_, value) =>
+                setPickedVolunteers(keepAssigned(value, pickedVolunteers, assignedVolunteerIds))
+              }
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => {
+                  const { key, onDelete, ...tagProps } = getTagProps({ index });
+                  return (
+                    <Chip
+                      key={key}
+                      {...tagProps}
+                      size="small"
+                      label={volunteerLabel(option)}
+                      onDelete={assignedVolunteerIds.has(option.id) ? undefined : onDelete}
+                    />
+                  );
+                })
+              }
               getOptionLabel={volunteerLabel}
               isOptionEqualToValue={(a, b) => a.id === b.id}
               renderInput={(params) => (
@@ -412,7 +533,23 @@ export default function TaskDialog({
               multiple
               options={profileOptions}
               value={pickedProfiles}
-              onChange={(_, value) => setPickedProfiles(value)}
+              onChange={(_, value) =>
+                setPickedProfiles(keepAssigned(value, pickedProfiles, assignedProfileIds))
+              }
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => {
+                  const { key, onDelete, ...tagProps } = getTagProps({ index });
+                  return (
+                    <Chip
+                      key={key}
+                      {...tagProps}
+                      size="small"
+                      label={profileLabel(option)}
+                      onDelete={assignedProfileIds.has(option.id) ? undefined : onDelete}
+                    />
+                  );
+                })
+              }
               getOptionLabel={profileLabel}
               isOptionEqualToValue={(a, b) => a.id === b.id}
               renderInput={(params) => (
@@ -444,12 +581,36 @@ export default function TaskDialog({
               </Typography>
             )}
           </Alert>
+
+          {isEdit && (
+            <Stack spacing={0.5}>
+              <Alert severity="info">
+                {copy.editPreview(
+                  addedCount,
+                  contentChanged,
+                  assignmentsPending,
+                  assignmentsDone,
+                  notifyAll,
+                )}
+              </Alert>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={notifyAll}
+                    onChange={(event) => setNotifyAll(event.target.checked)}
+                  />
+                }
+                label={copy.notifyAllLabel}
+              />
+              <FormHelperText sx={{ mt: -0.5, ml: 4 }}>{copy.notifyAllHint}</FormHelperText>
+            </Stack>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{copy.cancel}</Button>
         <Button variant="contained" color="secondary" onClick={submit} disabled={mutation.isPending}>
-          {copy.create}
+          {isEdit ? copy.saveEdit : copy.create}
         </Button>
       </DialogActions>
     </Dialog>

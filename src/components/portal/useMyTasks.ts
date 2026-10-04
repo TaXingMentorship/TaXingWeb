@@ -26,7 +26,20 @@ export function useMyTasks() {
     tasks,
     pending: tasks.filter((item) => !item.completed_at),
     done: tasks.filter((item) => Boolean(item.completed_at)),
+    hasUnseen: tasks.some((item) => taskBadge(item) !== null),
   };
+}
+
+export type TaskBadge = "new" | "updated";
+
+/**
+ * 新任务 until she first opens 我的任务, 已更新 when the task was edited (or
+ * re-sent) after she last did. Independent of completion: a finished task can
+ * still be 已更新.
+ */
+export function taskBadge(item: MyTask): TaskBadge | null {
+  if (!item.seen_at) return "new";
+  return item.seen_at < item.notified_at ? "updated" : null;
 }
 
 /** Past its due date and still open. Compares calendar days, not timestamps. */

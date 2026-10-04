@@ -183,6 +183,8 @@ export const portalCopy = {
     reminderTitle: "待办提醒",
     reminderCount: (n: number) => `你有 ${n} 项待办任务`,
     reminderAll: "查看全部",
+    badgeNew: "新任务",
+    badgeUpdated: "已更新",
   },
   adminTasks: {
     title: "任务管理",
@@ -202,6 +204,7 @@ export const portalCopy = {
     progress: (done: number, total: number) => `${done} / ${total} 已完成`,
     noAccount: (n: number) => `${n} 人尚未开通门户`,
     noDue: "无",
+    editButton: "编辑",
     deleteButton: "删除",
     deleteTitle: "删除任务",
     deleteConfirm: (title: string) =>
@@ -218,6 +221,25 @@ export const portalCopy = {
 
     // Create dialog
     createTitle: "新建任务",
+    editTitle: "编辑任务",
+    editLockedHint: "已有的接收人不能移除，只能新增；季度不能修改。",
+    notifyAllLabel: "通知所有人（包括已完成的人）",
+    notifyAllHint: "已完成的人会再次看到「已更新」标记，完成状态保留。",
+    saveEdit: "保存修改",
+    editPreview: (added: number, contentChanged: boolean, pending: number, done: number, notifyAll: boolean) =>
+      [
+        added > 0 ? `新增 ${added} 人将收到提醒。` : "没有新增接收人。",
+        contentChanged
+          ? `内容已修改，${pending} 位未完成的人将收到更新提醒。`
+          : "内容没有修改，不会提醒已有的接收人。",
+        notifyAll
+          ? `已完成的 ${done} 人也会收到提醒。`
+          : done > 0
+            ? `已完成的 ${done} 人不受影响。`
+            : "",
+      ]
+        .filter(Boolean)
+        .join(""),
     presetLabel: "常用任务",
     presetCustom: "自定义",
     presets: [
