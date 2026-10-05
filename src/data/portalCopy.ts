@@ -622,6 +622,12 @@ export const portalCopy = {
     matchVolunteer: "志愿者",
     matchProfile: "门户账号",
     matchConfirm: "确认是同一人",
+    matchReject: "不是同一人",
+    matchRejectTitle: "标记为非同一人",
+    matchRejectBody: (v: string, p: string) =>
+      `确认志愿者「${v}」与门户账号「${p}」不是同一个人？这一对之后不再出现在待确认列表里，随时可以在下方撤销。`,
+    rejectedTitle: (n: number) => `已判定为非同一人（${n}）`,
+    rejectedUndo: "撤销",
     matchConfirmTitle: "确认关联",
     matchConfirmBody: (v: string, p: string) =>
       `确认志愿者「${v}」就是门户账号「${p}」本人？关联后名单会改用其门户资料里的姓名与联系方式。`,

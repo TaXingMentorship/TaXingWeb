@@ -21,7 +21,14 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import LinkIcon from "@mui/icons-material/Link";
-import { linkVolunteerProfile, listLinkCandidates } from "@/lib/portal/store";
+import PersonOffIcon from "@mui/icons-material/PersonOff";
+import Collapse from "@mui/material/Collapse";
+import {
+  linkVolunteerProfile,
+  listLinkCandidates,
+  setLinkRejected,
+  type LinkCandidate,
+} from "@/lib/portal/store";
 import { portalCopy } from "@/data/portalCopy";
 
 /**
@@ -35,16 +42,42 @@ import { portalCopy } from "@/data/portalCopy";
 export default function VolunteerLinkCandidates() {
   const copy = portalCopy.adminVolunteers;
   const queryClient = useQueryClient();
-  const [pending, setPending] = React.useState<{
+  type Pending = {
+    kind: "link" | "reject";
     volunteerId: string;
     volunteerName: string;
     profileId: string;
     profileName: string;
-  } | null>(null);
+  };
+  const [pending, setPending] = React.useState<Pending | null>(null);
+  const [showRejected, setShowRejected] = React.useState(false);
 
-  const { data: candidates, isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["portal", "volunteerLinkCandidates"],
     queryFn: listLinkCandidates,
+  });
+  const candidates = data?.pending ?? [];
+  const rejected = data?.rejected ?? [];
+
+  const refreshCandidates = () =>
+    queryClient.invalidateQueries({
+      queryKey: ["portal", "volunteerLinkCandidates"],
+    });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({
+      volunteerId,
+      profileId,
+      rejected: value,
+    }: {
+      volunteerId: string;
+      profileId: string;
+      rejected: boolean;
+    }) => setLinkRejected(volunteerId, profileId, value),
+    onSuccess: () => {
+      setPending(null);
+      refreshCandidates();
+    },
   });
 
   const linkMutation = useMutation({
@@ -53,9 +86,7 @@ export default function VolunteerLinkCandidates() {
     onSuccess: () => {
       setPending(null);
       queryClient.invalidateQueries({ queryKey: ["portal", "volunteers"] });
-      queryClient.invalidateQueries({
-        queryKey: ["portal", "volunteerLinkCandidates"],
-      });
+      refreshCandidates();
     },
   });
 
@@ -70,7 +101,7 @@ export default function VolunteerLinkCandidates() {
 
       {isLoading ? (
         <Typography color="text.secondary">{portalCopy.volunteers.loading}</Typography>
-      ) : (candidates ?? []).length === 0 ? (
+      ) : candidates.length === 0 ? (
         <Alert severity="success">{copy.matchesEmpty}</Alert>
       ) : (
         <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
@@ -84,7 +115,7 @@ export default function VolunteerLinkCandidates() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {(candidates ?? []).map(({ volunteer, profile }) => (
+                {candidates.map(({ volunteer, profile }) => (
                   <TableRow key={volunteer.id} hover>
                     <TableCell sx={{ minWidth: 160 }}>
                       <Typography variant="body2" fontWeight={600}>
@@ -117,9 +148,27 @@ export default function VolunteerLinkCandidates() {
                     <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                       <Button
                         size="small"
+                        color="inherit"
+                        startIcon={<PersonOffIcon />}
+                        sx={{ mr: 1 }}
+                        onClick={() =>
+                          setPending({
+                            kind: "reject",
+                            volunteerId: volunteer.id,
+                            volunteerName: volunteer.full_name,
+                            profileId: profile.id,
+                            profileName: profile.full_name ?? "",
+                          })
+                        }
+                      >
+                        {copy.matchReject}
+                      </Button>
+                      <Button
+                        size="small"
                         startIcon={<LinkIcon />}
                         onClick={() =>
                           setPending({
+                            kind: "link",
                             volunteerId: volunteer.id,
                             volunteerName: volunteer.full_name,
                             profileId: profile.id,
@@ -138,22 +187,65 @@ export default function VolunteerLinkCandidates() {
         </Paper>
       )}
 
+      {rejected.length > 0 ? (
+        <Box sx={{ mt: 3 }}>
+          <Button size="small" color="inherit" onClick={() => setShowRejected((v) => !v)}>
+            {copy.rejectedTitle(rejected.length)}
+          </Button>
+          <Collapse in={showRejected} unmountOnExit>
+            <Stack spacing={1} sx={{ mt: 1 }}>
+              {rejected.map(({ volunteer, profile }: LinkCandidate) => (
+                <Stack
+                  key={`${volunteer.id}:${profile.id}`}
+                  direction="row"
+                  spacing={2}
+                  alignItems="center"
+                  justifyContent="space-between"
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    {volunteer.full_name}（{volunteer.email ?? "无邮箱"}）≠{" "}
+                    {profile.full_name}（{profile.email ?? "无邮箱"}）
+                  </Typography>
+                  <Button
+                    size="small"
+                    disabled={rejectMutation.isPending}
+                    onClick={() =>
+                      rejectMutation.mutate({
+                        volunteerId: volunteer.id,
+                        profileId: profile.id,
+                        rejected: false,
+                      })
+                    }
+                  >
+                    {copy.rejectedUndo}
+                  </Button>
+                </Stack>
+              ))}
+            </Stack>
+          </Collapse>
+        </Box>
+      ) : null}
+
       <Dialog
         open={Boolean(pending)}
         onClose={() => setPending(null)}
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>{copy.matchConfirmTitle}</DialogTitle>
+        <DialogTitle>
+          {pending?.kind === "reject" ? copy.matchRejectTitle : copy.matchConfirmTitle}
+        </DialogTitle>
         <DialogContent>
           <DialogContentText>
             {pending
-              ? copy.matchConfirmBody(pending.volunteerName, pending.profileName)
+              ? (pending.kind === "reject"
+                  ? copy.matchRejectBody
+                  : copy.matchConfirmBody)(pending.volunteerName, pending.profileName)
               : ""}
           </DialogContentText>
-          {linkMutation.isError ? (
+          {linkMutation.isError || rejectMutation.isError ? (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {(linkMutation.error as Error).message}
+              {((linkMutation.error ?? rejectMutation.error) as Error).message}
             </Alert>
           ) : null}
         </DialogContent>
@@ -164,9 +256,16 @@ export default function VolunteerLinkCandidates() {
           <Button
             variant="contained"
             color="secondary"
-            disabled={linkMutation.isPending}
+            disabled={linkMutation.isPending || rejectMutation.isPending}
             onClick={() => {
-              if (pending) {
+              if (!pending) return;
+              if (pending.kind === "reject") {
+                rejectMutation.mutate({
+                  volunteerId: pending.volunteerId,
+                  profileId: pending.profileId,
+                  rejected: true,
+                });
+              } else {
                 linkMutation.mutate({
                   id: pending.volunteerId,
                   profileId: pending.profileId,
@@ -174,7 +273,7 @@ export default function VolunteerLinkCandidates() {
               }
             }}
           >
-            {copy.matchConfirm}
+            {pending?.kind === "reject" ? copy.matchReject : copy.matchConfirm}
           </Button>
         </DialogActions>
       </Dialog>
