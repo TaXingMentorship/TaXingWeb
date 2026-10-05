@@ -818,17 +818,33 @@ export async function listVolunteers(): Promise<ResolvedVolunteerWithSeasons[]> 
  * being the same person — the same reason the import rejects a NAME_MISMATCH
  * rather than merging. An admin confirms each one.
  */
-export async function listLinkCandidates(): Promise<
-  { volunteer: ResolvedVolunteer; profile: Profile }[]
-> {
+export type LinkCandidate = { volunteer: ResolvedVolunteer; profile: Profile };
+
+/**
+ * Name-match pairs, split by whether an admin has already ruled them out as
+ * different people. `rejected` stays reachable so a wrong call can be undone.
+ */
+export async function listLinkCandidates(): Promise<{
+  pending: LinkCandidate[];
+  rejected: LinkCandidate[];
+}> {
   const supabase = createClient();
-  const [volunteers, profiles] = await Promise.all([
+  const [volunteers, profiles, rejections] = await Promise.all([
     supabase.from("volunteers_resolved").select("*").is("profile_id", null),
     supabase.from("profiles").select("*"),
+    supabase.from("volunteer_link_rejections").select("volunteer_id, profile_id"),
   ]);
 
   throwQueryError("读取志愿者", volunteers.error);
   throwQueryError("读取用户资料", profiles.error);
+  throwQueryError("读取判定记录", rejections.error);
+
+  const rejectedPairs = new Set(
+    (rejections.data ?? []).map(
+      (r: { volunteer_id: string; profile_id: string }) =>
+        `${r.volunteer_id}:${r.profile_id}`,
+    ),
+  );
 
   const byName = new Map<string, Profile>();
   for (const profile of (profiles.data ?? []) as Profile[]) {
@@ -836,15 +852,33 @@ export async function listLinkCandidates(): Promise<
     if (key) byName.set(key, profile);
   }
 
-  return ((volunteers.data ?? []) as ResolvedVolunteer[])
+  const pairs = ((volunteers.data ?? []) as ResolvedVolunteer[])
     .map((volunteer) => ({
       volunteer,
       profile: byName.get(volunteer.name_key),
     }))
-    .filter(
-      (pair): pair is { volunteer: ResolvedVolunteer; profile: Profile } =>
-        Boolean(pair.profile),
-    );
+    .filter((pair): pair is LinkCandidate => Boolean(pair.profile));
+
+  const isRejected = ({ volunteer, profile }: LinkCandidate) =>
+    rejectedPairs.has(`${volunteer.id}:${profile.id}`);
+  return {
+    pending: pairs.filter((pair) => !isRejected(pair)),
+    rejected: pairs.filter(isRejected),
+  };
+}
+
+/** Marks a volunteer / account pair as different people (or, with `false`, undoes it). */
+export async function setLinkRejected(
+  volunteerId: string,
+  profileId: string,
+  rejected: boolean,
+): Promise<void> {
+  await adminJson<{ ok: true }>(
+    "/api/admin/volunteers/link-rejection",
+    rejected ? "POST" : "DELETE",
+    { volunteer_id: volunteerId, profile_id: profileId },
+    rejected ? "标记非同一人" : "撤销判定",
+  );
 }
 
 /**
