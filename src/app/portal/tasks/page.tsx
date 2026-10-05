@@ -14,9 +14,9 @@ import Chip from "@mui/material/Chip";
 import Alert from "@mui/material/Alert";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import { setMyTaskDone } from "@/lib/portal/store";
+import { markMyTasksSeen, setMyTaskDone } from "@/lib/portal/store";
 import { portalCopy } from "@/data/portalCopy";
-import { MY_TASKS_KEY, isOverdue, useMyTasks } from "@/components/portal/useMyTasks";
+import { MY_TASKS_KEY, isOverdue, taskBadge, useMyTasks } from "@/components/portal/useMyTasks";
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("zh-CN");
@@ -35,6 +35,17 @@ export default function MyTasksPage() {
   });
 
   const items = tab === "pending" ? pending : done;
+
+  // Leaving the page counts as having seen everything on it, so the 新任务 /
+  // 已更新 marks stay visible for the whole visit.
+  React.useEffect(
+    () => () => {
+      markMyTasksSeen()
+        .then(() => queryClient.invalidateQueries({ queryKey: MY_TASKS_KEY }))
+        .catch(() => undefined);
+    },
+    [queryClient],
+  );
 
   return (
     <Box>
@@ -77,6 +88,13 @@ export default function MyTasksPage() {
                     <Typography variant="h6" fontWeight={700}>
                       {item.task.title}
                     </Typography>
+                    {taskBadge(item) && (
+                      <Chip
+                        size="small"
+                        color={taskBadge(item) === "new" ? "secondary" : "info"}
+                        label={taskBadge(item) === "new" ? copy.badgeNew : copy.badgeUpdated}
+                      />
+                    )}
                     {item.task.due_on && !item.completed_at && (
                       <Chip
                         size="small"

@@ -11,7 +11,7 @@ import Box from "@mui/material/Box";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { portalCopy } from "@/data/portalCopy";
-import { isOverdue, useMyTasks } from "@/components/portal/useMyTasks";
+import { isOverdue, taskBadge, useMyTasks } from "@/components/portal/useMyTasks";
 
 const PREVIEW_LIMIT = 3;
 
@@ -63,6 +63,13 @@ export default function TaskReminderCard() {
                 <Typography fontWeight={600} noWrap>
                   {item.task.title}
                 </Typography>
+                {taskBadge(item) && (
+                  <Chip
+                    size="small"
+                    color={taskBadge(item) === "new" ? "secondary" : "info"}
+                    label={taskBadge(item) === "new" ? copy.badgeNew : copy.badgeUpdated}
+                  />
+                )}
                 {isOverdue(item) && <Chip size="small" color="error" label={copy.overdue} />}
               </Stack>
               {item.task.due_on && (

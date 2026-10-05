@@ -41,7 +41,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const pathname = usePathname();
   const { currentUser, realUser, loading, signOut } = usePortalSession();
-  const { pending: pendingTasks } = useMyTasks();
+  const { pending: pendingTasks, hasUnseen: hasUnseenTasks } = useMyTasks();
   // Nickname requests: a count for admins to act on, a dot for a requester
   // with a decision they haven't seen yet.
   const { requests: pendingNameChanges } = usePendingNameChanges();
@@ -115,7 +115,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
                 <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
                 {item.path === "/portal/tasks" && pendingTasks.length > 0 && (
                   <Badge
-                    color="error"
+                    color={hasUnseenTasks ? "error" : "secondary"}
                     badgeContent={pendingTasks.length}
                     sx={{ mr: 1.5 }}
                   />
