@@ -106,7 +106,11 @@ export function PortalSessionProvider({
         void queryClient.invalidateQueries({
           queryKey: ["portal", "currentUser"],
         });
-        router.refresh();
+        // The login page leaves with a full navigation as soon as sign-in
+        // resolves. A refresh fetched at the same moment is cancelled by that
+        // navigation; Safari reports the cancel as a failed fetch and Next
+        // then "falls back" to reloading /portal/login, undoing the redirect.
+        if (window.location.pathname !== "/portal/login") router.refresh();
       }, 0);
     });
 

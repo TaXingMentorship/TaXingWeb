@@ -10,6 +10,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SecretVisibilityToggle from "@/components/portal/SecretVisibilityToggle";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 function safeNextPath(value: string | null) {
@@ -28,6 +29,24 @@ export default function PortalLoginPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  const nextPath = React.useCallback(
+    () =>
+      safeNextPath(new URLSearchParams(window.location.search).get("next")),
+    [],
+  );
+
+  // Already signed in (for instance bounced back here by a failed navigation):
+  // go straight on instead of showing the form again.
+  React.useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user && !cancelled) window.location.replace(nextPath());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, nextPath]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
@@ -38,14 +57,22 @@ export default function PortalLoginPage() {
       password,
     });
     if (signInError) {
-      setError("邮箱或密码不正确。首次登录请先设置密码。");
+      // Only a rejected credential means "wrong email or password"; a failed
+      // request or a rate limit says nothing about what the user typed.
+      setError(
+        signInError.code === "invalid_credentials"
+          ? "邮箱或密码不正确。首次登录请先设置密码。"
+          : isAuthRetryableFetchError(signInError)
+            ? "无法连接到服务器，请检查网络后重试。"
+            : "登录失败，请稍后重试。",
+      );
       setSubmitting(false);
       return;
     }
 
-    window.location.assign(
-      safeNextPath(new URLSearchParams(window.location.search).get("next")),
-    );
+    // Full navigation, so the portal layout re-reads the new session.
+    // replace() keeps the login page out of the back-button history.
+    window.location.replace(nextPath());
   }
 
   return (
