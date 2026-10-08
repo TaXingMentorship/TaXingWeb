@@ -12,14 +12,7 @@ import Typography from "@mui/material/Typography";
 import SecretVisibilityToggle from "@/components/portal/SecretVisibilityToggle";
 import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-
-function safeNextPath(value: string | null) {
-  return value?.startsWith("/") &&
-    !value.startsWith("//") &&
-    !value.includes("\\")
-    ? value
-    : "/portal";
-}
+import { safePortalNextPath } from "@/lib/portal/safeNextPath";
 
 export default function PortalLoginPage() {
   const supabase = React.useMemo(() => createClient(), []);
@@ -31,7 +24,10 @@ export default function PortalLoginPage() {
 
   const nextPath = React.useCallback(
     () =>
-      safeNextPath(new URLSearchParams(window.location.search).get("next")),
+      safePortalNextPath(
+        new URLSearchParams(window.location.search).get("next"),
+        window.location.origin,
+      ),
     [],
   );
 
