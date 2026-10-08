@@ -97,7 +97,9 @@ function Field({ label, value }: { label: string; value: string | null }) {
       <Typography variant="subtitle2" color="text.secondary" gutterBottom>
         {label}
       </Typography>
-      <Typography variant="body1">{value}</Typography>
+      <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+        {value}
+      </Typography>
     </Box>
   );
 }
