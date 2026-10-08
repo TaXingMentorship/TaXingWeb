@@ -10,6 +10,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SecretVisibilityToggle from "@/components/portal/SecretVisibilityToggle";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 function safeNextPath(value: string | null) {
@@ -56,7 +57,15 @@ export default function PortalLoginPage() {
       password,
     });
     if (signInError) {
-      setError("邮箱或密码不正确。首次登录请先设置密码。");
+      // Only a rejected credential means "wrong email or password"; a failed
+      // request or a rate limit says nothing about what the user typed.
+      setError(
+        signInError.code === "invalid_credentials"
+          ? "邮箱或密码不正确。首次登录请先设置密码。"
+          : isAuthRetryableFetchError(signInError)
+            ? "无法连接到服务器，请检查网络后重试。"
+            : "登录失败，请稍后重试。",
+      );
       setSubmitting(false);
       return;
     }
