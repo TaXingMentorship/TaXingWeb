@@ -49,11 +49,14 @@ const AppAppBar: React.FC = () => {
 
   const renderNavButtons = () => (
     pagesItems.map((item) => (
-      <Link href={item.path} key={item.name}>
-        <Button sx={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
-          {item.path === '/portal' && authenticated ? 'PORTAL' : item.name}
-        </Button>
-      </Link>
+      <Button
+        component={Link}
+        href={item.path}
+        key={item.name}
+        sx={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}
+      >
+        {item.path === '/portal' && authenticated ? 'PORTAL' : item.name}
+      </Button>
     ))
   );
 
