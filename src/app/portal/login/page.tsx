@@ -28,6 +28,24 @@ export default function PortalLoginPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  const nextPath = React.useCallback(
+    () =>
+      safeNextPath(new URLSearchParams(window.location.search).get("next")),
+    [],
+  );
+
+  // Already signed in (for instance bounced back here by a failed navigation):
+  // go straight on instead of showing the form again.
+  React.useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user && !cancelled) window.location.replace(nextPath());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, nextPath]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
@@ -43,9 +61,9 @@ export default function PortalLoginPage() {
       return;
     }
 
-    window.location.assign(
-      safeNextPath(new URLSearchParams(window.location.search).get("next")),
-    );
+    // Full navigation, so the portal layout re-reads the new session.
+    // replace() keeps the login page out of the back-button history.
+    window.location.replace(nextPath());
   }
 
   return (
