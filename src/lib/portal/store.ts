@@ -897,6 +897,19 @@ export async function setMentorGroup(input: {
 
 // --- Board notices ---------------------------------------------------------
 
+/**
+ * Whether the signed-in user is on the volunteer roster for one season — the
+ * rule board_notices_staff_all applies (0032). `profiles.is_volunteer` has no
+ * season and does not decide this.
+ */
+export async function isSeasonVolunteer(cohortId: string): Promise<boolean> {
+  const { data, error } = await createClient().rpc("is_season_volunteer", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("读取志愿者季度", error);
+  return Boolean(data);
+}
+
 export async function listBoardNotices(boardId: string): Promise<BoardNotice[]> {
   const { data, error } = await createClient()
     .from("board_notices")

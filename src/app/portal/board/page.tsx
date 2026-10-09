@@ -43,6 +43,7 @@ import {
   editComment,
   editPost,
   listBoardNotices,
+  isSeasonVolunteer,
   markPostSeen,
   listBoards,
   listCohorts,
@@ -265,6 +266,13 @@ function BoardPageContent() {
     queryKey: ["portal", "mentorGroupMembers", cohortId],
     queryFn: () => listMentorGroupMembers({ cohortId: cohortId! }),
     enabled: Boolean(cohortId) && isQa,
+  });
+  // Only this season's volunteers (and admins) edit notices — see 0032. Asked
+  // only while looking through the volunteer persona, which is a display lens.
+  const { data: seasonVolunteer } = useQuery({
+    queryKey: ["portal", "seasonVolunteer", realUser?.id, cohortId],
+    queryFn: () => isSeasonVolunteer(cohortId!),
+    enabled: Boolean(cohortId) && isQa && Boolean(currentUser?.is_volunteer),
   });
   const { data: notices } = useQuery({
     queryKey: ["portal", "boardNotices", boardId],
@@ -852,9 +860,11 @@ function BoardPageContent() {
                   <BoardNotices
                     boardId={selectedBoard.id}
                     notices={notices ?? []}
-                    // Mirrors board_notices_staff_all (0031): volunteers only on
-                    // their own seasons' boards.
-                    canEdit={isAdmin || (Boolean(currentUser?.is_volunteer) && isMember)}
+                    // Mirrors board_notices_staff_all (0032): admins, and the
+                    // volunteers on this season's roster.
+                    canEdit={
+                      isAdmin || (Boolean(currentUser?.is_volunteer) && Boolean(seasonVolunteer))
+                    }
                     currentUserId={currentUser?.id ?? ""}
                     authorOf={authorOf}
                   />
