@@ -443,6 +443,9 @@ export const portalCopy = {
     groupMineHint: "你发过的帖子，包括匿名的。匿名帖的作者仅你自己和负责人可见。",
     groupMineEmpty: "你还没有提过问。",
     groupNavEmpty: "这个季度还没有设置答疑组。",
+    groupUngrouped: "未分组",
+    groupUngroupedHint: "没有归入任何答疑组的帖子：答疑板开启前发的，或所在的组已被删除。",
+    groupUngroupedEmpty: "没有未分组的帖子。",
     groupMentorCount: (n: number) => `${n} 位 mentor`,
     groupNoMentors: "本组还没有 mentor。",
     groupAskTitle: "提问到哪个组",
@@ -469,6 +472,7 @@ export const portalCopy = {
     noticeReminderPlaceholder: "例如：本周四 20:00 前提问，mentor 会在周五集中回复。",
     noticeGuidePlaceholder: "怎么提问、谁来回复、匿名规则…",
     noticeDismiss: "关闭提醒",
+    noticeExpired: "已过期（仅负责人可见）",
     noticeDelete: "删除",
     noticeSave: "保存",
 

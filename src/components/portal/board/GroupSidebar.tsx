@@ -15,6 +15,12 @@ import { portalCopy } from "@/data/portalCopy";
 
 /** `value` is a group id, or this for the viewer's own posts. */
 export const MINE = "__mine";
+/**
+ * Posts with no group: asked before the board became a Q&A board, or left
+ * behind when their group was deleted (0028 sets group_id to null). Listed only
+ * when there are some, so they never become unreachable.
+ */
+export const UNGROUPED = "__ungrouped";
 
 /**
  * Group navigation for a Q&A board: 「我的提问」 first, then the season's groups
@@ -28,6 +34,8 @@ export default function GroupSidebar({
   mineCount,
   unreadByGroup,
   mineUnread,
+  ungroupedCount = 0,
+  ungroupedUnread = 0,
   onSelect,
 }: {
   groups: MentorGroup[];
@@ -37,6 +45,8 @@ export default function GroupSidebar({
   /** Unread comments on the viewer's own posts, per group and in total. */
   unreadByGroup: Record<string, number>;
   mineUnread: number;
+  ungroupedCount?: number;
+  ungroupedUnread?: number;
   onSelect: (value: string) => void;
 }) {
   const sections = React.useMemo(() => {
@@ -50,7 +60,7 @@ export default function GroupSidebar({
     return out;
   }, [groups]);
 
-  if (groups.length === 0) {
+  if (groups.length === 0 && ungroupedCount === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
         {portalCopy.board.groupNavEmpty}
@@ -83,6 +93,9 @@ export default function GroupSidebar({
               </MenuItem>
             )),
           ])}
+          {ungroupedCount > 0 && (
+            <MenuItem value={UNGROUPED}>{portalCopy.board.groupUngrouped}</MenuItem>
+          )}
         </TextField>
       </Box>
 
@@ -147,6 +160,20 @@ export default function GroupSidebar({
             </Box>
           );
         })}
+
+        {ungroupedCount > 0 && (
+          <Box sx={{ mt: 1.25 }}>
+            <NavItem
+              section
+              selected={value === UNGROUPED}
+              onClick={() => onSelect(UNGROUPED)}
+              count={ungroupedCount}
+              unread={ungroupedUnread}
+            >
+              {portalCopy.board.groupUngrouped}
+            </NavItem>
+          </Box>
+        )}
       </Box>
     </>
   );

@@ -72,17 +72,20 @@ export default function BoardNotices({
   const [draft, setDraft] = React.useState("");
 
   const now = Date.now();
+  const isExpired = (n: BoardNotice) =>
+    Boolean(n.expires_at) && new Date(n.expires_at!).getTime() <= now;
+  // Staff also see expired and dismissed reminders, so they can still edit or
+  // delete them.
   const reminders = notices.filter(
     (n) =>
       n.kind === "reminder" &&
       !n.group_id &&
-      (!n.expires_at || new Date(n.expires_at).getTime() > now) &&
-      (canEdit || !dismissed.includes(n.id)),
+      (canEdit || (!isExpired(n) && !dismissed.includes(n.id))),
   );
   // One 留言须知 for the whole board — the same wording applies to every group.
-  // `group_id` is ignored: guides written while they were still per-group (before
-  // 0028's group_id was dropped from the UI) must keep showing, and notices are
-  // listed newest first, so the latest guide wins.
+  // The UI only writes guides with a null group_id, but the column (0028) allows
+  // a per-group one; any guide counts, and notices are listed newest first, so
+  // the latest guide wins.
   const guide = notices.find((n) => n.kind === "guide") ?? null;
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["portal", "boardNotices"] });
@@ -165,6 +168,7 @@ export default function BoardNotices({
               <b>
                 {copy.noticeReminderTitle}
                 {poster?.full_name ? ` · ${poster.full_name}` : ""}
+                {isExpired(notice) ? ` · ${copy.noticeExpired}` : ""}
               </b>
               {"　"}
               <LinkifiedText text={notice.body} />

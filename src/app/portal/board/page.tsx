@@ -71,7 +71,7 @@ import PostComposer, {
   type ComposerDraft,
 } from "@/components/portal/board/PostComposer";
 import type { PostCardActions } from "@/components/portal/board/PostCard";
-import GroupSidebar, { MINE } from "@/components/portal/board/GroupSidebar";
+import GroupSidebar, { MINE, UNGROUPED } from "@/components/portal/board/GroupSidebar";
 import MentorStrip from "@/components/portal/board/MentorStrip";
 import BoardNotices from "@/components/portal/board/BoardNotices";
 import { UNREAD_COMMENTS_KEY, useUnreadComments } from "@/components/portal/useUnreadComments";
@@ -156,7 +156,7 @@ export default function BoardPage() {
 }
 
 function BoardPageContent() {
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -249,6 +249,12 @@ function BoardPageContent() {
 
   const isQa = Boolean(selectedBoard?.use_groups);
 
+  const { data: posts } = useQuery({
+    queryKey: ["portal", "posts", boardId, isAdmin],
+    queryFn: () => listPosts({ boardId: boardId!, includeHidden: isAdmin }),
+    enabled: Boolean(boardId),
+  });
+
   // --- Mentor Q&A groups (boards with use_groups) ---------------------------
   const { data: groups } = useQuery({
     queryKey: ["portal", "mentorGroups", cohortId],
@@ -265,13 +271,18 @@ function BoardPageContent() {
     queryFn: () => listBoardNotices(boardId!),
     enabled: Boolean(boardId) && isQa,
   });
-  const { posts: unreadPosts, byPost: unreadByPost } = useUnreadComments();
+  const {
+    posts: unreadPosts,
+    byPost: unreadByPost,
+    isSuccess: unreadLoaded,
+  } = useUnreadComments();
+  // Keyed by group id, with ungrouped posts under UNGROUPED.
   const unreadByGroup = React.useMemo(() => {
     const counts: Record<string, number> = {};
     for (const post of unreadPosts) {
-      if (post.board_id === boardId && post.group_id) {
-        counts[post.group_id] = (counts[post.group_id] ?? 0) + post.unread_count;
-      }
+      if (post.board_id !== boardId) continue;
+      const key = post.group_id ?? UNGROUPED;
+      counts[key] = (counts[key] ?? 0) + post.unread_count;
     }
     return counts;
   }, [unreadPosts, boardId]);
@@ -286,21 +297,41 @@ function BoardPageContent() {
   const myGroupId = groupMembers?.find((m) => m.profile_id === currentUser?.id)?.group_id;
   // The group lives in the URL like the board does, so it can be linked.
   const requestedGroup = searchParams.get("group");
+  // A link to one post with no group (the home card does not know whether the
+  // board has groups) opens the post's own group, or 「未分组」.
+  const focusPost = focusPostId ? posts?.find((p) => p.id === focusPostId) : undefined;
   const groupSel =
-    requestedGroup === MINE || groupList.some((g) => g.id === requestedGroup)
+    requestedGroup === MINE ||
+    requestedGroup === UNGROUPED ||
+    groupList.some((g) => g.id === requestedGroup)
       ? (requestedGroup as string)
-      : groupList.some((g) => g.id === myGroupId)
-        ? (myGroupId as string)
-        : (groupList[0]?.id ?? MINE);
+      : focusPost
+        ? (focusPost.group_id ?? UNGROUPED)
+        : groupList.some((g) => g.id === myGroupId)
+          ? (myGroupId as string)
+          : (groupList[0]?.id ?? MINE);
   const activeGroup = groupList.find((g) => g.id === groupSel) ?? null;
 
   const openUnread = (item: { cohort_id: string; board_id: string; group_id: string | null; post_id: string }) => {
     setFilter("all");
     setSearch("");
+    scrolledTo.current = null;
     router.replace(
       `/portal/board?cohort=${item.cohort_id}&board=${item.board_id}` +
         (item.group_id ? `&group=${item.group_id}` : "") +
         `&post=${item.post_id}`,
+      { scroll: false },
+    );
+  };
+
+  /** A search result: its group's wall, scrolled to the card with comments open. */
+  const openPost = (groupId: string | null, postId: string) => {
+    setFilter("all");
+    setSearch("");
+    scrolledTo.current = null;
+    router.replace(
+      `/portal/board?cohort=${cohortId}&board=${boardId}` +
+        `&group=${groupId ?? UNGROUPED}&post=${postId}`,
       { scroll: false },
     );
   };
@@ -345,12 +376,6 @@ function BoardPageContent() {
     router.replace(`/portal/board?cohort=${id}`, { scroll: false });
   };
 
-  const { data: posts } = useQuery({
-    queryKey: ["portal", "posts", boardId, isAdmin],
-    queryFn: () => listPosts({ boardId: boardId!, includeHidden: isAdmin }),
-    enabled: Boolean(boardId),
-  });
-
   // 「我的提问」 only lists posts the viewer wrote, so its badge counts just those;
   // threads they merely commented on show up on their group instead.
   const myPostIds = new Set(
@@ -361,8 +386,9 @@ function BoardPageContent() {
     .reduce((sum, post) => sum + post.unread_count, 0);
   const postIds = React.useMemo(() => (posts ?? []).map((p) => p.id), [posts]);
 
+  const commentsQueryKey = ["portal", "comments", boardId, isAdmin, postIds.length];
   const { data: comments } = useQuery({
-    queryKey: ["portal", "comments", boardId, isAdmin, postIds.length],
+    queryKey: commentsQueryKey,
     queryFn: () => listComments({ postIds, includeHidden: isAdmin }),
     enabled: postIds.length > 0,
   });
@@ -526,13 +552,42 @@ function BoardPageContent() {
     },
   });
 
+  // Posts whose read marker is being written, so a card that re-renders while
+  // the request is in flight does not send it twice.
+  const markingSeen = React.useRef(new Set<string>());
   const markSeenMutation = useMutation({
-    mutationFn: (postId: string) => markPostSeen(currentUser!.id, postId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: UNREAD_COMMENTS_KEY }),
+    mutationFn: async (postId: string) => {
+      try {
+        // The unread count is polled but the comment list is not, so reload the
+        // thread first: the marker then stops at the newest comment actually on
+        // screen, and a comment that has not loaded stays unread.
+        await queryClient.refetchQueries({ queryKey: commentsQueryKey, exact: true });
+        const loaded = (
+          queryClient.getQueryData<BulletinComment[]>(commentsQueryKey) ?? []
+        ).filter((c) => c.post_id === postId);
+        const newest = loaded.reduce<string | null>(
+          (max, c) => (max === null || c.created_at > max ? c.created_at : max),
+          null,
+        );
+        await markPostSeen(realUser!.id, postId, newest);
+        // Held until the count is refetched, or the card would see the old
+        // count once more and mark the post again.
+        await queryClient.invalidateQueries({ queryKey: UNREAD_COMMENTS_KEY });
+        markingSeen.current.delete(postId);
+      } catch (error) {
+        // Back off instead of retrying on every render of the open card.
+        window.setTimeout(() => markingSeen.current.delete(postId), 30_000);
+        throw error;
+      }
+    },
   });
 
   const actions: PostCardActions = {
-    onMarkSeen: (postId) => markSeenMutation.mutate(postId),
+    onMarkSeen: (postId) => {
+      if (!realUser || markingSeen.current.has(postId)) return;
+      markingSeen.current.add(postId);
+      markSeenMutation.mutate(postId);
+    },
     onToggleReaction: (postId, emoji, active) =>
       reactionMutation.mutate({ postId, emoji, active }),
     onAddComment: (postId, body, isAnonymous) =>
@@ -555,18 +610,32 @@ function BoardPageContent() {
     onOpenProfile: setOpenProfile,
   };
 
+  const viewKey = `${boardId}:${groupSel}`;
+  const [promoted, setPromoted] = React.useState<{ key: string; ids: Set<string> } | null>(
+    null,
+  );
+  React.useEffect(() => {
+    if (!unreadLoaded || promoted?.key === viewKey) return;
+    setPromoted({ key: viewKey, ids: new Set(unreadByPost.keys()) });
+  }, [unreadLoaded, viewKey, unreadByPost, promoted?.key]);
+  const promotedIds = promoted?.key === viewKey ? promoted.ids : null;
+
   const visiblePosts = React.useMemo(() => {
     const filtered = (posts ?? []).filter((p: BulletinPost) => {
       if (filter !== "all" && p.category !== filter) return false;
       if (!isQa) return true;
       // author_id is the viewer's own even on an anonymous post (0009).
       if (groupSel === MINE) return p.author_id !== null && p.author_id === currentUser?.id;
+      if (groupSel === UNGROUPED) return p.group_id === null;
       return p.group_id === groupSel;
     });
-    // Posts with comments the viewer has not opened come first, so a reminder
-    // is never buried under newer posts; pinned posts still lead.
+    // Posts with comments the viewer had not opened when they arrived come
+    // first, so a reminder is never buried under newer posts; pinned posts still
+    // lead. The set is frozen per view, so a poll never reshuffles the wall.
     const unreadFirst = (a: BulletinPost, b: BulletinPost) =>
-      Number(unreadByPost.has(b.id)) - Number(unreadByPost.has(a.id));
+      promotedIds
+        ? Number(promotedIds.has(b.id)) - Number(promotedIds.has(a.id))
+        : 0;
     if (sort === "newest") {
       return [...filtered].sort((a, b) =>
         a.pinned !== b.pinned ? (a.pinned ? -1 : 1) : unreadFirst(a, b),
@@ -578,7 +647,7 @@ function BoardPageContent() {
       const countOf = (id: string) => reactionsByPost.get(id)?.length ?? 0;
       return countOf(b.id) - countOf(a.id);
     });
-  }, [posts, filter, sort, reactionsByPost, isQa, groupSel, currentUser?.id, unreadByPost]);
+  }, [posts, filter, sort, reactionsByPost, isQa, groupSel, currentUser?.id, promotedIds]);
 
   const postCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
@@ -588,6 +657,7 @@ function BoardPageContent() {
   const mineCount = (posts ?? []).filter(
     (p) => p.author_id !== null && p.author_id === currentUser?.id,
   ).length;
+  const ungroupedCount = isQa ? (posts ?? []).filter((p) => p.group_id === null).length : 0;
 
   // Board-wide search over titles, bodies and comments of every group.
   const searchHits = React.useMemo<SearchHit[]>(() => {
@@ -782,7 +852,9 @@ function BoardPageContent() {
                   <BoardNotices
                     boardId={selectedBoard.id}
                     notices={notices ?? []}
-                    canEdit={isAdmin || Boolean(currentUser?.is_volunteer)}
+                    // Mirrors board_notices_staff_all (0031): volunteers only on
+                    // their own seasons' boards.
+                    canEdit={isAdmin || (Boolean(currentUser?.is_volunteer) && isMember)}
                     currentUserId={currentUser?.id ?? ""}
                     authorOf={authorOf}
                   />
@@ -804,6 +876,8 @@ function BoardPageContent() {
                     mineCount={mineCount}
                     unreadByGroup={unreadByGroup}
                     mineUnread={mineUnread}
+                    ungroupedCount={ungroupedCount}
+                    ungroupedUnread={unreadByGroup[UNGROUPED] ?? 0}
                     onSelect={selectGroup}
                   />
                 )}
@@ -815,6 +889,7 @@ function BoardPageContent() {
                       groups={groupList}
                       mentorMatches={mentorMatches}
                       onOpenGroup={selectGroup}
+                      onOpenPost={openPost}
                     />
                   ) : (
                     <>
@@ -822,7 +897,10 @@ function BoardPageContent() {
                         <Box sx={{ mb: 2 }}>
                           <Stack direction="row" alignItems="baseline" gap={1} flexWrap="wrap" sx={{ mb: activeGroup ? 1 : 0 }}>
                             <Typography variant="h6" fontWeight={700}>
-                              {activeGroup?.name ?? portalCopy.board.groupMine}
+                              {activeGroup?.name ??
+                                (groupSel === UNGROUPED
+                                  ? portalCopy.board.groupUngrouped
+                                  : portalCopy.board.groupMine)}
                             </Typography>
                             {activeGroup && (
                               <Typography variant="body2" color="text.secondary">
@@ -837,7 +915,9 @@ function BoardPageContent() {
                             />
                           ) : (
                             <Typography variant="body2" color="text.secondary">
-                              {portalCopy.board.groupMineHint}
+                              {groupSel === UNGROUPED
+                                ? portalCopy.board.groupUngroupedHint
+                                : portalCopy.board.groupMineHint}
                             </Typography>
                           )}
                         </Box>
@@ -926,13 +1006,17 @@ function BoardPageContent() {
                 maxColumns={isQa ? 2 : 3}
                 unreadByPost={unreadByPost}
                 highlightPostId={focusPostId}
-                mentorMustBeNamed={isQa && currentUser?.participant_role === "mentor"}
+                // The real role, not the persona: 0028's trigger reads profiles,
+                // so a mentor previewing as a volunteer still cannot go anonymous.
+                mentorMustBeNamed={isQa && realUser?.participant_role === "mentor"}
                 groupNameOf={isQa && groupSel === MINE ? groupNameOf : undefined}
                 emptyText={
                   isQa
                     ? groupSel === MINE
                       ? portalCopy.board.groupMineEmpty
-                      : portalCopy.board.groupEmpty
+                      : groupSel === UNGROUPED
+                        ? portalCopy.board.groupUngroupedEmpty
+                        : portalCopy.board.groupEmpty
                     : undefined
                 }
               />

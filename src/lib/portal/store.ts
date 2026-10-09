@@ -776,12 +776,21 @@ export async function listMyUnreadComments(): Promise<UnreadPostSummary[]> {
   return (data ?? []) as UnreadPostSummary[];
 }
 
-/** Records that the viewer has now seen every comment on one of their posts. */
-export async function markPostSeen(userId: string, postId: string): Promise<void> {
+/**
+ * Records that the viewer has seen a followed post's comments up to `seenAt` —
+ * the `created_at` of the newest comment they actually loaded, a server
+ * timestamp, so the device clock never matters. null means "now". 0031 clamps
+ * it to the server clock and never moves it backwards.
+ */
+export async function markPostSeen(
+  userId: string,
+  postId: string,
+  seenAt: string | null,
+): Promise<void> {
   const { error } = await createClient()
     .from("bulletin_post_reads")
     .upsert(
-      { user_id: userId, post_id: postId, seen_at: new Date().toISOString() },
+      { user_id: userId, post_id: postId, seen_at: seenAt },
       { onConflict: "user_id,post_id" },
     );
   throwQueryError("标记评论已读", error);

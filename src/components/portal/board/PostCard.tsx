@@ -165,18 +165,21 @@ export default function PostCard({
   const author = post.author_id ? authorOf(post.author_id) : undefined;
   const isOwnPost = post.author_id === currentUserId;
   const closeMenu = () => setMenuAnchor(null);
-  const openComments = () => {
-    setCommentsOpen(true);
-    if (unreadCount > 0) actions.onMarkSeen?.(post.id);
-  };
+  const openComments = () => setCommentsOpen(true);
   const openedFromLink = React.useRef(false);
   React.useEffect(() => {
     if (!highlight || openedFromLink.current) return;
     openedFromLink.current = true;
-    openComments();
-    // openComments is recreated every render; this must fire once per arrival.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setCommentsOpen(true);
   }, [highlight]);
+  // While the thread is open, anything unread is marked seen — including the
+  // count arriving after the card mounted (a link from a reminder) and replies
+  // the 10 s poll finds while it stays open. The page reloads the thread before
+  // writing the marker, so those replies also appear here.
+  const onMarkSeen = actions.onMarkSeen;
+  React.useEffect(() => {
+    if (commentsOpen && unreadCount > 0) onMarkSeen?.(post.id);
+  }, [commentsOpen, unreadCount, onMarkSeen, post.id]);
   const mentorReplied =
     isGrouped &&
     comments.some(

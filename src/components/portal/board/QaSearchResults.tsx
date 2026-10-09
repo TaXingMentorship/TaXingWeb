@@ -21,27 +21,29 @@ export type SearchHit = {
 /** Wraps each occurrence of `query` in a highlight. Plain text only — no innerHTML. */
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query) return <>{text}</>;
-  const lower = text.toLowerCase();
-  const q = query.toLowerCase();
-  const parts: React.ReactNode[] = [];
-  let from = 0;
-  for (let i = lower.indexOf(q); i !== -1; i = lower.indexOf(q, from)) {
-    if (i > from) parts.push(text.slice(from, i));
-    parts.push(
-      <Box component="mark" key={i} sx={{ bgcolor: "warning.light", color: "inherit", px: 0.25 }}>
-        {text.slice(i, i + q.length)}
-      </Box>,
-    );
-    from = i + q.length;
-  }
-  parts.push(text.slice(from));
-  return <>{parts}</>;
+  // Split on the original text, not a lowercased copy: lowercasing can change a
+  // string's length (e.g. 「İ」), which would shift every index after it.
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <Box component="mark" key={i} sx={{ bgcolor: "warning.light", color: "inherit", px: 0.25 }}>
+            {part}
+          </Box>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
 }
 
 /**
  * Board-wide search results. Group chips narrow the results that were already
  * found; they are facets with counts, not a scope switch. Picking a result
- * opens its group.
+ * opens its group (or 「未分组」) scrolled to the post with its comments open.
  */
 export default function QaSearchResults({
   query,
@@ -49,6 +51,7 @@ export default function QaSearchResults({
   groups,
   mentorMatches,
   onOpenGroup,
+  onOpenPost,
 }: {
   query: string;
   hits: SearchHit[];
@@ -56,6 +59,7 @@ export default function QaSearchResults({
   /** Mentors whose name matches, with the group they sit in. */
   mentorMatches: { profile: Profile; groupId: string | null }[];
   onOpenGroup: (groupId: string) => void;
+  onOpenPost: (groupId: string | null, postId: string) => void;
 }) {
   const copy = portalCopy.board;
   const [facet, setFacet] = React.useState<string>("all");
@@ -131,21 +135,23 @@ export default function QaSearchResults({
           {shown.map((hit) => (
             <Box
               key={hit.postId}
-              role={hit.groupId ? "button" : undefined}
-              tabIndex={hit.groupId ? 0 : undefined}
-              onClick={() => hit.groupId && onOpenGroup(hit.groupId)}
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpenPost(hit.groupId, hit.postId)}
               onKeyDown={(e) => {
-                if (hit.groupId && (e.key === "Enter" || e.key === " ")) {
+                if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onOpenGroup(hit.groupId);
+                  onOpenPost(hit.groupId, hit.postId);
                 }
               }}
-              sx={{ py: 1.5, cursor: hit.groupId ? "pointer" : "default", "&:hover": { bgcolor: "action.hover" } }}
+              sx={{ py: 1.5, cursor: "pointer", "&:hover": { bgcolor: "action.hover" } }}
             >
               <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 0.5 }}>
-                {groupName(hit.groupId) && (
-                  <Chip size="small" color="secondary" label={groupName(hit.groupId)} />
-                )}
+                <Chip
+                  size="small"
+                  color="secondary"
+                  label={groupName(hit.groupId) ?? copy.groupUngrouped}
+                />
                 {hit.mentorReplied && (
                   <Chip size="small" color="success" label={copy.mentorReplied} />
                 )}
