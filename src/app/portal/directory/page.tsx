@@ -51,29 +51,6 @@ export default function DirectoryPage() {
     queryFn: listVolunteerGroups,
   });
 
-  /**
-   * Profile ids that have a volunteer record behind them.
-   *
-   * This tab used to filter on `p.is_admin || p.is_volunteer`, which listed
-   * every admin as a volunteer — with `is_volunteer` unset on every profile,
-   * the tab showed the admin team and no volunteers at all. Being an admin is
-   * not being a volunteer; the volunteer roster is.
-   */
-  const volunteerProfileIds = React.useMemo(
-    () =>
-      new Set(
-        (volunteers ?? [])
-          .map((volunteer) => volunteer.profile_id)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    [volunteers],
-  );
-  const isVolunteer = React.useCallback(
-    (profile: Profile) =>
-      profile.is_volunteer || volunteerProfileIds.has(profile.id),
-    [volunteerProfileIds],
-  );
-
   React.useEffect(() => {
     if (!currentUser?.is_admin || cohortId || !cohorts?.length) return;
     setCohortId(cohorts[0].id);
@@ -90,6 +67,34 @@ export default function DirectoryPage() {
       cohorts?.find((c) => currentUser?.cohort_ids.includes(c.id))?.id ?? ""
     );
   }, [cohortId, cohorts, currentUser]);
+
+  /**
+   * Who counts as a volunteer *in the season shown* (`volunteerCohortId`): a
+   * profile whose volunteer roster record has a `volunteer_seasons` row for it.
+   *
+   * This tab used to filter on `p.is_admin || p.is_volunteer`, which listed
+   * every admin as a volunteer. It then took `is_volunteer` or a roster record
+   * of *any* season, so a past volunteer who is a mentor or mentee this season
+   * showed up here under 「未分组」. `profiles.is_volunteer` is one flag with no
+   * season, so it does not decide this tab at all — the roster does.
+   */
+  const seasonVolunteerIds = React.useMemo(
+    () =>
+      new Set(
+        (volunteers ?? [])
+          .filter(
+            (volunteer) =>
+              volunteer.profile_id &&
+              volunteer.seasons.some((s) => s.cohort_id === volunteerCohortId),
+          )
+          .map((volunteer) => volunteer.profile_id!),
+      ),
+    [volunteers, volunteerCohortId],
+  );
+  const isVolunteer = React.useCallback(
+    (profile: Profile) => seasonVolunteerIds.has(profile.id),
+    [seasonVolunteerIds],
+  );
 
   const visible = React.useMemo(() => {
     if (!profiles || !currentUser) return [];
