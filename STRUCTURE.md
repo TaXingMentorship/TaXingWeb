@@ -214,8 +214,10 @@ helped run a season, and almost none of them have an account — the 94 rows
 backfilled from the retired `src/data/volunteers.ts` have no email at all.
 `volunteers.profile_id` is the optional link for the ones who do.
 
-The `/portal/directory` "志愿者" tab is unrelated: it filters `profiles` by
-`is_admin || is_volunteer`.
+The `/portal/directory` "志愿者" tab reads the roster, not the flag: it lists
+the profiles whose linked volunteer record has a `volunteer_seasons` row for the
+season shown. `profiles.is_volunteer` has no season, so a past volunteer who is
+a mentor or mentee this season is not listed there.
 
 ### Shape
 
