@@ -13,7 +13,7 @@ import Link from "@mui/material/Link";
 import CloseIcon from "@mui/icons-material/Close";
 import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import type { Profile } from "@/types/portal";
-import { profileLabels } from "@/data/portalCopy";
+import { portalCopy, profileLabels } from "@/data/portalCopy";
 
 /**
  * Read-only view of one member's profile. Shared by the directory cards and
@@ -22,9 +22,12 @@ import { profileLabels } from "@/data/portalCopy";
 export default function ProfileDialog({
   profile,
   onClose,
+  groupName,
 }: {
   profile: Profile | null;
   onClose: () => void;
+  /** A mentor's Q&A answer group this season (migration 0028), when known. */
+  groupName?: string | null;
 }) {
   return (
     <Dialog open={Boolean(profile)} onClose={onClose} maxWidth="sm" fullWidth>
@@ -40,6 +43,14 @@ export default function ProfileDialog({
                 {profileLabels(profile).map((label) => (
                   <Chip key={label} size="small" label={label} color="secondary" />
                 ))}
+                {groupName && (
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    color="success"
+                    label={portalCopy.board.groupChip(groupName)}
+                  />
+                )}
               </Stack>
             </Box>
             <IconButton onClick={onClose} aria-label="关闭">

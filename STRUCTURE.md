@@ -168,6 +168,16 @@ The wall is CSS multi-column masonry and the emoji picker is hand-rolled — no 
 
 Admins edit or delete a board from the page itself: the selected tab carries a pencil that opens `BoardDialog` in edit mode, and its 「删除留言板」 button leads to a confirmation. Both go through the browser client (`updateBoard` / `deleteBoard` in `store.ts`) — RLS `boards_admin_all` already grants admins UPDATE and DELETE on `bulletin_boards`, so unlike posts and comments no API route is involved. Deleting a board cascades to every post, comment and reaction on it, which the confirmation spells out. A board's season cannot be changed once it exists, because posts carry their own `cohort_id`.
 
+### Mentor Q&A groups
+
+A board with `use_groups` is a Q&A board (migration `0028`): its posts carry a `group_id`, and the page shows a group list beside the wall instead of one flat wall. Groups are per season (`mentor_groups`, with a 方向 label); each mentor sits in exactly one group per season (`mentor_group_members`, `unique (cohort_id, profile_id)`) but may answer in any of them. Admins seat mentors from 成员名单 (a 答疑组 column, bulk assign, and 管理答疑组) — both tables are written from the browser client under `*_admin_all` policies, like boards, so there is no API route.
+
+- The open group lives in the URL as `?group=<id>` (or `__mine` for 「我的提问」). The default is the viewer's own group, else the first.
+- Search is board-wide and client-side over the already-loaded posts and comments; group chips on the results are facets, not a scope switch. Inside a group there is no separate search box.
+- Mentors may not comment anonymously on a grouped board — a trigger enforces it, and the UI hides the checkbox. That is what makes the `Mentor` badge on comments trustworthy; it only appears on non-anonymous comments by a profile whose `participant_role` is `mentor`.
+- `board_notices` holds the board's single 留言须知 (`kind = 'guide'`, `group_id` null — it applies to every group) and 志愿者提醒 (`kind = 'reminder'`, also `group_id` null). `group_id` is unused by the UI. Admins and volunteers write them; everyone reads. Dismissing a reminder is stored in `localStorage` only.
+- **「你的提问有新评论」** (migration `0029`): `bulletin_post_reads` stores when the author last opened a post's comments, and `my_unread_comment_summary()` (SECURITY DEFINER, keyed on `auth.uid()`) returns the posts the viewer wrote **or commented on** that have comments by others newer than their baseline (migration `0030`: the later of their last open and their own latest comment; for a post they only commented on, never before their first comment). It returns no commenter identity, so it cannot unmask an anonymous comment; a user's own comments and hidden rows never count. `useUnreadComments` feeds three places — the 留言板 badge in `PortalShell`, `BoardReplyCard` on the portal home, and the board itself (a red chip on the card, a count on 「我的提问」 and on the group). It polls every 10 s while the tab is visible (Realtime cannot push these rows: clients have no SELECT on the comment tables). It works on every board, not only Q&A ones, and keys on the **real** account, so persona switching cannot test it — use a second account.
+
 ### Who can do what
 
 | | Read | Post / comment / react |
