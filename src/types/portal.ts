@@ -35,6 +35,8 @@ export type BulletinBoard = {
   /** Prompt shown in the composer and the empty state. */
   prompt: string | null;
   sort_order: number;
+  /** Q&A boards: posts belong to a mentor group (migration 0028). */
+  use_groups: boolean;
   created_at: string;
 };
 
@@ -122,6 +124,8 @@ export type BulletinPost = {
   created_at: string;
   /** null until the author first changes the text. */
   edited_at: string | null;
+  /** The mentor group the post was asked in; null on boards without groups. */
+  group_id: string | null;
 };
 
 export type BulletinComment = {
@@ -357,4 +361,50 @@ export type NameChangeRequest = {
   /** Null until the requester has seen the decision. */
   requester_seen_at: string | null;
   created_at: string;
+};
+
+/** One answer group of a season, e.g. 产品经理 组2 (migration 0028). */
+export type MentorGroup = {
+  id: string;
+  cohort_id: string;
+  /** 方向, the heading groups are listed under. */
+  direction: string | null;
+  name: string;
+  sort_order: number;
+  created_at: string;
+};
+
+/** A mentor's seat in a group. One per mentor per season. */
+export type MentorGroupMember = {
+  id: string;
+  cohort_id: string;
+  group_id: string;
+  profile_id: string;
+  created_at: string;
+};
+
+export type BoardNoticeKind = "guide" | "reminder";
+
+/** 留言须知 (guide, one group) or 志愿者提醒 (reminder, group_id null = whole board). */
+export type BoardNotice = {
+  id: string;
+  board_id: string;
+  group_id: string | null;
+  kind: BoardNoticeKind;
+  body: string;
+  created_by: string | null;
+  created_at: string;
+  expires_at: string | null;
+};
+
+/** One of the viewer's own posts with comments by others they have not opened (migration 0029). */
+export type UnreadPostSummary = {
+  post_id: string;
+  board_id: string;
+  cohort_id: string;
+  group_id: string | null;
+  title: string | null;
+  body: string;
+  unread_count: number;
+  last_comment_at: string;
 };

@@ -19,10 +19,17 @@ import Stack from "@mui/material/Stack";
 import Avatar from "@mui/material/Avatar";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import Checkbox from "@mui/material/Checkbox";
+import Button from "@mui/material/Button";
+import { portalCopy } from "@/data/portalCopy";
+import MentorGroupsDialog from "@/components/portal/MentorGroupsDialog";
 import type { Profile } from "@/types/portal";
 import {
   listCohorts,
   listMatches,
+  listMentorGroupMembers,
+  listMentorGroups,
+  setMentorGroup,
   listParticipation,
   listProfiles,
   listSessions,
@@ -70,6 +77,40 @@ export default function RosterPage() {
 
   const [view, setView] = React.useState<"table" | "pairs">("table");
 
+  // Mentor answer groups (migration 0028): one seat per mentor per season.
+  const groupCopy = portalCopy.mentorGroups;
+  const { data: groups } = useQuery({
+    queryKey: ["portal", "mentorGroups", cohortId],
+    queryFn: () => listMentorGroups({ cohortId }),
+    enabled: Boolean(cohortId),
+  });
+  const { data: groupMembers } = useQuery({
+    queryKey: ["portal", "mentorGroupMembers", cohortId],
+    queryFn: () => listMentorGroupMembers({ cohortId }),
+    enabled: Boolean(cohortId),
+  });
+  const [groupsOpen, setGroupsOpen] = React.useState(false);
+  const [selected, setSelected] = React.useState<string[]>([]);
+  React.useEffect(() => setSelected([]), [cohortId]);
+
+  const groupOfMentor = React.useMemo(
+    () => new Map((groupMembers ?? []).map((m) => [m.profile_id, m.group_id])),
+    [groupMembers],
+  );
+  const memberCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const m of groupMembers ?? []) counts[m.group_id] = (counts[m.group_id] ?? 0) + 1;
+    return counts;
+  }, [groupMembers]);
+
+  const assignMutation = useMutation({
+    mutationFn: (input: { profileIds: string[]; groupId: string | null }) =>
+      setMentorGroup({ cohortId, ...input }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portal", "mentorGroupMembers"] });
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof updateProfile>[1] }) =>
       updateProfile(id, patch),
@@ -107,6 +148,12 @@ export default function RosterPage() {
       return { profile: p, sessionCount, submitted, gaveGratitude, completedAll };
     });
   }, [profiles, sessions, participation, cohortId]);
+
+  const mentorIds = React.useMemo(
+    () => rows.filter((r) => r.profile.participant_role === "mentor").map((r) => r.profile.id),
+    [rows],
+  );
+  const unassignedCount = mentorIds.filter((id) => !groupOfMentor.has(id)).length;
 
   const rowByProfileId = React.useMemo(
     () => new Map(rows.map((r) => [r.profile.id, r])),
@@ -186,17 +233,89 @@ export default function RosterPage() {
         </ToggleButtonGroup>
       </Stack>
 
+      {view === "table" && mentorIds.length > 0 && (
+        <Stack
+          direction="row"
+          spacing={1.5}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+          sx={{ mb: 2 }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            {groupCopy.selectedCount(selected.length)}
+          </Typography>
+          <TextField
+            select
+            size="small"
+            value=""
+            disabled={selected.length === 0 || assignMutation.isPending}
+            onChange={(e) =>
+              assignMutation.mutate(
+                {
+                  profileIds: selected,
+                  groupId: e.target.value === "__none" ? null : e.target.value,
+                },
+                { onSuccess: () => setSelected([]) },
+              )
+            }
+            slotProps={{ select: { displayEmpty: true, renderValue: () => groupCopy.bulkAssign } }}
+            sx={{ minWidth: 180 }}
+          >
+            {(groups ?? []).map((g) => (
+              <MenuItem key={g.id} value={g.id}>
+                {g.name}
+              </MenuItem>
+            ))}
+            <MenuItem value="__none">{groupCopy.bulkClear}</MenuItem>
+          </TextField>
+          <Box sx={{ flexGrow: 1 }} />
+          <Typography
+            variant="body2"
+            color={unassignedCount > 0 ? "warning.main" : "text.secondary"}
+          >
+            {groupCopy.unassignedCount(unassignedCount)}
+          </Typography>
+          <Button size="small" variant="outlined" onClick={() => setGroupsOpen(true)}>
+            {groupCopy.manageButton}
+          </Button>
+        </Stack>
+      )}
+      {assignMutation.error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {(assignMutation.error as Error).message}
+        </Alert>
+      )}
+      <MentorGroupsDialog
+        open={groupsOpen}
+        cohortId={cohortId}
+        groups={groups ?? []}
+        memberCounts={memberCounts}
+        onClose={() => setGroupsOpen(false)}
+      />
+
       {view === "table" ? (
         <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
           <TableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      size="small"
+                      aria-label={groupCopy.selectAll}
+                      disabled={mentorIds.length === 0}
+                      checked={mentorIds.length > 0 && selected.length === mentorIds.length}
+                      indeterminate={selected.length > 0 && selected.length < mentorIds.length}
+                      onChange={(e) => setSelected(e.target.checked ? mentorIds : [])}
+                    />
+                  </TableCell>
                   <TableCell>ID</TableCell>
                   <TableCell>姓名</TableCell>
                   <TableCell>邮箱</TableCell>
                   <TableCell>微信号</TableCell>
                   <TableCell>身份</TableCell>
+                  <TableCell sx={{ minWidth: 160 }}>{groupCopy.columnLabel}</TableCell>
                   <TableCell align="right">交流场次</TableCell>
                   <TableCell align="center">活动记录</TableCell>
                   <TableCell align="center">感谢赠言</TableCell>
@@ -207,7 +326,7 @@ export default function RosterPage() {
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10}>
+                    <TableCell colSpan={12}>
                       <Alert severity="info" sx={{ my: 1 }}>
                         该项目暂时没有成员。
                       </Alert>
@@ -216,6 +335,22 @@ export default function RosterPage() {
                 ) : (
                   rows.map(({ profile, sessionCount, submitted, gaveGratitude, completedAll }) => (
                     <TableRow key={profile.id} hover>
+                      <TableCell padding="checkbox">
+                        {profile.participant_role === "mentor" && (
+                          <Checkbox
+                            size="small"
+                            checked={selected.includes(profile.id)}
+                            onChange={(e) =>
+                              setSelected((current) =>
+                                e.target.checked
+                                  ? [...current, profile.id]
+                                  : current.filter((id) => id !== profile.id),
+                              )
+                            }
+                            slotProps={{ input: { "aria-label": `选择 ${profile.full_name ?? ""}` } }}
+                          />
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Typography variant="caption" color="text.secondary">
                           {profile.id}
@@ -226,6 +361,43 @@ export default function RosterPage() {
                       <TableCell>{profile.wechat_number ?? "—"}</TableCell>
                       <TableCell>
                         <IdentityCell profile={profile} />
+                      </TableCell>
+                      <TableCell>
+                        {profile.participant_role === "mentor" ? (
+                          <TextField
+                            select
+                            size="small"
+                            fullWidth
+                            value={groupOfMentor.get(profile.id) ?? ""}
+                            disabled={assignMutation.isPending}
+                            onChange={(e) =>
+                              assignMutation.mutate({
+                                profileIds: [profile.id],
+                                groupId: e.target.value || null,
+                              })
+                            }
+                            error={!groupOfMentor.has(profile.id)}
+                            slotProps={{
+                              select: {
+                                displayEmpty: true,
+                                renderValue: (value) =>
+                                  (groups ?? []).find((g) => g.id === value)?.name ??
+                                  groupCopy.unassigned,
+                              },
+                            }}
+                          >
+                            <MenuItem value="">{groupCopy.unassigned}</MenuItem>
+                            {(groups ?? []).map((g) => (
+                              <MenuItem key={g.id} value={g.id}>
+                                {g.name}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            —
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell align="right">{sessionCount}</TableCell>
                       <TableCell align="center">

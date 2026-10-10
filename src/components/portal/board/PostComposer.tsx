@@ -20,6 +20,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 import type {
   BulletinBoard,
+  MentorGroup,
+  Profile,
   BulletinCategory,
   BulletinColor,
   BulletinPost,
@@ -44,6 +46,8 @@ export type ComposerDraft = {
   color: BulletinColor;
   isAnonymous: boolean;
   imageFiles: File[];
+  /** Required on boards with use_groups; null elsewhere. */
+  groupId: string | null;
 };
 
 export default function PostComposer({
@@ -54,9 +58,16 @@ export default function PostComposer({
   error,
   onClose,
   onSubmit,
+  groups = [],
+  defaultGroupId = null,
+  mentorsOfGroup,
 }: {
   open: boolean;
   board: BulletinBoard;
+  /** Q&A boards: the season's groups, offered as 「提问到哪个组」. */
+  groups?: MentorGroup[];
+  defaultGroupId?: string | null;
+  mentorsOfGroup?: (groupId: string) => Profile[];
   /**
    * A post being edited. Title, text, category and colour are editable;
    * images and anonymity are fixed at posting time, so those controls hide.
@@ -76,6 +87,7 @@ export default function PostComposer({
   const [category, setCategory] = React.useState<BulletinCategory>(categories[0]);
   const [color, setColor] = React.useState<BulletinColor>("default");
   const [anonymous, setAnonymous] = React.useState(false);
+  const [groupId, setGroupId] = React.useState("");
   const [emojiAnchor, setEmojiAnchor] = React.useState<null | HTMLElement>(null);
   const [imageFiles, setImageFiles] = React.useState<File[]>([]);
   const [imageError, setImageError] = React.useState<string | null>(null);
@@ -100,6 +112,7 @@ export default function PostComposer({
     setCategory(editing?.category ?? categories[0]);
     setColor(editing?.color ?? "default");
     setAnonymous(editing?.is_anonymous ?? false);
+    setGroupId(editing?.group_id ?? defaultGroupId ?? "");
     setEmojiAnchor(null);
     setImageFiles([]);
     setImageError(null);
@@ -278,6 +291,34 @@ export default function PostComposer({
           </Box>
           )}
 
+          {board.use_groups && !editing && (
+            <Box>
+              <TextField
+                select
+                label={portalCopy.board.groupAskTitle}
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                error={!groupId}
+                helperText={groupId ? undefined : portalCopy.board.groupRequired}
+                fullWidth
+              >
+                {groups.map((g) => (
+                  <MenuItem key={g.id} value={g.id}>
+                    {g.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+              {groupId && mentorsOfGroup && (
+                <Typography variant="caption" color="text.secondary">
+                  {mentorsOfGroup(groupId)
+                    .map((m) => m.full_name)
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Typography>
+              )}
+            </Box>
+          )}
+
           {categories.length > 1 && (
             <TextField
               select
@@ -320,7 +361,9 @@ export default function PostComposer({
                 slotProps={{ typography: { variant: "body2" } }}
               />
               <Typography variant="caption" color="text.secondary" display="block">
-                {portalCopy.board.anonymousHint}
+                {board.use_groups
+                  ? portalCopy.board.anonymousHintQa
+                  : portalCopy.board.anonymousHint}
               </Typography>
             </Box>
           )}
@@ -331,9 +374,12 @@ export default function PostComposer({
         <Button
           variant="contained"
           color="secondary"
-          disabled={!body.trim() || pending}
+          disabled={
+            !body.trim() || pending || (board.use_groups && !editing && !groupId)
+          }
           onClick={() =>
             onSubmit({
+              groupId: board.use_groups ? groupId || null : null,
               title: title.trim() || null,
               body: body.trim(),
               category,

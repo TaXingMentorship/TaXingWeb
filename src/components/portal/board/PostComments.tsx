@@ -31,6 +31,8 @@ export default function PostComments({
   isAdmin,
   canComment,
   allowAnonymous,
+  showMentorBadge = false,
+  mentorMustBeNamed = false,
   pending,
   onSubmit,
   onDelete,
@@ -44,6 +46,10 @@ export default function PostComments({
   isAdmin: boolean;
   canComment: boolean;
   allowAnonymous: boolean;
+  /** Q&A boards: label comments written by a (named) mentor. */
+  showMentorBadge?: boolean;
+  /** Q&A boards: the viewer is a mentor, whose comments must carry their name. */
+  mentorMustBeNamed?: boolean;
   pending: boolean;
   onSubmit: (body: string, isAnonymous: boolean) => void;
   onDelete: (id: string) => void;
@@ -82,7 +88,7 @@ export default function PostComments({
   const submit = () => {
     const trimmed = body.trim();
     if (!trimmed) return;
-    onSubmit(trimmed, allowAnonymous && anonymous);
+    onSubmit(trimmed, allowAnonymous && !mentorMustBeNamed && anonymous);
     setBody("");
     setAnonymous(false);
   };
@@ -130,6 +136,16 @@ export default function PostComments({
                       isAnonymous={comment.is_anonymous}
                       onOpen={onOpenProfile}
                     />
+                    {showMentorBadge &&
+                      !comment.is_anonymous &&
+                      author?.participant_role === "mentor" && (
+                        <Chip
+                          size="small"
+                          color="secondary"
+                          label={portalCopy.board.mentorBadge}
+                          sx={{ height: 18, fontSize: 11 }}
+                        />
+                      )}
                     {comment.hidden && (
                       <Chip
                         size="small"
@@ -262,7 +278,11 @@ export default function PostComments({
             flexWrap="wrap"
             gap={1}
           >
-            {allowAnonymous ? (
+            {mentorMustBeNamed ? (
+              <Typography variant="caption" color="text.secondary">
+                {portalCopy.board.mentorAnonymousBlocked}
+              </Typography>
+            ) : allowAnonymous ? (
               <FormControlLabel
                 control={
                   <Checkbox

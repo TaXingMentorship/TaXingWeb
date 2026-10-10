@@ -9,7 +9,11 @@ import type {
   BulletinPost,
   BulletinReaction,
   Cohort,
+  BoardNotice,
+  BoardNoticeKind,
   Match,
+  MentorGroup,
+  MentorGroupMember,
   ParticipationRecord,
   ParticipantRole,
   Profile,
@@ -26,6 +30,7 @@ import type {
   NameChangeRequest,
   Task,
   TaskWithAssignments,
+  UnreadPostSummary,
 } from "@/types/portal";
 
 type SupabaseError = {
@@ -235,6 +240,7 @@ export async function createBoard(input: {
   allow_comments: boolean;
   prompt: string | null;
   sort_order: number;
+  use_groups?: boolean;
 }): Promise<BulletinBoard> {
   const { data, error } = await createClient()
     .from("bulletin_boards")
@@ -263,6 +269,7 @@ export async function updateBoard(
       | "allow_anonymous"
       | "allow_comments"
       | "sort_order"
+      | "use_groups"
     >
   >,
 ): Promise<BulletinBoard> {
@@ -353,6 +360,8 @@ export async function createPost(input: {
   is_anonymous: boolean;
   color: BulletinColor;
   image_paths: string[];
+  /** Required on boards with use_groups; null elsewhere. */
+  group_id?: string | null;
 }): Promise<void> {
   // No .select() — 0009 revoked SELECT on the base table, so reading the row
   // back would fail. Callers refetch through the view instead.
@@ -757,6 +766,183 @@ export function updateProfileIdentity(
     { id, ...identity },
     "更新成员身份",
   );
+}
+
+// --- Unread comments on my posts -------------------------------------------
+
+export async function listMyUnreadComments(): Promise<UnreadPostSummary[]> {
+  const { data, error } = await createClient().rpc("my_unread_comment_summary");
+  throwQueryError("读取新评论提醒", error);
+  return (data ?? []) as UnreadPostSummary[];
+}
+
+/**
+ * Records that the viewer has seen a followed post's comments up to `seenAt` —
+ * the `created_at` of the newest comment they actually loaded, a server
+ * timestamp, so the device clock never matters. null means "now". 0031 clamps
+ * it to the server clock and never moves it backwards.
+ */
+export async function markPostSeen(
+  userId: string,
+  postId: string,
+  seenAt: string | null,
+): Promise<void> {
+  const { error } = await createClient()
+    .from("bulletin_post_reads")
+    .upsert(
+      { user_id: userId, post_id: postId, seen_at: seenAt },
+      { onConflict: "user_id,post_id" },
+    );
+  throwQueryError("标记评论已读", error);
+}
+
+// --- Mentor Q&A groups -----------------------------------------------------
+
+/**
+ * Groups are readable by every signed-in member and written by admins through
+ * the browser client (`mentor_groups_admin_all`, migration 0028) — the same
+ * shape as bulletin boards, so no API route is involved.
+ */
+export async function listMentorGroups(filter?: {
+  cohortId?: string;
+}): Promise<MentorGroup[]> {
+  let query = createClient().from("mentor_groups").select("*");
+  if (filter?.cohortId) query = query.eq("cohort_id", filter.cohortId);
+  const { data, error } = await query
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+  throwQueryError("读取答疑组", error);
+  return (data ?? []) as MentorGroup[];
+}
+
+export type MentorGroupInput = {
+  cohort_id: string;
+  direction: string | null;
+  name: string;
+  sort_order: number;
+};
+
+export async function createMentorGroup(
+  input: MentorGroupInput,
+): Promise<MentorGroup> {
+  const { data, error } = await createClient()
+    .from("mentor_groups")
+    .insert(input)
+    .select("*")
+    .single();
+  throwQueryError("创建答疑组", error);
+  return data as MentorGroup;
+}
+
+export async function updateMentorGroup(
+  id: string,
+  patch: Partial<Pick<MentorGroup, "direction" | "name" | "sort_order">>,
+): Promise<MentorGroup> {
+  const { data, error } = await createClient()
+    .from("mentor_groups")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  throwQueryError("更新答疑组", error);
+  return data as MentorGroup;
+}
+
+/** Members leave with the group (cascade); posts stay, ungrouped. */
+export async function deleteMentorGroup(id: string): Promise<void> {
+  const { error } = await createClient().from("mentor_groups").delete().eq("id", id);
+  throwQueryError("删除答疑组", error);
+}
+
+export async function listMentorGroupMembers(filter?: {
+  cohortId?: string;
+}): Promise<MentorGroupMember[]> {
+  let query = createClient().from("mentor_group_members").select("*");
+  if (filter?.cohortId) query = query.eq("cohort_id", filter.cohortId);
+  const { data, error } = await query;
+  throwQueryError("读取答疑组成员", error);
+  return (data ?? []) as MentorGroupMember[];
+}
+
+/**
+ * Seats mentors in a group for one season, or unseats them when `groupId` is
+ * null. `unique (cohort_id, profile_id)` makes this a move, not an addition.
+ */
+export async function setMentorGroup(input: {
+  cohortId: string;
+  profileIds: string[];
+  groupId: string | null;
+}): Promise<void> {
+  if (input.profileIds.length === 0) return;
+  const supabase = createClient();
+  if (input.groupId === null) {
+    const { error } = await supabase
+      .from("mentor_group_members")
+      .delete()
+      .eq("cohort_id", input.cohortId)
+      .in("profile_id", input.profileIds);
+    throwQueryError("移出答疑组", error);
+    return;
+  }
+  const { error } = await supabase.from("mentor_group_members").upsert(
+    input.profileIds.map((profile_id) => ({
+      cohort_id: input.cohortId,
+      group_id: input.groupId,
+      profile_id,
+    })),
+    { onConflict: "cohort_id,profile_id" },
+  );
+  throwQueryError("分配答疑组", error);
+}
+
+// --- Board notices ---------------------------------------------------------
+
+/**
+ * Whether the signed-in user is on the volunteer roster for one season — the
+ * rule board_notices_staff_all applies (0032). `profiles.is_volunteer` has no
+ * season and does not decide this.
+ */
+export async function isSeasonVolunteer(cohortId: string): Promise<boolean> {
+  const { data, error } = await createClient().rpc("is_season_volunteer", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("读取志愿者季度", error);
+  return Boolean(data);
+}
+
+export async function listBoardNotices(boardId: string): Promise<BoardNotice[]> {
+  const { data, error } = await createClient()
+    .from("board_notices")
+    .select("*")
+    .eq("board_id", boardId)
+    .order("created_at", { ascending: false });
+  throwQueryError("读取须知与提醒", error);
+  return (data ?? []) as BoardNotice[];
+}
+
+export async function createBoardNotice(input: {
+  board_id: string;
+  group_id: string | null;
+  kind: BoardNoticeKind;
+  body: string;
+  created_by: string;
+  expires_at?: string | null;
+}): Promise<void> {
+  const { error } = await createClient().from("board_notices").insert(input);
+  throwQueryError("发布须知或提醒", error);
+}
+
+export async function updateBoardNotice(id: string, body: string): Promise<void> {
+  const { error } = await createClient()
+    .from("board_notices")
+    .update({ body })
+    .eq("id", id);
+  throwQueryError("更新须知", error);
+}
+
+export async function deleteBoardNotice(id: string): Promise<void> {
+  const { error } = await createClient().from("board_notices").delete().eq("id", id);
+  throwQueryError("删除须知或提醒", error);
 }
 
 // --- Volunteers ------------------------------------------------------------
