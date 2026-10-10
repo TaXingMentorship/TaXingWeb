@@ -40,7 +40,7 @@ async function responseError(response: Response): Promise<string> {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { authUser, refresh } = usePortalSession();
+  const { authUser, refresh, signOut } = usePortalSession();
   const [invite, setInvite] = React.useState<Invite | null>(null);
   const [fullName, setFullName] = React.useState("");
   const [wechatNumber, setWechatNumber] = React.useState("");
@@ -49,6 +49,8 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [signingOut, setSigningOut] = React.useState(false);
+  const [signOutError, setSignOutError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let active = true;
@@ -126,6 +128,17 @@ export default function OnboardingPage() {
         submitError instanceof Error ? submitError.message : "注册失败。",
       );
       setSubmitting(false);
+    }
+  }
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await signOut();
+    } catch {
+      setSignOutError("退出登录失败，请重试。");
+      setSigningOut(false);
     }
   }
 
@@ -238,6 +251,20 @@ export default function OnboardingPage() {
             </Stack>
           </Box>
         )}
+        {signOutError && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {signOutError}
+          </Alert>
+        )}
+        <Button
+          type="button"
+          fullWidth
+          sx={{ mt: 2 }}
+          disabled={signingOut}
+          onClick={() => void handleSignOut()}
+        >
+          {signingOut ? "退出中…" : "退出登录／切换账号"}
+        </Button>
       </Paper>
     </Box>
   );
