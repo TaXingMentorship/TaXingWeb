@@ -27,6 +27,8 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import ProfileDialog from "@/components/portal/ProfileDialog";
 import DirectoryCard from "@/components/portal/DirectoryCard";
 import { mentorGroupColors } from "@/data/mentorGroupColors";
+import { matchesGroupFilter, matchesSearch } from "@/lib/portal/directoryFilters";
+import { portalCopy } from "@/data/portalCopy";
 import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
 
 export default function DirectoryPage() {
@@ -112,15 +114,24 @@ export default function DirectoryPage() {
     enabled: Boolean(volunteerCohortId),
   });
   const groupColors = React.useMemo(() => mentorGroupColors(mentorGroups ?? []), [mentorGroups]);
+  const groupIdOf = React.useMemo(
+    () => new Map((mentorGroupMembers ?? []).map((m) => [m.profile_id, m.group_id])),
+    [mentorGroupMembers],
+  );
   const groupOf = React.useCallback(
     (profile: Profile) => {
-      const groupId = mentorGroupMembers?.find((m) => m.profile_id === profile.id)?.group_id;
+      const groupId = groupIdOf.get(profile.id);
       const group = mentorGroups?.find((g) => g.id === groupId);
       const color = groupId ? groupColors.get(groupId) : undefined;
       return group && color ? { name: group.name, color } : null;
     },
-    [mentorGroupMembers, mentorGroups, groupColors],
+    [groupIdOf, mentorGroups, groupColors],
   );
+
+  // The answer-group filter belongs to the season on screen, so a different
+  // project brings a different set of groups and the old choice is dropped.
+  const [groupFilter, setGroupFilter] = React.useState("all");
+  React.useEffect(() => setGroupFilter("all"), [volunteerCohortId]);
 
   const visible = React.useMemo(() => {
     if (!profiles || !currentUser) return [];
@@ -142,24 +153,37 @@ export default function DirectoryPage() {
   );
 
   const filtered = React.useMemo(() => {
-    const q = search.trim().toLowerCase();
     return visible
       .filter((p) =>
         tab === "volunteer" ? isVolunteer(p) : p.participant_role === tab,
       )
       .filter((p) =>
-        q
-          ? [p.full_name, p.bio, p.background, ...p.interests]
-              .filter(Boolean)
-              .some((f) => f!.toLowerCase().includes(q))
-          : true,
+        matchesSearch(search, p, tab === "mentor" ? groupOf(p)?.name : null),
+      )
+      .filter((p) =>
+        tab === "mentor" ? matchesGroupFilter(groupFilter, groupIdOf.get(p.id)) : true,
       )
       .filter((p) =>
         interests.length
           ? interests.every((i) => p.interests.includes(i))
           : true,
       );
-  }, [visible, tab, search, interests, isVolunteer]);
+  }, [visible, tab, search, interests, isVolunteer, groupOf, groupIdOf, groupFilter]);
+
+  // How many of the mentors on screen sit in each group, for the dropdown.
+  const groupCounts = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of visible) {
+      if (p.participant_role !== "mentor") continue;
+      const groupId = groupIdOf.get(p.id);
+      if (groupId) counts.set(groupId, (counts.get(groupId) ?? 0) + 1);
+    }
+    return counts;
+  }, [visible, groupIdOf]);
+  const ungroupedCount = visible.filter(
+    (p) => p.participant_role === "mentor" && !groupIdOf.has(p.id),
+  ).length;
+  const filterCopy = portalCopy.directoryFilters;
 
   return (
     <Box>
@@ -197,7 +221,7 @@ export default function DirectoryPage() {
         <TextField
           fullWidth
           size="small"
-          placeholder="搜索姓名、简介或兴趣"
+          placeholder={tab === "mentor" ? filterCopy.mentorSearchPlaceholder : filterCopy.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           InputProps={{
@@ -208,6 +232,40 @@ export default function DirectoryPage() {
             ),
           }}
         />
+        {tab === "mentor" && (mentorGroups?.length ?? 0) > 0 && (
+          <TextField
+            select
+            size="small"
+            label={filterCopy.groupLabel}
+            value={groupFilter}
+            onChange={(e) => setGroupFilter(e.target.value)}
+            sx={{ minWidth: { sm: 260 }, width: "100%" }}
+          >
+            <MenuItem value="all">{filterCopy.allGroups}</MenuItem>
+            <MenuItem value="none">
+              {filterCopy.groupOption(portalCopy.mentorGroups.unassigned, ungroupedCount)}
+            </MenuItem>
+            {(mentorGroups ?? []).map((group) => {
+              const color = groupColors.get(group.id);
+              return (
+                <MenuItem key={group.id} value={group.id}>
+                  <Box
+                    component="span"
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      bgcolor: color?.dot,
+                      mr: 1,
+                      flex: "none",
+                    }}
+                  />
+                  {filterCopy.groupOption(group.name, groupCounts.get(group.id) ?? 0)}
+                </MenuItem>
+              );
+            })}
+          </TextField>
+        )}
         <Autocomplete
           multiple
           options={allInterests}
@@ -215,7 +273,7 @@ export default function DirectoryPage() {
           onChange={(_, v) => setInterests(v)}
           sx={{ minWidth: { sm: 280 }, width: "100%" }}
           renderInput={(params) => (
-            <TextField {...params} size="small" placeholder="按兴趣筛选" />
+            <TextField {...params} size="small" placeholder={filterCopy.interestPlaceholder} />
           )}
         />
       </Stack>

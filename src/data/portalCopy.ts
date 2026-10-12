@@ -390,6 +390,14 @@ export const portalCopy = {
     rejectNoteHint: "必填，申请人会看到这段话。",
     confirmReject: "确认拒绝",
   },
+  directoryFilters: {
+    searchPlaceholder: "搜索姓名、简介或兴趣",
+    mentorSearchPlaceholder: "搜索姓名、简介、兴趣或答疑组",
+    interestPlaceholder: "按兴趣筛选",
+    groupLabel: "答疑组",
+    allGroups: "全部答疑组",
+    groupOption: (name: string, count: number) => `${name}（${count}）`,
+  },
   board: {
     title: "留言板",
     listSubtitle: "选择下方的留言板，浏览并发布你的留言。",
