@@ -3,31 +3,21 @@
 import * as React from "react";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import type { Profile } from "@/types/portal";
 import {
   buildMentorsCsv,
-  buildMentorsHtml,
   exportFileName,
   type MentorExportEntry,
 } from "@/lib/portal/exportMentors";
-import {
-  downloadTextFile,
-  loadAvatars,
-  localDateStamp,
-  openPrintTab,
-  writeAndPrint,
-} from "@/lib/portal/exportBrowser";
+import { downloadTextFile, localDateStamp } from "@/lib/portal/exportBrowser";
 import { portalCopy } from "@/data/portalCopy";
 
 /**
- * 「导出」 on the directory's mentor tab: an offline copy of the mentors shown,
- * for mentees who cannot reach the portal. Who sees this is decided by the page
+ * 「导出 CSV」 on the directory's mentor tab: a copy of the mentors shown, for
+ * mentees who cannot reach the portal. Who sees this is decided by the page
  * (admins and the season's volunteers); it is a convenience, not a gate, since
  * everything exported is already visible in the directory.
  */
@@ -41,44 +31,22 @@ export default function ExportMentorsButton({
   season: string;
 }) {
   const copy = portalCopy.directoryExport;
-  const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
-  const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const run = async (kind: "pdf" | "csv") => {
-    setAnchor(null);
+  const exportCsv = () => {
     setError(null);
-    // The printable page opens in its own tab, which must be opened right here,
-    // before anything is awaited (see openPrintTab).
-    const tab = kind === "pdf" ? openPrintTab(copy.preparing) : null;
-    if (kind === "pdf" && !tab) {
-      setError(copy.noPopup);
-      return;
-    }
-    setBusy(true);
     try {
-      const exportedOn = localDateStamp();
-      // The CSV has no pictures, so only the printable page fetches avatars.
-      const avatars = kind === "pdf" ? await loadAvatars(mentors) : new Map<string, string | null>();
       const entries: MentorExportEntry[] = mentors.map((profile) => ({
         profile,
         groupName: groupNameOf(profile.id),
-        avatar: avatars.get(profile.id) ?? null,
       }));
-      if (kind === "csv") {
-        downloadTextFile(
-          exportFileName(season, exportedOn, "csv"),
-          buildMentorsCsv(entries, copy),
-          "text/csv;charset=utf-8",
-        );
-      } else {
-        await writeAndPrint(tab!, buildMentorsHtml(entries, { season, exportedOn, copy }));
-      }
+      downloadTextFile(
+        exportFileName(season, localDateStamp()),
+        buildMentorsCsv(entries, copy),
+        "text/csv;charset=utf-8",
+      );
     } catch {
-      tab?.close();
       setError(copy.failed);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -91,17 +59,12 @@ export default function ExportMentorsButton({
         <Button
           variant="outlined"
           size="small"
-          disabled={busy || mentors.length === 0}
-          startIcon={busy ? <CircularProgress size={14} /> : <FileDownloadIcon fontSize="small" />}
-          onClick={(event) => setAnchor(event.currentTarget)}
-          aria-haspopup="menu"
+          disabled={mentors.length === 0}
+          startIcon={<FileDownloadIcon fontSize="small" />}
+          onClick={exportCsv}
         >
-          {busy ? copy.preparing : copy.button}
+          {copy.button}
         </Button>
-        <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-          <MenuItem onClick={() => void run("pdf")}>{copy.menuPdf}</MenuItem>
-          <MenuItem onClick={() => void run("csv")}>{copy.menuCsv}</MenuItem>
-        </Menu>
       </Stack>
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
