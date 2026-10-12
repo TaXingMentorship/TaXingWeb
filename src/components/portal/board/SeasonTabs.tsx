@@ -11,7 +11,7 @@ import { portalCopy } from "@/data/portalCopy";
 
 /**
  * Season row, above the board tabs. Styled deliberately unlike the board row —
- * tinted strip, smaller type, primary indicator — so two adjacent tab rows
+ * tinted strip, primary indicator — so two adjacent tab rows
  * don't read as one control.
  *
  * With a single season there is nothing to switch between, so it renders as a
@@ -47,7 +47,7 @@ export default function SeasonTabs({
       >
         <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
           <Typography
-            variant="caption"
+            variant="body2"
             color="text.secondary"
             sx={{ flexShrink: 0 }}
           >
@@ -67,7 +67,7 @@ export default function SeasonTabs({
                 <Chip
                   size="small"
                   label={portalCopy.board.seasonArchivedChip}
-                  sx={{ height: 18, fontSize: 11 }}
+                  sx={{ height: 20, fontSize: 12 }}
                 />
               )}
             </Stack>
@@ -83,7 +83,8 @@ export default function SeasonTabs({
               minHeight: 40,
               "& .MuiTab-root": {
                 minHeight: 40,
-                fontSize: 13,
+                // Same size as the board tabs below, which use the Tab default.
+                fontSize: 14,
                 px: 1.5,
                 textTransform: "none",
               },
@@ -100,7 +101,7 @@ export default function SeasonTabs({
                       <Chip
                         size="small"
                         label={portalCopy.board.seasonArchivedChip}
-                        sx={{ height: 18, fontSize: 11 }}
+                        sx={{ height: 20, fontSize: 12 }}
                       />
                     )}
                   </Stack>

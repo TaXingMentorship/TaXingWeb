@@ -18,6 +18,9 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Chip from "@mui/material/Chip";
 import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import SearchIcon from "@mui/icons-material/Search";
 import { createTheme, ThemeProvider, useTheme } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import type {
@@ -29,6 +32,7 @@ import type {
   BulletinReaction,
   Profile,
 } from "@/types/portal";
+import type { SearchHit } from "@/components/portal/board/QaSearchResults";
 import {
   countPostsByBoard,
   deleteBoard,
@@ -38,8 +42,13 @@ import {
   deletePost,
   editComment,
   editPost,
+  listBoardNotices,
+  isSeasonVolunteer,
+  markPostSeen,
   listBoards,
   listCohorts,
+  listMentorGroupMembers,
+  listMentorGroups,
   listComments,
   listPosts,
   listProfiles,
@@ -63,6 +72,12 @@ import PostComposer, {
   type ComposerDraft,
 } from "@/components/portal/board/PostComposer";
 import type { PostCardActions } from "@/components/portal/board/PostCard";
+import GroupSidebar, { MINE, UNGROUPED } from "@/components/portal/board/GroupSidebar";
+import MentorStrip from "@/components/portal/board/MentorStrip";
+import BoardNotices from "@/components/portal/board/BoardNotices";
+import { UNREAD_COMMENTS_KEY, useUnreadComments } from "@/components/portal/useUnreadComments";
+import UnreadBar from "@/components/portal/board/UnreadBar";
+import QaSearchResults from "@/components/portal/board/QaSearchResults";
 
 type SortMode = "newest" | "reactions";
 
@@ -142,7 +157,7 @@ export default function BoardPage() {
 }
 
 function BoardPageContent() {
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -228,8 +243,135 @@ function BoardPageContent() {
   }, [boards, requestedBoardId]);
   const boardId = selectedBoard?.id ?? null;
 
+  const { data: profiles } = useQuery({
+    queryKey: ["portal", "profiles"],
+    queryFn: () => listProfiles(),
+  });
+
+  const isQa = Boolean(selectedBoard?.use_groups);
+
+  const { data: posts } = useQuery({
+    queryKey: ["portal", "posts", boardId, isAdmin],
+    queryFn: () => listPosts({ boardId: boardId!, includeHidden: isAdmin }),
+    enabled: Boolean(boardId),
+  });
+
+  // --- Mentor Q&A groups (boards with use_groups) ---------------------------
+  const { data: groups } = useQuery({
+    queryKey: ["portal", "mentorGroups", cohortId],
+    queryFn: () => listMentorGroups({ cohortId: cohortId! }),
+    enabled: Boolean(cohortId) && isQa,
+  });
+  const { data: groupMembers } = useQuery({
+    queryKey: ["portal", "mentorGroupMembers", cohortId],
+    queryFn: () => listMentorGroupMembers({ cohortId: cohortId! }),
+    enabled: Boolean(cohortId) && isQa,
+  });
+  // Only this season's volunteers (and admins) edit notices — see 0032. Asked
+  // only while looking through the volunteer persona, which is a display lens.
+  const { data: seasonVolunteer } = useQuery({
+    queryKey: ["portal", "seasonVolunteer", realUser?.id, cohortId],
+    queryFn: () => isSeasonVolunteer(cohortId!),
+    enabled: Boolean(cohortId) && isQa && Boolean(currentUser?.is_volunteer),
+  });
+  const { data: notices } = useQuery({
+    queryKey: ["portal", "boardNotices", boardId],
+    queryFn: () => listBoardNotices(boardId!),
+    enabled: Boolean(boardId) && isQa,
+  });
+  const {
+    posts: unreadPosts,
+    byPost: unreadByPost,
+    isSuccess: unreadLoaded,
+  } = useUnreadComments();
+  // Keyed by group id, with ungrouped posts under UNGROUPED.
+  const unreadByGroup = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const post of unreadPosts) {
+      if (post.board_id !== boardId) continue;
+      const key = post.group_id ?? UNGROUPED;
+      counts[key] = (counts[key] ?? 0) + post.unread_count;
+    }
+    return counts;
+  }, [unreadPosts, boardId]);
+  // Arriving from a reminder: ?post= outlines that card, opens its comments and
+  // scrolls it into view once the wall has rendered.
+  const focusPostId = searchParams.get("post");
+  const scrolledTo = React.useRef<string | null>(null);
+  const [search, setSearch] = React.useState("");
+  const query = search.trim();
+
+  const groupList = React.useMemo(() => groups ?? [], [groups]);
+  const myGroupId = groupMembers?.find((m) => m.profile_id === currentUser?.id)?.group_id;
+  // The group lives in the URL like the board does, so it can be linked.
+  const requestedGroup = searchParams.get("group");
+  // A link to one post with no group (the home card does not know whether the
+  // board has groups) opens the post's own group, or 「未分组」.
+  const focusPost = focusPostId ? posts?.find((p) => p.id === focusPostId) : undefined;
+  const groupSel =
+    requestedGroup === MINE ||
+    requestedGroup === UNGROUPED ||
+    groupList.some((g) => g.id === requestedGroup)
+      ? (requestedGroup as string)
+      : focusPost
+        ? (focusPost.group_id ?? UNGROUPED)
+        : groupList.some((g) => g.id === myGroupId)
+          ? (myGroupId as string)
+          : (groupList[0]?.id ?? MINE);
+  const activeGroup = groupList.find((g) => g.id === groupSel) ?? null;
+
+  const openUnread = (item: { cohort_id: string; board_id: string; group_id: string | null; post_id: string }) => {
+    setFilter("all");
+    setSearch("");
+    scrolledTo.current = null;
+    router.replace(
+      `/portal/board?cohort=${item.cohort_id}&board=${item.board_id}` +
+        (item.group_id ? `&group=${item.group_id}` : "") +
+        `&post=${item.post_id}`,
+      { scroll: false },
+    );
+  };
+
+  /** A search result: its group's wall, scrolled to the card with comments open. */
+  const openPost = (groupId: string | null, postId: string) => {
+    setFilter("all");
+    setSearch("");
+    scrolledTo.current = null;
+    router.replace(
+      `/portal/board?cohort=${cohortId}&board=${boardId}` +
+        `&group=${groupId ?? UNGROUPED}&post=${postId}`,
+      { scroll: false },
+    );
+  };
+
+  const selectGroup = (value: string) => {
+    setFilter("all");
+    setSearch("");
+    router.replace(
+      `/portal/board?cohort=${cohortId}&board=${boardId}&group=${value}`,
+      { scroll: false },
+    );
+  };
+
+  const mentorsOfGroup = React.useCallback(
+    (groupId: string): Profile[] => {
+      const ids = new Set(
+        (groupMembers ?? []).filter((m) => m.group_id === groupId).map((m) => m.profile_id),
+      );
+      return (profiles ?? [])
+        .filter((p) => ids.has(p.id))
+        .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? "", "zh-CN"));
+    },
+    [groupMembers, profiles],
+  );
+  const groupNameOf = React.useCallback(
+    (id: string | null) => groupList.find((g) => g.id === id)?.name,
+    [groupList],
+  );
+
   const selectBoard = (id: string) => {
     setFilter("all");
+    setSearch("");
     router.replace(`/portal/board?cohort=${cohortId}&board=${id}`, {
       scroll: false,
     });
@@ -242,21 +384,19 @@ function BoardPageContent() {
     router.replace(`/portal/board?cohort=${id}`, { scroll: false });
   };
 
-  const { data: posts } = useQuery({
-    queryKey: ["portal", "posts", boardId, isAdmin],
-    queryFn: () => listPosts({ boardId: boardId!, includeHidden: isAdmin }),
-    enabled: Boolean(boardId),
-  });
-
-  const { data: profiles } = useQuery({
-    queryKey: ["portal", "profiles"],
-    queryFn: () => listProfiles(),
-  });
-
+  // 「我的提问」 only lists posts the viewer wrote, so its badge counts just those;
+  // threads they merely commented on show up on their group instead.
+  const myPostIds = new Set(
+    (posts ?? []).filter((p) => p.author_id !== null && p.author_id === currentUser?.id).map((p) => p.id),
+  );
+  const mineUnread = unreadPosts
+    .filter((post) => post.board_id === boardId && myPostIds.has(post.post_id))
+    .reduce((sum, post) => sum + post.unread_count, 0);
   const postIds = React.useMemo(() => (posts ?? []).map((p) => p.id), [posts]);
 
+  const commentsQueryKey = ["portal", "comments", boardId, isAdmin, postIds.length];
   const { data: comments } = useQuery({
-    queryKey: ["portal", "comments", boardId, isAdmin, postIds.length],
+    queryKey: commentsQueryKey,
     queryFn: () => listComments({ postIds, includeHidden: isAdmin }),
     enabled: postIds.length > 0,
   });
@@ -311,6 +451,7 @@ function BoardPageContent() {
         is_anonymous: draft.isAnonymous,
         color: draft.color,
         image_paths,
+        group_id: draft.groupId,
       });
     },
     onSuccess: () => {
@@ -352,7 +493,11 @@ function BoardPageContent() {
         body: input.body,
         is_anonymous: input.isAnonymous,
       }),
-    onSuccess: invalidateComments,
+    onSuccess: () => {
+      invalidateComments();
+      // Writing a reply counts as having read the thread up to now.
+      queryClient.invalidateQueries({ queryKey: UNREAD_COMMENTS_KEY });
+    },
   });
 
   const reactionMutation = useMutation({
@@ -415,7 +560,42 @@ function BoardPageContent() {
     },
   });
 
+  // Posts whose read marker is being written, so a card that re-renders while
+  // the request is in flight does not send it twice.
+  const markingSeen = React.useRef(new Set<string>());
+  const markSeenMutation = useMutation({
+    mutationFn: async (postId: string) => {
+      try {
+        // The unread count is polled but the comment list is not, so reload the
+        // thread first: the marker then stops at the newest comment actually on
+        // screen, and a comment that has not loaded stays unread.
+        await queryClient.refetchQueries({ queryKey: commentsQueryKey, exact: true });
+        const loaded = (
+          queryClient.getQueryData<BulletinComment[]>(commentsQueryKey) ?? []
+        ).filter((c) => c.post_id === postId);
+        const newest = loaded.reduce<string | null>(
+          (max, c) => (max === null || c.created_at > max ? c.created_at : max),
+          null,
+        );
+        await markPostSeen(realUser!.id, postId, newest);
+        // Held until the count is refetched, or the card would see the old
+        // count once more and mark the post again.
+        await queryClient.invalidateQueries({ queryKey: UNREAD_COMMENTS_KEY });
+        markingSeen.current.delete(postId);
+      } catch (error) {
+        // Back off instead of retrying on every render of the open card.
+        window.setTimeout(() => markingSeen.current.delete(postId), 30_000);
+        throw error;
+      }
+    },
+  });
+
   const actions: PostCardActions = {
+    onMarkSeen: (postId) => {
+      if (!realUser || markingSeen.current.has(postId)) return;
+      markingSeen.current.add(postId);
+      markSeenMutation.mutate(postId);
+    },
     onToggleReaction: (postId, emoji, active) =>
       reactionMutation.mutate({ postId, emoji, active }),
     onAddComment: (postId, body, isAnonymous) =>
@@ -438,18 +618,102 @@ function BoardPageContent() {
     onOpenProfile: setOpenProfile,
   };
 
+  const viewKey = `${boardId}:${groupSel}`;
+  const [promoted, setPromoted] = React.useState<{ key: string; ids: Set<string> } | null>(
+    null,
+  );
+  React.useEffect(() => {
+    if (!unreadLoaded || promoted?.key === viewKey) return;
+    setPromoted({ key: viewKey, ids: new Set(unreadByPost.keys()) });
+  }, [unreadLoaded, viewKey, unreadByPost, promoted?.key]);
+  const promotedIds = promoted?.key === viewKey ? promoted.ids : null;
+
   const visiblePosts = React.useMemo(() => {
-    const filtered = (posts ?? []).filter((p: BulletinPost) =>
-      filter === "all" ? true : p.category === filter,
-    );
-    if (sort === "newest") return filtered;
+    const filtered = (posts ?? []).filter((p: BulletinPost) => {
+      if (filter !== "all" && p.category !== filter) return false;
+      if (!isQa) return true;
+      // author_id is the viewer's own even on an anonymous post (0009).
+      if (groupSel === MINE) return p.author_id !== null && p.author_id === currentUser?.id;
+      if (groupSel === UNGROUPED) return p.group_id === null;
+      return p.group_id === groupSel;
+    });
+    // Posts with comments the viewer had not opened when they arrived come
+    // first, so a reminder is never buried under newer posts; pinned posts still
+    // lead. The set is frozen per view, so a poll never reshuffles the wall.
+    const unreadFirst = (a: BulletinPost, b: BulletinPost) =>
+      promotedIds
+        ? Number(promotedIds.has(b.id)) - Number(promotedIds.has(a.id))
+        : 0;
+    if (sort === "newest") {
+      return [...filtered].sort((a, b) =>
+        a.pinned !== b.pinned ? (a.pinned ? -1 : 1) : unreadFirst(a, b),
+      );
+    }
     // Pinned posts stay on top regardless of the sort mode.
     return [...filtered].sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       const countOf = (id: string) => reactionsByPost.get(id)?.length ?? 0;
       return countOf(b.id) - countOf(a.id);
     });
-  }, [posts, filter, sort, reactionsByPost]);
+  }, [posts, filter, sort, reactionsByPost, isQa, groupSel, currentUser?.id, promotedIds]);
+
+  const postCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of posts ?? []) if (p.group_id) counts[p.group_id] = (counts[p.group_id] ?? 0) + 1;
+    return counts;
+  }, [posts]);
+  const mineCount = (posts ?? []).filter(
+    (p) => p.author_id !== null && p.author_id === currentUser?.id,
+  ).length;
+  const ungroupedCount = isQa ? (posts ?? []).filter((p) => p.group_id === null).length : 0;
+
+  // Board-wide search over titles, bodies and comments of every group.
+  const searchHits = React.useMemo<SearchHit[]>(() => {
+    if (!isQa || !query) return [];
+    const q = query.toLowerCase();
+    const hits: SearchHit[] = [];
+    for (const post of posts ?? []) {
+      const postComments = commentsByPost.get(post.id) ?? [];
+      const commentHit = postComments.find((c) => c.body.toLowerCase().includes(q));
+      const inPost =
+        (post.title ?? "").toLowerCase().includes(q) || post.body.toLowerCase().includes(q);
+      if (!inPost && !commentHit) continue;
+      hits.push({
+        postId: post.id,
+        groupId: post.group_id,
+        title: post.title,
+        snippet: inPost ? post.body : (commentHit?.body ?? ""),
+        mentorReplied: postComments.some(
+          (c) =>
+            !c.is_anonymous &&
+            c.author_id &&
+            authorOf(c.author_id)?.participant_role === "mentor",
+        ),
+      });
+    }
+    return hits;
+  }, [isQa, query, posts, commentsByPost, authorOf]);
+
+  const mentorMatches = React.useMemo(() => {
+    if (!isQa || !query) return [];
+    const q = query.toLowerCase();
+    const seat = new Map((groupMembers ?? []).map((m) => [m.profile_id, m.group_id]));
+    return (profiles ?? [])
+      .filter((p) => seat.has(p.id) && (p.full_name ?? "").toLowerCase().includes(q))
+      .map((profile) => ({ profile, groupId: seat.get(profile.id) ?? null }));
+  }, [isQa, query, profiles, groupMembers]);
+
+  React.useEffect(() => {
+    if (!focusPostId || scrolledTo.current === focusPostId) return;
+    if (!visiblePosts.some((p) => p.id === focusPostId)) return;
+    scrolledTo.current = focusPostId;
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById(`post-${focusPostId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [focusPostId, visiblePosts]);
 
   const filterCategories = selectedBoard?.allowed_categories?.length
     ? selectedBoard.allowed_categories
@@ -518,6 +782,13 @@ function BoardPageContent() {
         />
       )}
 
+      <UnreadBar
+        items={unreadPosts}
+        currentBoardId={boardId}
+        groupNameOf={groupNameOf}
+        onOpen={openUnread}
+      />
+
       {boardsLoading ? (
         <Typography color="text.secondary">{portalCopy.board.loading}</Typography>
       ) : boards.length === 0 ? (
@@ -567,6 +838,100 @@ function BoardPageContent() {
                 </Alert>
               )}
 
+              {isQa && (
+                <>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={portalCopy.board.searchPlaceholder}
+                    sx={{ mb: 2 }}
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                  <BoardNotices
+                    boardId={selectedBoard.id}
+                    notices={notices ?? []}
+                    // Mirrors board_notices_staff_all (0032): admins, and the
+                    // volunteers on this season's roster.
+                    canEdit={
+                      isAdmin || (Boolean(currentUser?.is_volunteer) && Boolean(seasonVolunteer))
+                    }
+                    currentUserId={currentUser?.id ?? ""}
+                    authorOf={authorOf}
+                  />
+                </>
+              )}
+
+              <Box
+                sx={
+                  isQa
+                    ? { display: "flex", gap: 3, alignItems: "flex-start", flexDirection: { xs: "column", md: "row" } }
+                    : undefined
+                }
+              >
+                {isQa && (
+                  <GroupSidebar
+                    groups={groupList}
+                    value={groupSel}
+                    postCounts={postCounts}
+                    mineCount={mineCount}
+                    unreadByGroup={unreadByGroup}
+                    mineUnread={mineUnread}
+                    ungroupedCount={ungroupedCount}
+                    ungroupedUnread={unreadByGroup[UNGROUPED] ?? 0}
+                    onSelect={selectGroup}
+                  />
+                )}
+                <Box sx={{ flexGrow: 1, minWidth: 0, width: "100%" }}>
+                  {isQa && query ? (
+                    <QaSearchResults
+                      query={query}
+                      hits={searchHits}
+                      groups={groupList}
+                      mentorMatches={mentorMatches}
+                      onOpenGroup={selectGroup}
+                      onOpenPost={openPost}
+                    />
+                  ) : (
+                    <>
+                      {isQa && (
+                        <Box sx={{ mb: 2 }}>
+                          <Stack direction="row" alignItems="baseline" gap={1} flexWrap="wrap" sx={{ mb: activeGroup ? 1 : 0 }}>
+                            <Typography variant="h6" fontWeight={700}>
+                              {activeGroup?.name ??
+                                (groupSel === UNGROUPED
+                                  ? portalCopy.board.groupUngrouped
+                                  : portalCopy.board.groupMine)}
+                            </Typography>
+                            {activeGroup && (
+                              <Typography variant="body2" color="text.secondary">
+                                {portalCopy.board.groupMentorCount(mentorsOfGroup(activeGroup.id).length)}
+                              </Typography>
+                            )}
+                          </Stack>
+                          {activeGroup ? (
+                            <MentorStrip
+                              mentors={mentorsOfGroup(activeGroup.id)}
+                              onOpenProfile={setOpenProfile}
+                            />
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              {groupSel === UNGROUPED
+                                ? portalCopy.board.groupUngroupedHint
+                                : portalCopy.board.groupMineHint}
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
               <Stack
                 direction="row"
                 alignItems="center"
@@ -648,11 +1013,34 @@ function BoardPageContent() {
                 canPost={canParticipate && boardOpen}
                 commentPending={commentMutation.isPending}
                 actions={actions}
+                maxColumns={isQa ? 2 : 3}
+                unreadByPost={unreadByPost}
+                highlightPostId={focusPostId}
+                // The real role, not the persona: 0028's trigger reads profiles,
+                // so a mentor previewing as a volunteer still cannot go anonymous.
+                mentorMustBeNamed={isQa && realUser?.participant_role === "mentor"}
+                groupNameOf={isQa && groupSel === MINE ? groupNameOf : undefined}
+                emptyText={
+                  isQa
+                    ? groupSel === MINE
+                      ? portalCopy.board.groupMineEmpty
+                      : groupSel === UNGROUPED
+                        ? portalCopy.board.groupUngroupedEmpty
+                        : portalCopy.board.groupEmpty
+                    : undefined
+                }
               />
+                    </>
+                  )}
+                </Box>
+              </Box>
 
               <PostComposer
                 open={composeOpen || editingPost !== null}
                 board={selectedBoard}
+                groups={groupList}
+                defaultGroupId={activeGroup?.id ?? null}
+                mentorsOfGroup={mentorsOfGroup}
                 editing={editingPost}
                 pending={
                   editingPost
@@ -745,7 +1133,17 @@ function BoardPageContent() {
         </>
       )}
 
-      <ProfileDialog profile={openProfile} onClose={() => setOpenProfile(null)} />
+      <ProfileDialog
+        profile={openProfile}
+        onClose={() => setOpenProfile(null)}
+        groupName={
+          openProfile
+            ? groupNameOf(
+                groupMembers?.find((m) => m.profile_id === openProfile.id)?.group_id ?? null,
+              )
+            : undefined
+        }
+      />
     </Box>
   );
 }

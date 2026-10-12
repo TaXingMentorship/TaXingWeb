@@ -29,6 +29,7 @@ import PersonaSwitcher from "@/components/portal/PersonaSwitcher";
 import MascotFeedback from "@/components/portal/MascotFeedback";
 import Badge from "@mui/material/Badge";
 import { useMyTasks } from "@/components/portal/useMyTasks";
+import { useUnreadComments } from "@/components/portal/useUnreadComments";
 import {
   useMyNameChanges,
   usePendingNameChanges,
@@ -42,6 +43,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const { currentUser, realUser, loading, signOut } = usePortalSession();
   const { pending: pendingTasks, hasUnseen: hasUnseenTasks } = useMyTasks();
+  const { total: unreadComments } = useUnreadComments();
   // Nickname requests: a count for admins to act on, a dot for a requester
   // with a decision they haven't seen yet.
   const { requests: pendingNameChanges } = usePendingNameChanges();
@@ -119,6 +121,9 @@ export default function PortalShell({ children }: { children: React.ReactNode })
                     badgeContent={pendingTasks.length}
                     sx={{ mr: 1.5 }}
                   />
+                )}
+                {item.path === "/portal/board" && unreadComments > 0 && (
+                  <Badge color="secondary" badgeContent={unreadComments} sx={{ mr: 1.5 }} />
                 )}
                 {item.path === "/portal/admin/roster" &&
                   pendingNameChanges.length > 0 && (

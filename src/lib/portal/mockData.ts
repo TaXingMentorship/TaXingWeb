@@ -354,6 +354,7 @@ export const mockBoards: BulletinBoard[] = [
     allowed_categories: null,
     allow_anonymous: true,
     allow_comments: true,
+    use_groups: false,
     prompt: null,
     sort_order: 0,
     created_at: "2025-03-02T00:00:00Z",
@@ -367,6 +368,7 @@ export const mockBoards: BulletinBoard[] = [
     allowed_categories: null,
     allow_anonymous: true,
     allow_comments: true,
+    use_groups: false,
     prompt: null,
     sort_order: 0,
     created_at: "2025-03-02T00:00:00Z",
@@ -380,6 +382,7 @@ export const mockBoards: BulletinBoard[] = [
     allowed_categories: null,
     allow_anonymous: true,
     allow_comments: true,
+    use_groups: false,
     prompt: null,
     sort_order: 0,
     created_at: "2025-03-02T00:00:00Z",
@@ -393,6 +396,7 @@ export const mockBoards: BulletinBoard[] = [
     allowed_categories: null,
     allow_anonymous: true,
     allow_comments: true,
+    use_groups: false,
     prompt: null,
     sort_order: 0,
     created_at: "2024-09-02T00:00:00Z",
@@ -416,6 +420,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     hidden: false,
     created_at: "2025-03-05T09:30:00Z",
     edited_at: null,
+    group_id: null,
   },
   {
     id: "post-2",
@@ -433,6 +438,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     hidden: false,
     created_at: "2025-03-08T14:00:00Z",
     edited_at: null,
+    group_id: null,
   },
   {
     id: "post-3",
@@ -450,6 +456,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     hidden: false,
     created_at: "2025-03-10T20:15:00Z",
     edited_at: null,
+    group_id: null,
   },
   {
     id: "post-4",
@@ -467,6 +474,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     hidden: false,
     created_at: "2025-03-12T11:45:00Z",
     edited_at: null,
+    group_id: null,
   },
   {
     id: "post-5",
@@ -484,6 +492,7 @@ export const mockBulletinPosts: BulletinPost[] = [
     hidden: true,
     created_at: "2025-03-13T08:20:00Z",
     edited_at: null,
+    group_id: null,
   },
 ];
 

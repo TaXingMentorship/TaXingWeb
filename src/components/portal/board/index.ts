@@ -7,3 +7,8 @@ export { default as PostComments } from "./PostComments";
 export { default as ReactionBar } from "./ReactionBar";
 export { default as EmojiPicker } from "./EmojiPicker";
 export { default as ColorPicker } from "./ColorPicker";
+export { default as GroupSidebar, MINE } from "./GroupSidebar";
+export { default as MentorStrip } from "./MentorStrip";
+export { default as BoardNotices } from "./BoardNotices";
+export { default as QaSearchResults, type SearchHit } from "./QaSearchResults";
+export { default as UnreadBar } from "./UnreadBar";

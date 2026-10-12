@@ -167,6 +167,7 @@ export function BoardDialog({
   const [allowAnonymous, setAllowAnonymous] = React.useState(true);
   const [allowComments, setAllowComments] = React.useState(true);
   const [isPinned, setIsPinned] = React.useState(false);
+  const [useGroups, setUseGroups] = React.useState(false);
   const [categories, setCategories] = React.useState<BulletinCategory[]>([]);
 
   React.useEffect(() => {
@@ -178,6 +179,7 @@ export function BoardDialog({
     setAllowAnonymous(board?.allow_anonymous ?? true);
     setAllowComments(board?.allow_comments ?? true);
     setIsPinned((board?.sort_order ?? 0) < 0);
+    setUseGroups(board?.use_groups ?? false);
     setCategories(board?.allowed_categories ?? []);
     setTargetCohortId(board?.cohort_id ?? cohortId);
   }, [open, board, cohortId]);
@@ -192,6 +194,7 @@ export function BoardDialog({
         allow_anonymous: allowAnonymous,
         allow_comments: allowComments,
         allowed_categories: categories.length > 0 ? categories : null,
+        use_groups: useGroups,
       };
       // The season is fixed once a board exists — see updateBoard.
       const savedBoard = await (board
@@ -328,6 +331,15 @@ export function BoardDialog({
               />
             }
             label={portalCopy.board.pinBoardLabel}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={useGroups}
+                onChange={(e) => setUseGroups(e.target.checked)}
+              />
+            }
+            label={portalCopy.board.useGroupsLabel}
           />
         </Stack>
       </DialogContent>
