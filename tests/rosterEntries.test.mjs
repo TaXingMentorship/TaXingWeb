@@ -42,15 +42,53 @@ const row = (p) => ({
 });
 const all = { search: "", role: "all", status: "all", done: "all", group: "all" };
 
-test("claimed with no profile is setup; claimed with a profile needs no row", () => {
+test("claimed with no profile is setup", () => {
+  const rows = classifyInvites([invite("i", "b@x.com", { claimed_user_id: "ghost" })], []);
+  assert.deepEqual(rows.map((r) => [r.invite.id, r.state]), [["i", "setup"]]);
+});
+
+test("claimed by an account that lists the season needs no row", () => {
   const rows = classifyInvites(
-    [
-      invite("withProfile", "a@x.com", { claimed_user_id: "p1" }),
-      invite("noProfile", "b@x.com", { claimed_user_id: "ghost" }),
-    ],
+    [invite("i", "a@x.com", { claimed_user_id: "p1" })],
     [profile("p1", "a@x.com")],
   );
-  assert.deepEqual(rows.map((r) => [r.invite.id, r.state]), [["noProfile", "setup"]]);
+  assert.deepEqual(rows, []);
+});
+
+test("claimed by an account that does not list the season is 'account', not invisible", () => {
+  // A returning member re-imported into a new season: with 0018 the invite is
+  // claimed on insert, but the season was never added to the account.
+  const old = profile("p1", "ann@x.com", { cohort_ids: ["old"] });
+  const rows = classifyInvites(
+    [invite("i", "ann@x.com", { claimed_user_id: "p1" })],
+    [old],
+  );
+  assert.deepEqual(rows.map((r) => [r.invite.id, r.state]), [["i", "account"]]);
+});
+
+test("a volunteer-only invite is satisfied by the season alone, no participant role needed", () => {
+  const volunteer = profile("p1", "v@x.com", { participant_role: null, is_volunteer: true });
+  const volunteerInvite = invite("i", "v@x.com", {
+    participant_role: null,
+    is_volunteer: true,
+    claimed_user_id: "p1",
+  });
+  assert.deepEqual(classifyInvites([volunteerInvite], [volunteer]), []);
+  // ...but the same account without the season is not in it
+  const elsewhere = { ...volunteer, cohort_ids: ["other"] };
+  assert.deepEqual(
+    classifyInvites([volunteerInvite], [elsewhere]).map((r) => r.state),
+    ["account"],
+  );
+});
+
+test("a mentor / mentee invite needs the account to have a participant role too", () => {
+  const volunteerAccount = profile("p1", "m@x.com", { participant_role: null });
+  const rows = classifyInvites(
+    [invite("i", "m@x.com", { claimed_user_id: "p1" })],
+    [volunteerAccount],
+  );
+  assert.deepEqual(rows.map((r) => r.state), ["account"]);
 });
 
 test("unclaimed: no account is waiting or out", () => {
@@ -61,24 +99,18 @@ test("unclaimed: no account is waiting or out", () => {
   assert.deepEqual(rows.map((r) => [r.invite.id, r.state]), [["in", "waiting"], ["out", "out"]]);
 });
 
-test("an unclaimed invite for someone already a member of that season is not shown twice", () => {
+test("an unclaimed invite for someone already listed in that season is not shown twice", () => {
   const member = profile("p1", "Ann@X.com");
-  const rows = classifyInvites([invite("stale", " ann@x.com ")], [member]);
-  assert.deepEqual(rows, []);
+  assert.deepEqual(classifyInvites([invite("stale", " ann@x.com ")], [member]), []);
 });
 
-test("a re-imported existing account that was never added to the season is 'account'", () => {
-  // The import does not add the new season to an account that already exists.
+test("unclaimed, email has an account that does not list the season, is 'account'; flagged out wins", () => {
   const old = profile("p1", "ann@x.com", { cohort_ids: ["old"] });
-  const noRole = profile("p2", "bo@x.com", { participant_role: null });
   const rows = classifyInvites(
-    [invite("i1", "ann@x.com"), invite("i2", "bo@x.com"), invite("i3", "ann@x.com", { not_participating: true })],
-    [old, noRole],
+    [invite("i1", "ann@x.com"), invite("i3", "ann@x.com", { not_participating: true })],
+    [old],
   );
-  assert.deepEqual(
-    rows.map((r) => [r.invite.id, r.state]).sort(),
-    [["i1", "account"], ["i2", "account"], ["i3", "out"]],
-  );
+  assert.deepEqual(rows.map((r) => [r.invite.id, r.state]).sort(), [["i1", "account"], ["i3", "out"]]);
 });
 
 test("the roster table and the 待激活 list classify the same invite the same way", () => {
@@ -86,6 +118,7 @@ test("the roster table and the 待激活 list classify the same invite the same 
   const member = profile("p2", "bo@x.com");
   const invites = [
     invite("account", "ann@x.com"),
+    invite("claimedAccount", "ann@x.com", { cohort_id: "next", claimed_user_id: "p1" }),
     invite("dup", "bo@x.com"),
     invite("wait", "w@x.com"),
     invite("out", "o@x.com", { not_participating: true }),
@@ -96,20 +129,21 @@ test("the roster table and the 待激活 list classify the same invite the same 
     .map((e) => [e.invite.id, e.state]);
   const inList = pendingInvites(invites, profiles).map((r) => [r.invite.id, r.state]);
   assert.deepEqual(inTable, inList);
-  assert.deepEqual(inList.map(([id]) => id), ["account", "wait", "out"]); // "dup" is shown as a member
+  assert.deepEqual(inList.map(([id]) => id).sort(), ["account", "claimedAccount", "out", "wait"]);
+});
+
+test("setup people are in the roster table but not in the 待激活 list", () => {
+  const invites = [invite("setup", "s@x.com", { claimed_user_id: "ghost" }), invite("wait", "w@x.com")];
+  assert.deepEqual(pendingInvites(invites, []).map((r) => r.invite.id), ["wait"]);
+  assert.deepEqual(
+    buildEntries([], invites, []).filter((e) => e.kind === "invited").map((e) => e.invite.id),
+    ["setup", "wait"],
+  );
 });
 
 test("nothing is classified while profiles are still loading", () => {
   assert.deepEqual(inviteRows([invite("i1", "a@x.com")], undefined), []);
   assert.deepEqual(pendingInvites([invite("i1", "a@x.com")], undefined), []);
-});
-
-test("pendingInvites leaves claimed invites out", () => {
-  const rows = pendingInvites(
-    [invite("claimed", "c@x.com", { claimed_user_id: "ghost" }), invite("wait", "w@x.com")],
-    [],
-  );
-  assert.deepEqual(rows.map((r) => r.invite.id), ["wait"]);
 });
 
 test("select all covers only the mentors the filter still shows", () => {

@@ -51,14 +51,16 @@ export default function PendingInvites() {
   const copy = portalCopy.pendingInvites;
   const queryClient = useQueryClient();
 
-  const { data: invites, isLoading } = useQuery({
+  const invitesQuery = useQuery({
     queryKey: ["portal", "rosterInvites", "all"],
     queryFn: () => listRosterInvites(),
   });
-  const { data: profiles } = useQuery({
+  const profilesQuery = useQuery({
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
   });
+  const invites = invitesQuery.data;
+  const profiles = profilesQuery.data;
   const { data: cohorts } = useQuery({
     queryKey: ["portal", "cohorts"],
     queryFn: listCohorts,
@@ -112,7 +114,11 @@ export default function PendingInvites() {
         {copy.intro}
       </Typography>
 
-      {isLoading || !profiles ? (
+      {invitesQuery.isError || profilesQuery.isError ? (
+        // Both are needed to tell who is pending; with either missing, say so
+        // rather than sit on "loading" forever or claim nobody is waiting.
+        <Alert severity="error">{copy.loadFailed}</Alert>
+      ) : invitesQuery.isLoading || !profiles ? (
         <Typography color="text.secondary">{portalCopy.volunteers.loading}</Typography>
       ) : pending.length === 0 ? (
         <Alert severity="success">{copy.empty}</Alert>
