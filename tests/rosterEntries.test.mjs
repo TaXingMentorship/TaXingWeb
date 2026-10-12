@@ -82,13 +82,20 @@ test("a volunteer-only invite is satisfied by the season alone, no participant r
   );
 });
 
-test("a mentor / mentee invite needs the account to have a participant role too", () => {
-  const volunteerAccount = profile("p1", "m@x.com", { participant_role: null });
+test("a volunteer imported as a mentee has the season but not the identity: 'identity', not 'account'", () => {
+  // 0035 adds the season to the account but never the mentee identity.
+  const volunteerAccount = profile("p1", "m@x.com", { participant_role: null, cohort_ids: ["fall"] });
   const rows = classifyInvites(
     [invite("i", "m@x.com", { claimed_user_id: "p1" })],
     [volunteerAccount],
   );
-  assert.deepEqual(rows.map((r) => r.state), ["account"]);
+  assert.deepEqual(rows.map((r) => r.state), ["identity"]);
+  // without the season it is the season that is missing
+  const noSeason = { ...volunteerAccount, cohort_ids: ["old"] };
+  assert.deepEqual(
+    classifyInvites([invite("i", "m@x.com", { claimed_user_id: "p1" })], [noSeason]).map((r) => r.state),
+    ["account"],
+  );
 });
 
 test("unclaimed: no account is waiting or out", () => {

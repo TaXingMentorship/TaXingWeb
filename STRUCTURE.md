@@ -349,15 +349,34 @@ read-only.
 ### Seasons reach the account
 
 `volunteer_seasons` is the roster's record of participation, but 成员名单 and the
-directory read `profiles.cohort_ids`, which `claim_roster_invite` writes once, at
-first login, from the invites that exist then. Migration `0025`
-(`sync_volunteer_access`) keeps the two in step: every `volunteer_seasons` row
+directory read `profiles.cohort_ids`. `claim_roster_invite` writes it at first
+login, from the invites that exist then; after that two things keep it current.
+Migration `0035` extends the `0018` trigger (`backfill_roster_invite_claim`): when
+a new invite is claimed by an account that already exists — a returning mentor
+or mentee re-imported into a new season — the invite's season is added to that
+account, so an import now reaches the account for everyone, not only volunteers.
+It adds the season only: the account keeps its single `participant_role`, so a
+volunteer imported as a mentee gets the season but not the mentee identity
+(成员名单 shows that person as 「已有账号 · 身份不符」, see below). Migration `0025`
+(`sync_volunteer_access`) does the same for volunteers: every `volunteer_seasons` row
 guarantees a `roster_invites` row for that season and — if the volunteer has an
 account — a `cohort_ids` entry. It also fires when a volunteer gains an email or
 an account link, carrying over seasons recorded earlier. **Additive only:**
 removing a season from the roster never removes it from the account, because
 membership grants bulletin access. A volunteer with no email and no account has
-nowhere to carry a season and is skipped.
+nowhere to carry a season and is skipped. Both skip the write when a non-admin is
+acting, because `protect_profile_privileges` forbids a non-admin changing
+`cohort_ids`; imports run server-side or as an admin.
+
+成员名单 and 已邀请、待激活 classify an invite against the accounts that exist with
+one function, `classifyInvites` (`lib/portal/rosterEntries.ts`), so they cannot
+disagree about a person: 待激活 (no account), 已激活 · 待填资料 (claimed, no profile
+yet), 已有账号 · 不在本季名单 (account does not list the season — what an import
+produced before `0035`), 已有账号 · 身份不符 (account lists the season but lacks the
+mentor / mentee identity the invite carries), 不参与本次项目 (admin flag,
+`roster_invites.not_participating`, `0033`). A volunteer-only invite is satisfied
+by the season alone; a mentor / mentee invite also needs the account to have a
+participant role.
 
 Unlinking an email-matched volunteer is a no-op: the trigger relinks them
 immediately, and correctly — the emails match. Unlink is only meaningful for a

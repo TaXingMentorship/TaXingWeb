@@ -11,7 +11,7 @@ export type MemberRowData = {
   completedAll: boolean;
 };
 
-export type InviteState = "setup" | "account" | "waiting" | "out";
+export type InviteState = "setup" | "account" | "identity" | "waiting" | "out";
 
 export type RosterEntry =
   | { kind: "member"; row: MemberRowData }
@@ -42,12 +42,15 @@ const isListed = (p: Profile, invite: RosterInvite) =>
  * was given. So:
  *
  *  - "setup":   claimed, but no profile yet → activated, profile not filled in.
- *  - "account": the person has an account (the invite is claimed by it, or the
- *               email matches one) that does not put them in this season's
- *               roster: the season is missing from the account, or the invite
- *               carries a mentor / mentee identity the account does not have.
- *               0035 stops imports producing the first kind; the state stays so
- *               a person can never silently fall out of both lists.
+ *  - "account":  the person has an account (the invite is claimed by it, or the
+ *                email matches one) that does not list this season. 0035 stops
+ *                imports producing this; the state stays so a person can never
+ *                silently fall out of both lists.
+ *  - "identity": the account does list the season, but the invite carries a
+ *                mentor / mentee identity the account does not have (a
+ *                volunteer imported as a mentee). Adding the season does not add
+ *                the identity, and the fix for this is not "add to season", so
+ *                it is its own state rather than a misleading "not in season".
  *  - "waiting": unclaimed, no account → has not signed in.
  *  - "out":     flagged as not taking part (checked before "account").
  *  - null:      nothing to show: already listed in the season.
@@ -58,7 +61,13 @@ export function classifyInvites(
 ): ClassifiedInvite[] {
   const profileById = new Map(profiles.map((p) => [p.id, p]));
   const profileByEmail = new Map(profiles.map((p) => [emailKey(p.email), p]));
-  const order: Record<InviteState, number> = { setup: 0, account: 1, waiting: 2, out: 3 };
+  const order: Record<InviteState, number> = {
+    setup: 0,
+    account: 1,
+    identity: 2,
+    waiting: 3,
+    out: 4,
+  };
 
   return invites
     .flatMap((invite): ClassifiedInvite[] => {
@@ -74,7 +83,12 @@ export function classifyInvites(
         return [{ invite, state }];
       }
       if (isListed(account, invite)) return [];
-      return [{ invite, state: invite.not_participating ? "out" : "account" }];
+      const state: InviteState = invite.not_participating
+        ? "out"
+        : account.cohort_ids.includes(invite.cohort_id)
+          ? "identity"
+          : "account";
+      return [{ invite, state }];
     })
     .sort((a, b) => order[a.state] - order[b.state]);
 }
@@ -120,7 +134,7 @@ export function pendingInvites(
 export type RosterFilters = {
   search: string;
   role: "all" | "mentor" | "mentee" | "volunteer" | "admin";
-  status: "all" | "active" | "setup" | "account" | "waiting" | "out";
+  status: "all" | "active" | "setup" | "account" | "identity" | "waiting" | "out";
   done: "all" | "done" | "todo";
   /** "all", "none" (unassigned) or a group id. */
   group: string;

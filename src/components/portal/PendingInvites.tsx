@@ -125,7 +125,12 @@ export default function PendingInvites() {
       ) : (
         <>
           <Alert severity="info" sx={{ mb: 2 }}>
-            {copy.summary(countOf("out"), countOf("waiting"), countOf("account"))}
+            {copy.summary(
+              countOf("out"),
+              countOf("waiting"),
+              countOf("account"),
+              countOf("identity"),
+            )}
           </Alert>
           {markMutation.isError && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => markMutation.reset()}>
@@ -146,6 +151,7 @@ export default function PendingInvites() {
                 { value: "all", label: portalCopy.tableFilters.all },
                 { value: "waiting", label: copy.stillExpected },
                 { value: "account", label: copy.accountOnly },
+                { value: "identity", label: copy.identityMismatch },
                 { value: "out", label: copy.notParticipating },
               ]}
             />
