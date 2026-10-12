@@ -718,7 +718,14 @@ export const portalCopy = {
       identity: "身份",
       season: "邀请的季度",
       invitedAt: "邀请时间",
+      status: "状态",
     },
+    notParticipating: "不参与本次项目",
+    stillExpected: "待激活",
+    mark: "标记不参与",
+    unmark: "取消标记",
+    summary: (out: number, waiting: number) =>
+      `其中 ${out} 人已标记为不参与本次项目，${waiting} 人仍在等待激活。`,
   },
   persona: {
     label: "当前视角",

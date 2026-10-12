@@ -94,6 +94,7 @@ export type RosterInvite = {
   is_volunteer: boolean;
   invited_at: string;
   claimed_user_id: string | null;
+  not_participating: boolean;
 };
 
 export type BulletinPost = {

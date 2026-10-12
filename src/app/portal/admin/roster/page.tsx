@@ -14,21 +14,24 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import TablePagination from "@mui/material/TablePagination";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Avatar from "@mui/material/Avatar";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import type { Profile } from "@/types/portal";
+import type { Profile, RosterInvite } from "@/types/portal";
 import {
   listCohorts,
   listMatches,
   listParticipation,
   listProfiles,
+  listRosterInvites,
   listSessions,
   updateProfile,
 } from "@/lib/portal/store";
 import IdentityCell from "@/components/portal/IdentityCell";
+import { profileLabels } from "@/data/portalCopy";
 import NameChangeReviewCard from "@/components/portal/NameChangeReviewCard";
 import PendingInvites from "@/components/portal/PendingInvites";
 import Divider from "@mui/material/Divider";
@@ -50,6 +53,12 @@ export default function RosterPage() {
     queryFn: () => listProfiles(),
   });
 
+  const { data: invites } = useQuery({
+    queryKey: ["portal", "rosterInvites", cohortId],
+    queryFn: () => listRosterInvites(cohortId),
+    enabled: Boolean(cohortId),
+  });
+
   const { data: sessions } = useQuery({
     queryKey: ["portal", "sessions", cohortId, "all"],
     queryFn: () => listSessions({ cohortId }),
@@ -69,6 +78,18 @@ export default function RosterPage() {
   });
 
   const [view, setView] = React.useState<"table" | "pairs">("table");
+
+  // Table filters. Any change sends the table back to its first page, so a
+  // narrower result never leaves you looking at an empty page 7.
+  const [search, setSearch] = React.useState("");
+  const [roleFilter, setRoleFilter] = React.useState("all");
+  const [doneFilter, setDoneFilter] = React.useState("all");
+  const [statusFilter, setStatusFilter] = React.useState("all");
+  const [page, setPage] = React.useState(0);
+  const [rowsPerPage, setRowsPerPage] = React.useState(25);
+  React.useEffect(() => {
+    setPage(0);
+  }, [cohortId, search, roleFilter, doneFilter, statusFilter, rowsPerPage]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof updateProfile>[1] }) =>
@@ -107,6 +128,86 @@ export default function RosterPage() {
       return { profile: p, sessionCount, submitted, gaveGratitude, completedAll };
     });
   }, [profiles, sessions, participation, cohortId]);
+
+  // Invited but not yet signed in: no profile exists, so they are not in
+  // `rows`. They get a row of their own so activated and waiting people can be
+  // told apart, and filtered, in the one table.
+  const waitingInvites = React.useMemo(
+    () => (invites ?? []).filter((invite) => !invite.claimed_user_id),
+    [invites],
+  );
+
+  type Entry =
+    | { kind: "member"; row: (typeof rows)[number] }
+    | { kind: "invited"; invite: RosterInvite };
+
+  const entries = React.useMemo<Entry[]>(
+    () => [
+      ...rows.map((row): Entry => ({ kind: "member", row })),
+      ...[...waitingInvites]
+        .sort((a, b) => Number(a.not_participating) - Number(b.not_participating))
+        .map((invite): Entry => ({ kind: "invited", invite })),
+    ],
+    [rows, waitingInvites],
+  );
+
+  const filteredRows = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return entries.filter((entry) => {
+      const id =
+        entry.kind === "member"
+          ? {
+              name: entry.row.profile.full_name,
+              email: entry.row.profile.email,
+              wechat: entry.row.profile.wechat_number,
+              notes: entry.row.profile.admin_notes,
+              mentor: entry.row.profile.participant_role === "mentor",
+              mentee: entry.row.profile.participant_role === "mentee",
+              volunteer: entry.row.profile.is_volunteer,
+              admin: entry.row.profile.is_admin,
+            }
+          : {
+              name: entry.invite.full_name,
+              email: entry.invite.email,
+              wechat: null,
+              notes: null,
+              mentor: entry.invite.participant_role === "mentor",
+              mentee: entry.invite.participant_role === "mentee",
+              volunteer: entry.invite.is_volunteer,
+              admin: entry.invite.is_admin,
+            };
+      if (q) {
+        const haystack = [id.name, id.email, id.wechat, id.notes]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (roleFilter !== "all" && !id[roleFilter as "mentor" | "mentee" | "volunteer" | "admin"]) {
+        return false;
+      }
+      if (statusFilter === "active" && entry.kind !== "member") return false;
+      if (statusFilter === "waiting") {
+        if (entry.kind !== "invited" || entry.invite.not_participating) return false;
+      }
+      if (statusFilter === "out") {
+        if (entry.kind !== "invited" || !entry.invite.not_participating) return false;
+      }
+      // Completion is about activity records; someone who has not signed in
+      // has none, so the filter only speaks about activated members.
+      if (doneFilter !== "all") {
+        if (entry.kind !== "member") return false;
+        if (doneFilter === "done" && !entry.row.completedAll) return false;
+        if (doneFilter === "todo" && entry.row.completedAll) return false;
+      }
+      return true;
+    });
+  }, [entries, search, roleFilter, doneFilter, statusFilter]);
+
+  const pagedRows = React.useMemo(
+    () => filteredRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage),
+    [filteredRows, page, rowsPerPage],
+  );
 
   const rowByProfileId = React.useMemo(
     () => new Map(rows.map((r) => [r.profile.id, r])),
@@ -155,9 +256,11 @@ export default function RosterPage() {
       <NameChangeReviewCard />
 
       <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        alignItems={{ sm: "center" }}
+        direction="row"
+        spacing={1.5}
+        useFlexGap
+        flexWrap="wrap"
+        alignItems="center"
         sx={{ mb: 3 }}
       >
         <TextField
@@ -166,7 +269,7 @@ export default function RosterPage() {
           label="项目"
           value={cohortId}
           onChange={(e) => setCohortId(e.target.value)}
-          sx={{ minWidth: 240 }}
+          sx={{ minWidth: 150 }}
         >
           {(cohorts ?? []).map((c) => (
             <MenuItem key={c.id} value={c.id}>
@@ -184,9 +287,65 @@ export default function RosterPage() {
           <ToggleButton value="table">名单表格</ToggleButton>
           <ToggleButton value="pairs">配对关系</ToggleButton>
         </ToggleButtonGroup>
+      {view === "table" && (
+        <>
+          <TextField
+            size="small"
+            label="搜索"
+            placeholder="姓名 / 邮箱 / 微信号 / 备注"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{ flex: "1 1 200px", maxWidth: 280, minWidth: 160 }}
+          />
+          <TextField
+            select
+            size="small"
+            label="激活状态"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            sx={{ minWidth: 130 }}
+          >
+            <MenuItem value="all">全部</MenuItem>
+            <MenuItem value="active">已激活</MenuItem>
+            <MenuItem value="waiting">已邀请 · 待激活</MenuItem>
+            <MenuItem value="out">不参与本次项目</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            label="身份"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            sx={{ minWidth: 130 }}
+          >
+            <MenuItem value="all">全部身份</MenuItem>
+            <MenuItem value="mentor">导师</MenuItem>
+            <MenuItem value="mentee">学员</MenuItem>
+            <MenuItem value="volunteer">志愿者</MenuItem>
+            <MenuItem value="admin">负责人</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            label="完成情况"
+            value={doneFilter}
+            onChange={(e) => setDoneFilter(e.target.value)}
+            sx={{ minWidth: 130 }}
+          >
+            <MenuItem value="all">全部</MenuItem>
+            <MenuItem value="done">已完成</MenuItem>
+            <MenuItem value="todo">未完成</MenuItem>
+          </TextField>
+          <Typography variant="body2" color="text.secondary">
+            共 {filteredRows.length} 人
+            {filteredRows.length !== entries.length ? `（筛选自 ${entries.length} 人）` : ""}
+          </Typography>
+        </>
+      )}
       </Stack>
 
       {view === "table" ? (
+        <>
         <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
           <TableContainer>
             <Table size="small">
@@ -197,6 +356,7 @@ export default function RosterPage() {
                   <TableCell>邮箱</TableCell>
                   <TableCell>微信号</TableCell>
                   <TableCell>身份</TableCell>
+                  <TableCell>状态</TableCell>
                   <TableCell align="right">交流场次</TableCell>
                   <TableCell align="center">活动记录</TableCell>
                   <TableCell align="center">感谢赠言</TableCell>
@@ -205,16 +365,52 @@ export default function RosterPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {rows.length === 0 ? (
+                {filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10}>
+                    <TableCell colSpan={11}>
                       <Alert severity="info" sx={{ my: 1 }}>
-                        该项目暂时没有成员。
+                        {entries.length === 0 ? "该项目暂时没有成员。" : "没有符合筛选条件的成员。"}
                       </Alert>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rows.map(({ profile, sessionCount, submitted, gaveGratitude, completedAll }) => (
+                  pagedRows.map((entry) =>
+                    entry.kind === "invited" ? (
+                    <TableRow
+                      key={entry.invite.id}
+                      hover
+                      sx={{
+                        bgcolor: entry.invite.not_participating ? "action.selected" : undefined,
+                        color: entry.invite.not_participating ? "text.secondary" : undefined,
+                      }}
+                    >
+                      <TableCell>—</TableCell>
+                      <TableCell>{entry.invite.full_name ?? "—"}</TableCell>
+                      <TableCell>{entry.invite.email}</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {profileLabels(entry.invite).map((label) => (
+                            <Chip key={label} size="small" variant="outlined" label={label} />
+                          ))}
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        {entry.invite.not_participating ? (
+                          <Chip size="small" color="default" label="不参与本次项目" />
+                        ) : (
+                          <Chip size="small" color="warning" variant="outlined" label="待激活" />
+                        )}
+                      </TableCell>
+                      <TableCell align="right">—</TableCell>
+                      <TableCell align="center">—</TableCell>
+                      <TableCell align="center">—</TableCell>
+                      <TableCell align="center">—</TableCell>
+                      <TableCell>—</TableCell>
+                    </TableRow>
+                    ) : (() => {
+                    const { profile, sessionCount, submitted, gaveGratitude, completedAll } = entry.row;
+                    return (
                     <TableRow key={profile.id} hover>
                       <TableCell>
                         <Typography variant="caption" color="text.secondary">
@@ -226,6 +422,9 @@ export default function RosterPage() {
                       <TableCell>{profile.wechat_number ?? "—"}</TableCell>
                       <TableCell>
                         <IdentityCell profile={profile} />
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="small" color="success" label="已激活" />
                       </TableCell>
                       <TableCell align="right">{sessionCount}</TableCell>
                       <TableCell align="center">
@@ -269,12 +468,26 @@ export default function RosterPage() {
                         />
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                    })(),
+                  )
                 )}
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={filteredRows.length}
+            page={page}
+            onPageChange={(_, next) => setPage(next)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => setRowsPerPage(Number(e.target.value))}
+            rowsPerPageOptions={[25, 50, 100]}
+            labelRowsPerPage="每页"
+            labelDisplayedRows={({ from, to, count }) => `${from}–${to} / ${count}`}
+          />
         </Paper>
+        </>
       ) : !pairGroups.hasMatches ? (
         <Alert severity="info">
           负责人尚未上传本项目的配对结果。请在「名单导入」页上传配对表。

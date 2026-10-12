@@ -696,6 +696,17 @@ export async function listRosterInvites(
   return (data ?? []) as RosterInvite[];
 }
 
+export async function setInviteNotParticipating(
+  id: string,
+  notParticipating: boolean,
+): Promise<void> {
+  const { error } = await createClient()
+    .from("roster_invites")
+    .update({ not_participating: notParticipating })
+    .eq("id", id);
+  throwQueryError("更新邀请状态", error);
+}
+
 // --- Matching --------------------------------------------------------------
 
 export async function listMatches(filter?: {
