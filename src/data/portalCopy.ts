@@ -339,6 +339,8 @@ export const portalCopy = {
     columnLabel: "答疑组",
     unassigned: "未分组",
     unassignedCount: (n: number) => `未分组 ${n} 位`,
+    /** The group number on a directory card chip, e.g. 「组2」. */
+    numberChip: (n: string) => `组${n}`,
     manageButton: "管理答疑组",
     dialogTitle: "管理答疑组",
     dialogHint: "按季度设置 mentor 答疑组。每位 mentor 每个季度只属于一个组，但可以回答任何组的问题。",

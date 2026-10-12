@@ -122,7 +122,7 @@ export default function DirectoryCard({
 /**
  * A group's name, shortened from the middle: the trailing number is what tells
  * 「产品经理与产品策略类 1」 from 「… 2」, so it never gets cut off, only the
- * words before it do.
+ * words before it do. It is shown as 「组 2」: a bare digit reads as a count.
  */
 function GroupLabel({ name }: { name: string }) {
   const match = /^(.*?)(\s*\d+)$/.exec(name);
@@ -138,7 +138,7 @@ function GroupLabel({ name }: { name: string }) {
       </Box>
       {tail && (
         <Box component="span" sx={{ flex: "none", pl: 0.5, fontWeight: 700 }}>
-          {tail}
+          {portalCopy.mentorGroups.numberChip(tail)}
         </Box>
       )}
     </Box>
