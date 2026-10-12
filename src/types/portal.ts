@@ -384,6 +384,30 @@ export type MentorGroupMember = {
   created_at: string;
 };
 
+export type MentorGroupChangeStatus = "pending" | "approved" | "rejected";
+
+/**
+ * A mentor's request to move to another answer group (migration 0034). Only an
+ * admin can change `mentor_group_members`; approving moves the mentor, and a
+ * rejection always carries a note.
+ */
+export type MentorGroupChangeRequest = {
+  id: string;
+  cohort_id: string;
+  profile_id: string;
+  /** Null when the mentor had no group at the time. */
+  from_group_id: string | null;
+  to_group_id: string;
+  reason: string;
+  status: MentorGroupChangeStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  /** Null until the requester has seen the decision. */
+  requester_seen_at: string | null;
+  created_at: string;
+};
+
 export type BoardNoticeKind = "guide" | "reminder";
 
 /** 留言须知 (guide, one group) or 志愿者提醒 (reminder, group_id null = whole board). */

@@ -40,6 +40,7 @@ import {
 import IdentityCell from "@/components/portal/IdentityCell";
 import { profileLabels } from "@/data/portalCopy";
 import NameChangeReviewCard from "@/components/portal/NameChangeReviewCard";
+import MentorGroupChangeReviewCard from "@/components/portal/MentorGroupChangeReviewCard";
 import PendingInvites from "@/components/portal/PendingInvites";
 import Divider from "@mui/material/Divider";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
@@ -308,6 +309,7 @@ export default function RosterPage() {
       </Typography>
 
       <NameChangeReviewCard />
+      <MentorGroupChangeReviewCard />
 
       <Stack
         direction="row"
