@@ -223,7 +223,9 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         </Drawer>
       </Box>
 
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 4 }, maxWidth: "100%" }}>
+      {/* minWidth 0: a flex item will not shrink below its content otherwise, so a
+          wide table pushed the whole page past the viewport. */}
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, p: { xs: 2, md: 4 }, maxWidth: "100%" }}>
         {loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
             <CircularProgress />

@@ -178,12 +178,29 @@ export default function RosterPage() {
   );
   const unassignedCount = mentorIds.filter((id) => !groupOfMentor.has(id)).length;
 
-  // Invited but not yet signed in: no profile exists, so they are not in
-  // `rows`. They get a row of their own so activated and waiting people can be
-  // told apart, and filtered, in the one table.
+  // Two kinds of person have no profile, so are not in `rows`, and each gets a
+  // row of their own so nobody falls between the lists:
+  //  - invited, never set a password (invite unclaimed) → 待激活
+  //  - account created and signed in, but onboarding not finished (invite
+  //    claimed, no `profiles` row yet) → 已激活 · 待填资料. Activation is two
+  //    steps (the code creates the account, onboarding creates the profile), so
+  //    this person is activated even though no profile exists.
   const waitingInvites = React.useMemo(
     () => (invites ?? []).filter((invite) => !invite.claimed_user_id),
     [invites],
+  );
+  const profileIds = React.useMemo(
+    () => new Set((profiles ?? []).map((p) => p.id)),
+    [profiles],
+  );
+  const setupInvites = React.useMemo(
+    () =>
+      profiles
+        ? (invites ?? []).filter(
+            (invite) => invite.claimed_user_id && !profileIds.has(invite.claimed_user_id),
+          )
+        : [],
+    [invites, profiles, profileIds],
   );
 
   type Entry =
@@ -193,11 +210,12 @@ export default function RosterPage() {
   const entries = React.useMemo<Entry[]>(
     () => [
       ...rows.map((row): Entry => ({ kind: "member", row })),
+      ...setupInvites.map((invite): Entry => ({ kind: "invited", invite })),
       ...[...waitingInvites]
         .sort((a, b) => Number(a.not_participating) - Number(b.not_participating))
         .map((invite): Entry => ({ kind: "invited", invite })),
     ],
-    [rows, waitingInvites],
+    [rows, setupInvites, waitingInvites],
   );
 
   const filteredRows = React.useMemo(() => {
@@ -241,12 +259,15 @@ export default function RosterPage() {
         const gid = groupOfMentor.get(entry.row.profile.id);
         if (groupFilter === "none" ? Boolean(gid) : gid !== groupFilter) return false;
       }
-      if (statusFilter === "active" && entry.kind !== "member") return false;
+      const setup = entry.kind === "invited" && Boolean(entry.invite.claimed_user_id);
+      // 已激活 covers both finished and unfinished onboarding.
+      if (statusFilter === "active" && entry.kind !== "member" && !setup) return false;
+      if (statusFilter === "setup" && !setup) return false;
       if (statusFilter === "waiting") {
-        if (entry.kind !== "invited" || entry.invite.not_participating) return false;
+        if (entry.kind !== "invited" || setup || entry.invite.not_participating) return false;
       }
       if (statusFilter === "out") {
-        if (entry.kind !== "invited" || !entry.invite.not_participating) return false;
+        if (entry.kind !== "invited" || setup || !entry.invite.not_participating) return false;
       }
       // Completion is about activity records; someone who has not signed in
       // has none, so the filter only speaks about activated members.
@@ -362,7 +383,8 @@ export default function RosterPage() {
             sx={{ minWidth: 130 }}
           >
             <MenuItem value="all">全部</MenuItem>
-            <MenuItem value="active">已激活</MenuItem>
+            <MenuItem value="active">已激活（含待填资料）</MenuItem>
+            <MenuItem value="setup">已激活 · 待填资料</MenuItem>
             <MenuItem value="waiting">已邀请 · 待激活</MenuItem>
             <MenuItem value="out">不参与本次项目</MenuItem>
           </TextField>
@@ -481,7 +503,7 @@ export default function RosterPage() {
         <>
         <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
           <TableContainer>
-            <Table size="small">
+            <Table size="small" sx={{ "& thead th": { whiteSpace: "nowrap" } }}>
               <TableHead>
                 <TableRow>
                   <TableCell padding="checkbox">
@@ -500,7 +522,7 @@ export default function RosterPage() {
                   <TableCell>微信号</TableCell>
                   <TableCell>身份</TableCell>
                   <TableCell>状态</TableCell>
-                  <TableCell sx={{ minWidth: 160 }}>{groupCopy.columnLabel}</TableCell>
+                  <TableCell sx={{ minWidth: 160, maxWidth: 220 }}>{groupCopy.columnLabel}</TableCell>
                   <TableCell align="right">交流场次</TableCell>
                   <TableCell align="center">活动记录</TableCell>
                   <TableCell align="center">感谢赠言</TableCell>
@@ -541,7 +563,9 @@ export default function RosterPage() {
                         </Stack>
                       </TableCell>
                       <TableCell>
-                        {entry.invite.not_participating ? (
+                        {entry.invite.claimed_user_id ? (
+                          <Chip size="small" color="info" variant="outlined" label="已激活 · 待填资料" />
+                        ) : entry.invite.not_participating ? (
                           <Chip size="small" color="default" label="不参与本次项目" />
                         ) : (
                           <Chip size="small" color="warning" variant="outlined" label="待激活" />
@@ -575,7 +599,13 @@ export default function RosterPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          title={profile.id}
+                          noWrap
+                          sx={{ display: "block", maxWidth: 88 }}
+                        >
                           {profile.id}
                         </Typography>
                       </TableCell>
@@ -588,12 +618,19 @@ export default function RosterPage() {
                       <TableCell>
                         <Chip size="small" color="success" label="已激活" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ maxWidth: 220 }}>
                         {profile.participant_role === "mentor" ? (
                           <TextField
                             select
                             size="small"
                             fullWidth
+                            sx={{
+                              "& .MuiSelect-select": {
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              },
+                            }}
                             value={groupOfMentor.get(profile.id) ?? ""}
                             disabled={assignMutation.isPending}
                             onChange={(e) =>
