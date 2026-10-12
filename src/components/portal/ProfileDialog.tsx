@@ -14,6 +14,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import type { Profile } from "@/types/portal";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
+import FavoriteButton from "@/components/portal/FavoriteButton";
 
 /**
  * Read-only view of one member's profile. Shared by the directory cards and
@@ -53,6 +54,7 @@ export default function ProfileDialog({
                 )}
               </Stack>
             </Box>
+            <FavoriteButton profileId={profile.id} />
             <IconButton onClick={onClose} aria-label="关闭">
               <CloseIcon />
             </IconButton>

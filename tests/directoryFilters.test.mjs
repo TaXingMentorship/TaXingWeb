@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { matchesGroupFilter, matchesSearch } from "../src/lib/portal/directoryFilters.ts";
+import { matchesGroupFilter, matchesSearch, visibleToMember } from "../src/lib/portal/directoryFilters.ts";
 
 const profile = (extra = {}) => ({
   full_name: "Ann",
@@ -53,4 +53,11 @@ test("search: each field is tested on its own, a query does not span two fields"
 
 test("search: missing fields do not throw", () => {
   assert.equal(matchesSearch("x", profile({ full_name: null, bio: null, background: null, interests: [] })), false);
+});
+
+test("visibleToMember: needs a visible profile and a shared season", () => {
+  assert.equal(visibleToMember({ visible: true, cohort_ids: ["a", "b"] }, ["b"]), true);
+  assert.equal(visibleToMember({ visible: false, cohort_ids: ["a"] }, ["a"]), false);
+  assert.equal(visibleToMember({ visible: true, cohort_ids: ["a"] }, ["z"]), false);
+  assert.equal(visibleToMember({ visible: true, cohort_ids: [] }, []), false);
 });

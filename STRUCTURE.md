@@ -137,6 +137,10 @@ Mentor↔mentee `matches` are admin-uploaded. Mentors may log sessions only for 
 
 A mentor's answer group (`mentor_group_members`, 0028) is shown read-only on 我的资料 by `MentorGroupField`, one line per season that has groups. It is locked by the table's admin-only write policy, not by the UI. The mentor asks for a move with `request_mentor_group_change` (target group and reason required, one open request per season); an admin decides from `MentorGroupChangeReviewCard` under the nickname card on 成员名单 (`review_mentor_group_change`; approval upserts the membership in the same transaction, a rejection needs a note). `mentor_group_change_requests` (0034) has no write policies — every write is one of those functions, plus `withdraw_mentor_group_change` and `mark_mentor_group_changes_seen`. The sidebar counts both kinds of request for admins and shows one shared dot on 我的资料.
 
+### 成员收藏 (0036)
+
+`profile_favorites(user_id, target_id)` is a private bookmark list: select/insert/delete policies all key on `auth.uid()`, so nobody else (admins and the bookmarked person included) can read it, and there is no UPDATE. It is written from the browser client under RLS, no API route. `useFavorites` keys on `realUser`, never the persona. A heart sits on each `DirectoryCard` (a sibling of the action area — a button cannot nest in a button) and in `ProfileDialog`; the directory has a 只看收藏 chip; `FavoritesCard` on the portal home lists them and renders nothing when empty. A bookmark is not tied to a season. Both the directory and the home strip filter with `visibleToMember`, so a person who is hidden or shares no season with the viewer drops out while the row stays.
+
 `src/types/portal.ts` mirrors the database row shapes and is the contract between migrations, `store.ts` and the UI — change it in step with the migration.
 
 ---

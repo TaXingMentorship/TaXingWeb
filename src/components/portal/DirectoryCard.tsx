@@ -12,6 +12,7 @@ import Tooltip from "@mui/material/Tooltip";
 import type { Profile } from "@/types/portal";
 import type { MentorGroupColor } from "@/data/mentorGroupColors";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
+import FavoriteButton from "@/components/portal/FavoriteButton";
 
 export type DirectoryBadge = {
   label: string;
@@ -46,8 +47,11 @@ export default function DirectoryCard({
         height: "100%",
         borderRadius: 3,
         borderLeft: stripe ? `6px solid ${stripe}` : undefined,
+        position: "relative",
       }}
     >
+      {/* A sibling of the action area, not a child: a button cannot nest in a button. */}
+      <FavoriteButton profileId={profile.id} sx={{ position: "absolute", top: 8, right: 8, zIndex: 1 }} />
       <CardActionArea onClick={() => onSelect(profile)} sx={{ height: "100%" }}>
         <CardContent>
           <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5 }}>

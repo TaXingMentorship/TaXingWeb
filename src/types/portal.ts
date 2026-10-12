@@ -78,6 +78,13 @@ export type Profile = {
   updated_at: string;
 };
 
+/** A member's private bookmark of another member (migration 0036). */
+export type ProfileFavorite = {
+  user_id: string;
+  target_id: string;
+  created_at: string;
+};
+
 export type Match = {
   id: string;
   cohort_id: string;

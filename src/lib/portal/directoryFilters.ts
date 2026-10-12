@@ -32,3 +32,15 @@ export function matchesSearch(
     .filter((field): field is string => Boolean(field))
     .some((field) => field.toLowerCase().includes(q));
 }
+
+/**
+ * Whether a non-admin may see `profile` in the directory: it is visible and
+ * shares a season with the viewer. The directory and the home page's 收藏 strip
+ * both use this, so a bookmark never shows someone the directory would hide.
+ */
+export function visibleToMember(
+  profile: Pick<Profile, "visible" | "cohort_ids">,
+  viewerCohortIds: string[],
+): boolean {
+  return profile.visible && profile.cohort_ids.some((id) => viewerCohortIds.includes(id));
+}

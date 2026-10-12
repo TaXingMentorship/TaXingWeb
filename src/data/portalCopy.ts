@@ -390,6 +390,16 @@ export const portalCopy = {
     rejectNoteHint: "必填，申请人会看到这段话。",
     confirmReject: "确认拒绝",
   },
+  /** 成员收藏 (migration 0036). */
+  favorites: {
+    add: "收藏",
+    remove: "取消收藏",
+    onlyFavorites: (count: number) => `只看收藏（${count}）`,
+    noneInTab: "这个分类下还没有收藏的成员。",
+    homeTitle: (count: number) => `我收藏的成员（${count}）`,
+    homeAll: "去成员目录",
+    failed: "操作失败，请稍后重试。",
+  },
   directoryFilters: {
     searchPlaceholder: "搜索姓名、简介或兴趣",
     mentorSearchPlaceholder: "搜索姓名、简介、兴趣或答疑组",
