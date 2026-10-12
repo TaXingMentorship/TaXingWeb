@@ -65,18 +65,22 @@ export default function MentorGroupField() {
   const [toGroupId, setToGroupId] = React.useState("");
   const [reason, setReason] = React.useState("");
 
-  // Hold the decision on screen for this visit, then mark it seen.
-  const [decision, setDecision] = React.useState<MentorGroupChangeRequest | null>(null);
+  // Hold every decision the mentor has not seen on screen for this visit, then
+  // mark them seen. All of them: marking seen is all-or-nothing on the server,
+  // so showing only one would lose the rest (a rejection note included).
+  const [decisions, setDecisions] = React.useState<MentorGroupChangeRequest[]>([]);
   const seenMutation = useMutation({
     mutationFn: markMentorGroupChangesSeen,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MY_GROUP_CHANGES_KEY }),
   });
   const { mutate: markSeen } = seenMutation;
   React.useEffect(() => {
-    if (!isMentor || decision || unseen.length === 0) return;
-    setDecision(unseen[0]);
+    if (!isMentor) return;
+    const fresh = unseen.filter((u) => !decisions.some((d) => d.id === u.id));
+    if (fresh.length === 0) return;
+    setDecisions((current) => [...current, ...fresh]);
     markSeen();
-  }, [isMentor, unseen, decision, markSeen]);
+  }, [isMentor, unseen, decisions, markSeen]);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: MY_GROUP_CHANGES_KEY });
@@ -93,7 +97,6 @@ export default function MentorGroupField() {
       }),
     onSuccess: () => {
       setDialogCohort(null);
-      setDecision(null);
       refresh();
     },
   });
@@ -146,8 +149,13 @@ export default function MentorGroupField() {
         const pending = requests.find(
           (r) => r.cohort_id === season.id && r.status === "pending",
         );
-        const decided =
-          !pending && decision && decision.cohort_id === season.id ? decision : null;
+        const decided = decisions.filter((d) => d.cohort_id === season.id);
+        // The database only accepts a request from the real account, which has
+        // to be a mentor of this season. An admin previewing the mentor view is
+        // not, so the button would only ever fail with NOT_A_MENTOR.
+        const canRequest =
+          realUser?.participant_role === "mentor" &&
+          (realUser.cohort_ids ?? []).includes(season.id);
         return (
           <Stack key={season.id} spacing={1.5}>
             <Stack direction="row" spacing={1.5} alignItems="flex-start">
@@ -156,12 +164,12 @@ export default function MentorGroupField() {
                 value={current ? (groupName.get(current) ?? "") : copy.unassigned}
                 fullWidth
                 disabled
-                helperText={copy.lockedHint}
+                helperText={canRequest ? copy.lockedHint : copy.previewHint}
               />
               <Button
                 variant="outlined"
                 onClick={() => openDialog(season.id)}
-                disabled={Boolean(pending)}
+                disabled={Boolean(pending) || !canRequest}
                 sx={{ flexShrink: 0, height: 56, whiteSpace: "nowrap" }}
               >
                 {copy.requestButton}
@@ -185,19 +193,22 @@ export default function MentorGroupField() {
                 {copy.pending(groupName.get(pending.to_group_id) ?? "")}
               </Alert>
             )}
-            {decided && (
+            {decided.map((decision) => (
               <Alert
-                severity={decided.status === "approved" ? "success" : "warning"}
-                onClose={() => setDecision(null)}
+                key={decision.id}
+                severity={decision.status === "approved" ? "success" : "warning"}
+                onClose={() =>
+                  setDecisions((current) => current.filter((d) => d.id !== decision.id))
+                }
               >
-                {decided.status === "approved"
-                  ? copy.approved(groupName.get(decided.to_group_id) ?? "")
+                {decision.status === "approved"
+                  ? copy.approved(groupName.get(decision.to_group_id) ?? "")
                   : copy.rejected(
-                      groupName.get(decided.to_group_id) ?? "",
-                      decided.review_note ?? "",
+                      groupName.get(decision.to_group_id) ?? "",
+                      decision.review_note ?? "",
                     )}
               </Alert>
-            )}
+            ))}
           </Stack>
         );
       })}

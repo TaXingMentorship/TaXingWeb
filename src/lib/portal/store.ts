@@ -1546,6 +1546,7 @@ export async function reviewNameChange(input: {
 const mentorGroupChangeErrors: Record<string, string> = {
   NOT_A_MENTOR: "只有本季的 mentor 可以申请调整答疑组。",
   GROUP_NOT_FOUND: "找不到这个答疑组，请刷新页面后重试。",
+  REQUESTER_NOT_MENTOR: "申请人已不是本季的 mentor，无法通过。请拒绝并说明原因。",
   GROUP_UNCHANGED: "你已经在这个答疑组里了。",
   REASON_REQUIRED: "请填写申请理由（最多 500 字）。",
   REQUEST_ALREADY_PENDING: "你已有一条待审核的申请，请先等待结果或撤回。",

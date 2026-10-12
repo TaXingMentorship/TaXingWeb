@@ -5,8 +5,9 @@
 -- (0021): one open request at a time, a rejection must carry a note, and the
 -- requester sees the decision once.
 --
--- Approving moves the mentor in the same transaction. A mentor holds one seat
--- per season (`unique (cohort_id, profile_id)`), so the move is an upsert.
+-- Approving moves the mentor in the same transaction, after checking they are
+-- still a mentor of that season. A mentor holds one seat per season
+-- (`unique (cohort_id, profile_id)`), so the move is an upsert.
 
 do $$
 begin
@@ -175,6 +176,24 @@ begin
   end if;
 
   if p_approve then
+    -- The request was valid when it was made; the person may have changed since
+    -- (made a mentee, taken off the season). Approving would then seat a
+    -- non-mentor in an answer group. A rejection needs no such check.
+    if not exists (
+      select 1 from public.profiles pr
+       where pr.id = v_request.profile_id
+         and pr.participant_role = 'mentor'
+         and v_request.cohort_id = any (pr.cohort_ids)
+    ) then
+      raise exception 'REQUESTER_NOT_MENTOR' using errcode = '22023';
+    end if;
+    if not exists (
+      select 1 from public.mentor_groups g
+       where g.id = v_request.to_group_id and g.cohort_id = v_request.cohort_id
+    ) then
+      raise exception 'GROUP_NOT_FOUND' using errcode = 'P0002';
+    end if;
+
     insert into public.mentor_group_members (cohort_id, group_id, profile_id)
     values (v_request.cohort_id, v_request.to_group_id, v_request.profile_id)
     on conflict (cohort_id, profile_id)
