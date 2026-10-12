@@ -69,6 +69,10 @@ export default function MentorGroupField() {
   // mark them seen. All of them: marking seen is all-or-nothing on the server,
   // so showing only one would lose the rest (a rejection note included).
   const [decisions, setDecisions] = React.useState<MentorGroupChangeRequest[]>([]);
+  // Every decision already put on screen this visit. Dismissing one removes it
+  // from `decisions` but not from here: until the server has marked it seen it
+  // is still in `unseen`, and without this it would pop straight back.
+  const shownIds = React.useRef(new Set<string>());
   const seenMutation = useMutation({
     mutationFn: markMentorGroupChangesSeen,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MY_GROUP_CHANGES_KEY }),
@@ -76,11 +80,12 @@ export default function MentorGroupField() {
   const { mutate: markSeen } = seenMutation;
   React.useEffect(() => {
     if (!isMentor) return;
-    const fresh = unseen.filter((u) => !decisions.some((d) => d.id === u.id));
+    const fresh = unseen.filter((u) => !shownIds.current.has(u.id));
     if (fresh.length === 0) return;
+    fresh.forEach((u) => shownIds.current.add(u.id));
     setDecisions((current) => [...current, ...fresh]);
     markSeen();
-  }, [isMentor, unseen, decisions, markSeen]);
+  }, [isMentor, unseen, markSeen]);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: MY_GROUP_CHANGES_KEY });

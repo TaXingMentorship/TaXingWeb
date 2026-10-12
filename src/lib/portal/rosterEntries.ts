@@ -11,56 +11,69 @@ export type MemberRowData = {
   completedAll: boolean;
 };
 
+export type InviteState = "setup" | "account" | "waiting" | "out";
+
 export type RosterEntry =
   | { kind: "member"; row: MemberRowData }
-  | { kind: "invited"; invite: RosterInvite };
+  | { kind: "invited"; invite: RosterInvite; state: InviteState };
 
-export type InviteState = "setup" | "out" | "waiting";
-
-/**
- * Activation is two steps: the code creates the account and claims the invite,
- * onboarding creates the profile. So a claimed invite is "setup" (activated,
- * profile not yet filled in), an unclaimed one is still waiting, or flagged out.
- */
-export function inviteState(invite: RosterInvite): InviteState {
-  if (invite.claimed_user_id) return "setup";
-  return invite.not_participating ? "out" : "waiting";
-}
+export type ClassifiedInvite = { invite: RosterInvite; state: InviteState };
 
 const emailKey = (email: string | null | undefined) => (email ?? "").trim().toLowerCase();
 
-const byParticipation = (a: RosterInvite, b: RosterInvite) =>
-  Number(a.not_participating) - Number(b.not_participating);
+/** A member of a season is a participant (mentor / mentee) listed in it. */
+const isMemberOf = (p: Profile, cohortId: string) =>
+  p.participant_role !== null && p.cohort_ids.includes(cohortId);
+
+/**
+ * What an invite means, judged against the accounts that exist. Both lists use
+ * this one function so they cannot disagree about the same person.
+ *
+ * Activation is two steps (the code creates the account and claims the invite;
+ * onboarding creates the profile), and importing a roster does not add the new
+ * season to an account that already exists. So:
+ *
+ *  - "setup":   claimed, but no profile yet → activated, profile not filled in.
+ *  - "account": unclaimed, but the email already has an account that is not a
+ *               member of this invite's season → has an account, not in this
+ *               season (the import never added it).
+ *  - "waiting": unclaimed, no account → has not signed in.
+ *  - "out":     flagged as not taking part (and not already an account holder
+ *               who is a member — that person is simply a member).
+ *  - null:      nothing to show: the person is already listed as a member of
+ *               the season, or is claimed with a profile.
+ */
+export function classifyInvites(
+  invites: RosterInvite[],
+  profiles: Profile[],
+): ClassifiedInvite[] {
+  const profileIds = new Set(profiles.map((p) => p.id));
+  const byEmail = new Map(profiles.map((p) => [emailKey(p.email), p]));
+  const order: Record<InviteState, number> = { setup: 0, account: 1, waiting: 2, out: 3 };
+
+  return invites
+    .flatMap((invite): ClassifiedInvite[] => {
+      if (invite.claimed_user_id) {
+        return profileIds.has(invite.claimed_user_id) ? [] : [{ invite, state: "setup" }];
+      }
+      const account = byEmail.get(emailKey(invite.email));
+      if (!account) return [{ invite, state: invite.not_participating ? "out" : "waiting" }];
+      if (isMemberOf(account, invite.cohort_id)) return [];
+      return [{ invite, state: invite.not_participating ? "out" : "account" }];
+    })
+    .sort((a, b) => order[a.state] - order[b.state]);
+}
 
 /**
  * Invites that get a row of their own beside the profile rows of one season.
- *
- *  - "setup": claimed, but no profile exists yet → 已激活 · 待填资料.
- *  - "waiting"/"out": unclaimed. If the same email already has a profile that
- *    is a member of this season, the person is already shown as a member and
- *    the stale invite is dropped, otherwise they would appear twice (an
- *    existing account re-imported into a new season leaves its invite
- *    unclaimed).
- *
  * `profiles` is undefined while it is still loading: nothing is classified
  * then, so rows do not flash in and out.
  */
 export function inviteRows(
   invites: RosterInvite[],
   profiles: Profile[] | undefined,
-  memberProfiles: Profile[],
-): RosterInvite[] {
-  if (!profiles) return [];
-  const profileIds = new Set(profiles.map((p) => p.id));
-  const memberEmails = new Set(memberProfiles.map((p) => emailKey(p.email)));
-
-  const setup = invites.filter(
-    (i) => i.claimed_user_id && !profileIds.has(i.claimed_user_id),
-  );
-  const unclaimed = invites
-    .filter((i) => !i.claimed_user_id && !memberEmails.has(emailKey(i.email)))
-    .sort(byParticipation);
-  return [...setup, ...unclaimed];
+): ClassifiedInvite[] {
+  return profiles ? classifyInvites(invites, profiles) : [];
 }
 
 export function buildEntries(
@@ -70,33 +83,31 @@ export function buildEntries(
 ): RosterEntry[] {
   return [
     ...rows.map((row): RosterEntry => ({ kind: "member", row })),
-    ...inviteRows(
-      invites,
-      profiles,
-      rows.map((r) => r.profile),
-    ).map((invite): RosterEntry => ({ kind: "invited", invite })),
+    ...inviteRows(invites, profiles).map(
+      ({ invite, state }): RosterEntry => ({ kind: "invited", invite, state }),
+    ),
   ];
 }
 
 /**
- * Invites across all seasons whose person has not signed in. Someone whose
- * email already has a profile has signed in, so an unclaimed invite for them
- * (a re-import into a new season) is not "waiting" and must not be counted.
+ * Invites across all seasons whose person has not completed activation:
+ * waiting, flagged out, or holding an account that is not in that season.
+ * Claimed invites are not pending.
  */
 export function pendingInvites(
   invites: RosterInvite[],
   profiles: Profile[] | undefined,
-): RosterInvite[] {
-  const known = new Set((profiles ?? []).map((p) => emailKey(p.email)));
-  return invites
-    .filter((i) => !i.claimed_user_id && !known.has(emailKey(i.email)))
-    .sort(byParticipation);
+): ClassifiedInvite[] {
+  return inviteRows(
+    invites.filter((i) => !i.claimed_user_id),
+    profiles,
+  );
 }
 
 export type RosterFilters = {
   search: string;
   role: "all" | "mentor" | "mentee" | "volunteer" | "admin";
-  status: "all" | "active" | "setup" | "waiting" | "out";
+  status: "all" | "active" | "setup" | "account" | "waiting" | "out";
   done: "all" | "done" | "todo";
   /** "all", "none" (unassigned) or a group id. */
   group: string;
@@ -157,12 +168,12 @@ export function filterEntries(
       }
     }
 
-    const state = entry.kind === "invited" ? inviteState(entry.invite) : null;
+    const state = entry.kind === "invited" ? entry.state : null;
     // 已激活 covers both finished and unfinished onboarding.
     if (filters.status === "active" && entry.kind !== "member" && state !== "setup") return false;
-    if (filters.status === "setup" && state !== "setup") return false;
-    if (filters.status === "waiting" && state !== "waiting") return false;
-    if (filters.status === "out" && state !== "out") return false;
+    if (filters.status !== "all" && filters.status !== "active" && state !== filters.status) {
+      return false;
+    }
 
     // Completion is about activity records; someone with no profile has none,
     // so the filter only speaks about activated members.

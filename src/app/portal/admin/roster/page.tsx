@@ -446,7 +446,7 @@ export default function RosterPage() {
                 ) : (
                   paged.map((entry) =>
                     entry.kind === "invited" ? (
-                      <InvitedRow key={entry.invite.id} invite={entry.invite} />
+                      <InvitedRow key={entry.invite.id} invite={entry.invite} state={entry.state} />
                     ) : (
                       <MemberRow
                         key={entry.row.profile.id}

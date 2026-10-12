@@ -10,7 +10,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { MentorGroup, RosterInvite } from "@/types/portal";
-import { inviteState, type MemberRowData } from "@/lib/portal/rosterEntries";
+import type { InviteState, MemberRowData } from "@/lib/portal/rosterEntries";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
 import IdentityCell from "@/components/portal/IdentityCell";
 
@@ -156,9 +156,22 @@ export function MemberRow({
 }
 
 /** A person with no profile yet: invited, or activated but not onboarded. */
-export function InvitedRow({ invite }: { invite: RosterInvite }) {
+/** The 状态 chip for a person with no profile in the season. */
+export function InviteStateChip({ state }: { state: InviteState }) {
   const stateCopy = portalCopy.rosterTable.state;
-  const state = inviteState(invite);
+  switch (state) {
+    case "setup":
+      return <Chip size="small" color="info" variant="outlined" label={stateCopy.setup} />;
+    case "account":
+      return <Chip size="small" color="secondary" variant="outlined" label={stateCopy.account} />;
+    case "out":
+      return <Chip size="small" color="default" label={stateCopy.out} />;
+    default:
+      return <Chip size="small" color="warning" variant="outlined" label={stateCopy.waiting} />;
+  }
+}
+
+export function InvitedRow({ invite, state }: { invite: RosterInvite; state: InviteState }) {
 
   return (
     <TableRow hover sx={state === "out" ? dimmedRowSx : undefined}>
@@ -179,13 +192,7 @@ export function InvitedRow({ invite }: { invite: RosterInvite }) {
         </Stack>
       </TableCell>
       <TableCell>
-        {state === "setup" ? (
-          <Chip size="small" color="info" variant="outlined" label={stateCopy.setup} />
-        ) : state === "out" ? (
-          <Chip size="small" color="default" label={stateCopy.out} />
-        ) : (
-          <Chip size="small" color="warning" variant="outlined" label={stateCopy.waiting} />
-        )}
+        <InviteStateChip state={state} />
       </TableCell>
       <TableCell>
         <Dash />

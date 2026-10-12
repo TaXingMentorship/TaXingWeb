@@ -23,9 +23,9 @@ import {
   listRosterInvites,
   setInviteNotParticipating,
 } from "@/lib/portal/store";
-import { pendingInvites } from "@/lib/portal/rosterEntries";
+import { pendingInvites, type ClassifiedInvite } from "@/lib/portal/rosterEntries";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
-import { dimmedRowSx } from "@/components/portal/RosterRows";
+import { dimmedRowSx, InviteStateChip } from "@/components/portal/RosterRows";
 import {
   FilterRow,
   FilterSearch,
@@ -69,9 +69,12 @@ export default function PendingInvites() {
     [cohorts],
   );
 
-  // People who will not take part sink to the bottom: the top of the list is
-  // whoever can still be chased.
-  const pending = React.useMemo(
+  // Classified against the accounts that exist, so this list and the roster
+  // table agree about the same person. Empty until profiles have loaded: before
+  // that, someone who already has an account would flash up as "waiting".
+  // Ordered so the top is whoever can still be chased and flagged-out people
+  // sink to the bottom.
+  const pending = React.useMemo<ClassifiedInvite[]>(
     () => pendingInvites(invites ?? [], profiles),
     [invites, profiles],
   );
@@ -81,17 +84,17 @@ export default function PendingInvites() {
   const [seasonFilter, setSeasonFilter] = React.useState("all");
   const visible = React.useMemo(() => {
     const q = search.trim().toLowerCase();
-    return pending.filter((invite) => {
+    return pending.filter(({ invite, state }) => {
       if (q && !`${invite.full_name ?? ""} ${invite.email}`.toLowerCase().includes(q)) return false;
-      if (statusFilter === "waiting" && invite.not_participating) return false;
-      if (statusFilter === "out" && !invite.not_participating) return false;
+      if (statusFilter !== "all" && state !== statusFilter) return false;
       if (seasonFilter !== "all" && invite.cohort_id !== seasonFilter) return false;
       return true;
     });
   }, [pending, search, statusFilter, seasonFilter]);
   const pagination = usePagination(visible.length, [search, statusFilter, seasonFilter].join("|"));
 
-  const outCount = pending.filter((invite) => invite.not_participating).length;
+  const countOf = (state: ClassifiedInvite["state"]) =>
+    pending.filter((item) => item.state === state).length;
 
   const markMutation = useMutation({
     mutationFn: ({ id, value }: { id: string; value: boolean }) =>
@@ -109,14 +112,14 @@ export default function PendingInvites() {
         {copy.intro}
       </Typography>
 
-      {isLoading ? (
+      {isLoading || !profiles ? (
         <Typography color="text.secondary">{portalCopy.volunteers.loading}</Typography>
       ) : pending.length === 0 ? (
         <Alert severity="success">{copy.empty}</Alert>
       ) : (
         <>
           <Alert severity="info" sx={{ mb: 2 }}>
-            {copy.summary(outCount, pending.length - outCount)}
+            {copy.summary(countOf("out"), countOf("waiting"), countOf("account"))}
           </Alert>
           {markMutation.isError && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => markMutation.reset()}>
@@ -136,6 +139,7 @@ export default function PendingInvites() {
               options={[
                 { value: "all", label: portalCopy.tableFilters.all },
                 { value: "waiting", label: copy.stillExpected },
+                { value: "account", label: copy.accountOnly },
                 { value: "out", label: copy.notParticipating },
               ]}
             />
@@ -166,11 +170,11 @@ export default function PendingInvites() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {pagination.slice(visible).map((invite) => (
+                  {pagination.slice(visible).map(({ invite, state }) => (
                     <TableRow
                       key={invite.id}
                       hover
-                      sx={invite.not_participating ? dimmedRowSx : undefined}
+                      sx={state === "out" ? dimmedRowSx : undefined}
                     >
                       <TableCell sx={{ minWidth: 100, wordBreak: "break-word" }}>
                         {invite.full_name ?? "—"}
@@ -202,11 +206,7 @@ export default function PendingInvites() {
                       </TableCell>
                       <TableCell sx={{ minWidth: 190, whiteSpace: "nowrap" }}>
                         <Stack direction="row" spacing={1} alignItems="center">
-                          {invite.not_participating ? (
-                            <Chip size="small" color="default" label={copy.notParticipating} />
-                          ) : (
-                            <Chip size="small" variant="outlined" label={copy.stillExpected} />
-                          )}
+                          <InviteStateChip state={state} />
                           <Button
                             size="small"
                             disabled={markMutation.isPending}

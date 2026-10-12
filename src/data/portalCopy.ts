@@ -826,8 +826,10 @@ export const portalCopy = {
     mark: "标记不参与",
     unmark: "取消标记",
     markFailed: "更新标记失败，请稍后重试。",
-    summary: (out: number, waiting: number) =>
-      `其中 ${out} 人已标记为不参与本次项目，${waiting} 人仍在等待激活。`,
+    accountOnly: "已有账号 · 未加入本季",
+    summary: (out: number, waiting: number, account: number) =>
+      `其中 ${out} 人已标记为不参与本次项目，${waiting} 人仍在等待激活` +
+      (account > 0 ? `，${account} 人已有账号但没加入对应季度。` : "。"),
     searchPlaceholder: "姓名 / 邮箱",
     statusLabel: "状态",
     allSeasons: "全部季度",
@@ -849,6 +851,7 @@ export const portalCopy = {
       active: "已激活（含待填资料）",
       setup: "已激活 · 待填资料",
       waiting: "已邀请 · 待激活",
+      account: "已有账号 · 未加入本季",
       out: "不参与本次项目",
     },
     roleLabel: "身份",
@@ -866,6 +869,7 @@ export const portalCopy = {
       active: "已激活",
       setup: "已激活 · 待填资料",
       waiting: "待激活",
+      account: "已有账号 · 未加入本季",
       out: "不参与本次项目",
     },
     statusColumn: "状态",
