@@ -17,6 +17,7 @@ import { profileLabels } from "@/data/portalCopy";
 import { canAccessPortalNav, portalNavItems } from "@/data/portalNav";
 import TaskReminderCard from "@/components/portal/TaskReminderCard";
 import BoardReplyCard from "@/components/portal/BoardReplyCard";
+import FavoritesCard from "@/components/portal/FavoritesCard";
 
 export default function PortalHomePage() {
   const { currentUser } = usePortalSession();
@@ -51,6 +52,7 @@ export default function PortalHomePage() {
 
       <TaskReminderCard />
       <BoardReplyCard />
+      <FavoritesCard />
 
       <Grid container spacing={2}>
         {visibleTiles.map((tile) => (

@@ -167,6 +167,32 @@ export async function listProfiles(filter?: {
   return (data ?? []) as Profile[];
 }
 
+/** Ids of the members the signed-in user has bookmarked (RLS: own rows only). */
+export async function listMyFavoriteIds(): Promise<string[]> {
+  const { data, error } = await createClient()
+    .from("profile_favorites")
+    .select("target_id")
+    .order("created_at", { ascending: false });
+  throwQueryError("读取收藏", error);
+  return (data ?? []).map((row) => row.target_id as string);
+}
+
+export async function addFavorite(userId: string, targetId: string): Promise<void> {
+  const { error } = await createClient()
+    .from("profile_favorites")
+    .upsert({ user_id: userId, target_id: targetId }, { onConflict: "user_id,target_id", ignoreDuplicates: true });
+  throwQueryError("收藏成员", error);
+}
+
+export async function removeFavorite(userId: string, targetId: string): Promise<void> {
+  const { error } = await createClient()
+    .from("profile_favorites")
+    .delete()
+    .eq("user_id", userId)
+    .eq("target_id", targetId);
+  throwQueryError("取消收藏", error);
+}
+
 export async function getProfile(id: string): Promise<Profile | null> {
   const { data, error } = await createClient()
     .from("profiles")

@@ -14,6 +14,9 @@ import Autocomplete from "@mui/material/Autocomplete";
 import Stack from "@mui/material/Stack";
 import SearchIcon from "@mui/icons-material/Search";
 import Alert from "@mui/material/Alert";
+import Chip from "@mui/material/Chip";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import type { ParticipantRole, Profile } from "@/types/portal";
 import {
   listCohorts,
@@ -28,10 +31,11 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import ProfileDialog from "@/components/portal/ProfileDialog";
 import DirectoryCard from "@/components/portal/DirectoryCard";
 import { mentorGroupColors } from "@/data/mentorGroupColors";
-import { matchesGroupFilter, matchesSearch } from "@/lib/portal/directoryFilters";
+import { matchesGroupFilter, matchesSearch, visibleToMember } from "@/lib/portal/directoryFilters";
 import { portalCopy } from "@/data/portalCopy";
 import ExportMentorsButton from "@/components/portal/ExportMentorsButton";
 import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
+import { useFavorites } from "@/components/portal/useFavorites";
 
 export default function DirectoryPage() {
   const { currentUser } = usePortalSession();
@@ -40,6 +44,8 @@ export default function DirectoryPage() {
   const [search, setSearch] = React.useState("");
   const [interests, setInterests] = React.useState<string[]>([]);
   const [selected, setSelected] = React.useState<Profile | null>(null);
+  const [onlyFavorites, setOnlyFavorites] = React.useState(false);
+  const { ids: favoriteIds } = useFavorites();
 
   const { data: profiles, isLoading } = useQuery({
     queryKey: ["portal", "profiles"],
@@ -158,17 +164,19 @@ export default function DirectoryPage() {
         ? profiles.filter((profile) => profile.cohort_ids.includes(cohortId))
         : [];
     }
-    return profiles.filter(
-      (p) =>
-        p.visible &&
-        p.cohort_ids.some((c) => currentUser.cohort_ids.includes(c)),
-    );
+    return profiles.filter((p) => visibleToMember(p, currentUser.cohort_ids));
   }, [profiles, currentUser, cohortId]);
 
   const allInterests = React.useMemo(
     () => Array.from(new Set(visible.flatMap((p) => p.interests))).sort(),
     [visible],
   );
+
+  const favoriteSet = React.useMemo(() => new Set(favoriteIds), [favoriteIds]);
+  // Bookmarks in the tab on screen, among the people the directory shows.
+  const favoriteCount = visible.filter(
+    (p) => p.participant_role === tab && favoriteSet.has(p.id),
+  ).length;
 
   const filtered = React.useMemo(() => {
     return visible
@@ -181,12 +189,13 @@ export default function DirectoryPage() {
       .filter((p) =>
         tab === "mentor" ? matchesGroupFilter(groupFilter, groupIdOf.get(p.id)) : true,
       )
+      .filter((p) => (onlyFavorites && tab !== "volunteer" ? favoriteSet.has(p.id) : true))
       .filter((p) =>
         interests.length
           ? interests.every((i) => p.interests.includes(i))
           : true,
       );
-  }, [visible, tab, search, interests, isVolunteer, groupOf, groupIdOf, groupFilter]);
+  }, [visible, tab, search, interests, isVolunteer, groupOf, groupIdOf, groupFilter, onlyFavorites, favoriteSet]);
 
   // How many of the mentors on screen sit in each group, for the dropdown.
   const groupCounts = React.useMemo(() => {
@@ -307,6 +316,19 @@ export default function DirectoryPage() {
         />
       </Stack>
 
+      {tab !== "volunteer" && (
+        <Chip
+          clickable
+          icon={onlyFavorites ? <FavoriteIcon /> : <FavoriteBorderIcon />}
+          label={portalCopy.favorites.onlyFavorites(favoriteCount)}
+          color={onlyFavorites ? "error" : "default"}
+          variant={onlyFavorites ? "filled" : "outlined"}
+          onClick={() => setOnlyFavorites((value) => !value)}
+          aria-pressed={onlyFavorites}
+          sx={{ mb: 2 }}
+        />
+      )}
+
       {tab === "mentor" && canExport && (
         <ExportMentorsButton
           mentors={exportable}
@@ -318,7 +340,11 @@ export default function DirectoryPage() {
       {isLoading ? (
         <Typography color="text.secondary">加载中…</Typography>
       ) : filtered.length === 0 ? (
-        <Alert severity="info">没有符合条件的成员。</Alert>
+        <Alert severity="info">
+          {onlyFavorites && tab !== "volunteer" && favoriteCount === 0
+            ? portalCopy.favorites.noneInTab
+            : "没有符合条件的成员。"}
+        </Alert>
       ) : (
         tab === "volunteer" ? (
           <VolunteerDirectory
