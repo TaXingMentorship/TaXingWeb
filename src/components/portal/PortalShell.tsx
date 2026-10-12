@@ -34,6 +34,10 @@ import {
   useMyNameChanges,
   usePendingNameChanges,
 } from "@/components/portal/useNameChanges";
+import {
+  useMyMentorGroupChanges,
+  usePendingMentorGroupChanges,
+} from "@/components/portal/useMentorGroupChanges";
 
 const DRAWER_WIDTH = 248;
 
@@ -48,6 +52,9 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   // with a decision they haven't seen yet.
   const { requests: pendingNameChanges } = usePendingNameChanges();
   const { unseen: unseenNameChanges } = useMyNameChanges();
+  // Same for answer-group requests.
+  const { requests: pendingGroupChanges } = usePendingMentorGroupChanges();
+  const { unseen: unseenGroupChanges } = useMyMentorGroupChanges();
 
   if (
     pathname === "/portal/login" ||
@@ -126,14 +133,15 @@ export default function PortalShell({ children }: { children: React.ReactNode })
                   <Badge color="secondary" badgeContent={unreadComments} sx={{ mr: 1.5 }} />
                 )}
                 {item.path === "/portal/admin/roster" &&
-                  pendingNameChanges.length > 0 && (
+                  pendingNameChanges.length + pendingGroupChanges.length > 0 && (
                     <Badge
                       color="error"
-                      badgeContent={pendingNameChanges.length}
+                      badgeContent={pendingNameChanges.length + pendingGroupChanges.length}
                       sx={{ mr: 1.5 }}
                     />
                   )}
-                {item.path === "/portal/me" && unseenNameChanges.length > 0 && (
+                {item.path === "/portal/me" &&
+                  unseenNameChanges.length + unseenGroupChanges.length > 0 && (
                   <Badge color="error" variant="dot" sx={{ mr: 1.5 }} />
                 )}
               </ListItemButton>
@@ -215,7 +223,9 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         </Drawer>
       </Box>
 
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 4 }, maxWidth: "100%" }}>
+      {/* minWidth 0: a flex item will not shrink below its content otherwise, so a
+          wide table pushed the whole page past the viewport. */}
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, p: { xs: 2, md: 4 }, maxWidth: "100%" }}>
         {loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
             <CircularProgress />

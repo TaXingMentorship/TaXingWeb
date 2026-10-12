@@ -31,6 +31,7 @@ import { profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import MyVolunteerSection from "@/components/portal/MyVolunteerSection";
 import NameChangeField from "@/components/portal/NameChangeField";
+import MentorGroupField from "@/components/portal/MentorGroupField";
 import { useCompleteTasksLinkingTo } from "@/components/portal/useMyTasks";
 
 const interestSuggestions = [
@@ -218,6 +219,7 @@ export default function MyProfilePage() {
                 name={form.full_name ?? ""}
                 onNameChange={(value) => set("full_name", value)}
               />
+              <MentorGroupField />
               <TextField
                 label="微信号"
                 value={form.wechat_number ?? ""}

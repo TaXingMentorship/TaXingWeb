@@ -13,6 +13,7 @@ import type {
   BoardNoticeKind,
   Match,
   MentorGroup,
+  MentorGroupChangeRequest,
   MentorGroupMember,
   ParticipationRecord,
   ParticipantRole,
@@ -703,6 +704,17 @@ export async function listRosterInvites(
   const { data, error } = await query.order("invited_at", { ascending: false });
   throwQueryError("读取邀请名单", error);
   return (data ?? []) as RosterInvite[];
+}
+
+export async function setInviteNotParticipating(
+  id: string,
+  notParticipating: boolean,
+): Promise<void> {
+  const { error } = await createClient()
+    .from("roster_invites")
+    .update({ not_participating: notParticipating })
+    .eq("id", id);
+  throwQueryError("更新邀请状态", error);
 }
 
 // --- Matching --------------------------------------------------------------
@@ -1525,4 +1537,98 @@ export async function reviewNameChange(input: {
     p_note: input.note ?? null,
   });
   throwNameChangeError("审核", error);
+}
+
+// ---------------------------------------------------------------------------
+// Mentor answer-group change requests (migration 0034)
+// ---------------------------------------------------------------------------
+
+const mentorGroupChangeErrors: Record<string, string> = {
+  NOT_A_MENTOR: "只有本季的 mentor 可以申请调整答疑组。",
+  GROUP_NOT_FOUND: "找不到这个答疑组，请刷新页面后重试。",
+  REQUESTER_NOT_MENTOR: "申请人已不是本季的 mentor，无法通过。请拒绝并说明原因。",
+  GROUP_UNCHANGED: "你已经在这个答疑组里了。",
+  REASON_REQUIRED: "请填写申请理由（最多 500 字）。",
+  REQUEST_ALREADY_PENDING: "你已有一条待审核的申请，请先等待结果或撤回。",
+  REQUEST_ALREADY_REVIEWED: "这条申请已被处理，请刷新页面。",
+  REQUEST_NOT_FOUND: "找不到这条申请，可能已被撤回。",
+  REJECTION_NOTE_REQUIRED: "拒绝时请填写备注，方便申请人了解原因。",
+  ADMIN_ONLY: "只有负责人可以审核。",
+};
+
+function throwMentorGroupChangeError(
+  operation: string,
+  error: SupabaseError | null,
+): void {
+  if (!error) return;
+  const code = Object.keys(mentorGroupChangeErrors).find((key) =>
+    error.message.includes(key),
+  );
+  throw new Error(
+    code ? mentorGroupChangeErrors[code] : `${operation}失败：${error.message}`,
+  );
+}
+
+/** The signed-in mentor's own requests, newest first. */
+export async function listMyMentorGroupChanges(
+  profileId: string,
+): Promise<MentorGroupChangeRequest[]> {
+  const { data, error } = await createClient()
+    .from("mentor_group_change_requests")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false });
+  throwQueryError("读取答疑组调整申请", error);
+  return (data ?? []) as MentorGroupChangeRequest[];
+}
+
+/** Admin view: every request still waiting, oldest first. */
+export async function listPendingMentorGroupChanges(): Promise<
+  MentorGroupChangeRequest[]
+> {
+  const { data, error } = await createClient()
+    .from("mentor_group_change_requests")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+  throwQueryError("读取答疑组调整申请", error);
+  return (data ?? []) as MentorGroupChangeRequest[];
+}
+
+export async function requestMentorGroupChange(input: {
+  cohortId: string;
+  toGroupId: string;
+  reason: string;
+}): Promise<void> {
+  const { error } = await createClient().rpc("request_mentor_group_change", {
+    p_cohort_id: input.cohortId,
+    p_to_group_id: input.toGroupId,
+    p_reason: input.reason,
+  });
+  throwMentorGroupChangeError("提交申请", error);
+}
+
+export async function withdrawMentorGroupChange(cohortId: string): Promise<void> {
+  const { error } = await createClient().rpc("withdraw_mentor_group_change", {
+    p_cohort_id: cohortId,
+  });
+  throwMentorGroupChangeError("撤回申请", error);
+}
+
+export async function markMentorGroupChangesSeen(): Promise<void> {
+  const { error } = await createClient().rpc("mark_mentor_group_changes_seen");
+  throwMentorGroupChangeError("更新状态", error);
+}
+
+export async function reviewMentorGroupChange(input: {
+  id: string;
+  approve: boolean;
+  note?: string;
+}): Promise<void> {
+  const { error } = await createClient().rpc("review_mentor_group_change", {
+    p_request_id: input.id,
+    p_approve: input.approve,
+    p_note: input.note ?? null,
+  });
+  throwMentorGroupChangeError("审核", error);
 }

@@ -135,6 +135,8 @@ Mentor↔mentee `matches` are admin-uploaded. Mentors may log sessions only for 
 
 `profiles.full_name` (shown as 「昵称」) is the imported roster name and is locked for everyone but admins (migration `0021`): the `protect_profile_privileges` trigger raises `PROFILE_NAME_LOCKED`, and `claim_roster_invite` takes the name from the invite rather than the form. A member asks for a change from 我的资料 (`request_name_change`, reason required); an admin approves or rejects it from the card at the top of 成员名单 (`review_name_change`; a rejection needs a note). `name_change_requests` has no write policies — every write is one of those functions, plus `withdraw_name_change` and `mark_name_changes_seen`. The sidebar shows a count on 成员名单 for admins and a dot on 我的资料 for a requester with an unseen decision. `NameChangeField` follows the persona (a display lens), while the lock itself follows the real account.
 
+A mentor's answer group (`mentor_group_members`, 0028) is shown read-only on 我的资料 by `MentorGroupField`, one line per season that has groups. It is locked by the table's admin-only write policy, not by the UI. The mentor asks for a move with `request_mentor_group_change` (target group and reason required, one open request per season); an admin decides from `MentorGroupChangeReviewCard` under the nickname card on 成员名单 (`review_mentor_group_change`; approval upserts the membership in the same transaction, a rejection needs a note). `mentor_group_change_requests` (0034) has no write policies — every write is one of those functions, plus `withdraw_mentor_group_change` and `mark_mentor_group_changes_seen`. The sidebar counts both kinds of request for admins and shows one shared dot on 我的资料.
+
 `src/types/portal.ts` mirrors the database row shapes and is the contract between migrations, `store.ts` and the UI — change it in step with the migration.
 
 ---
@@ -347,15 +349,34 @@ read-only.
 ### Seasons reach the account
 
 `volunteer_seasons` is the roster's record of participation, but 成员名单 and the
-directory read `profiles.cohort_ids`, which `claim_roster_invite` writes once, at
-first login, from the invites that exist then. Migration `0025`
-(`sync_volunteer_access`) keeps the two in step: every `volunteer_seasons` row
+directory read `profiles.cohort_ids`. `claim_roster_invite` writes it at first
+login, from the invites that exist then; after that two things keep it current.
+Migration `0035` extends the `0018` trigger (`backfill_roster_invite_claim`): when
+a new invite is claimed by an account that already exists — a returning mentor
+or mentee re-imported into a new season — the invite's season is added to that
+account, so an import now reaches the account for everyone, not only volunteers.
+It adds the season only: the account keeps its single `participant_role`, so a
+volunteer imported as a mentee gets the season but not the mentee identity
+(成员名单 shows that person as 「已有账号 · 身份不符」, see below). Migration `0025`
+(`sync_volunteer_access`) does the same for volunteers: every `volunteer_seasons` row
 guarantees a `roster_invites` row for that season and — if the volunteer has an
 account — a `cohort_ids` entry. It also fires when a volunteer gains an email or
 an account link, carrying over seasons recorded earlier. **Additive only:**
 removing a season from the roster never removes it from the account, because
 membership grants bulletin access. A volunteer with no email and no account has
-nowhere to carry a season and is skipped.
+nowhere to carry a season and is skipped. Both skip the write when a non-admin is
+acting, because `protect_profile_privileges` forbids a non-admin changing
+`cohort_ids`; imports run server-side or as an admin.
+
+成员名单 and 已邀请、待激活 classify an invite against the accounts that exist with
+one function, `classifyInvites` (`lib/portal/rosterEntries.ts`), so they cannot
+disagree about a person: 待激活 (no account), 已激活 · 待填资料 (claimed, no profile
+yet), 已有账号 · 不在本季名单 (account does not list the season — what an import
+produced before `0035`), 已有账号 · 身份不符 (account lists the season but lacks the
+mentor / mentee identity the invite carries), 不参与本次项目 (admin flag,
+`roster_invites.not_participating`, `0033`). A volunteer-only invite is satisfied
+by the season alone; a mentor / mentee invite also needs the account to have a
+participant role.
 
 Unlinking an email-matched volunteer is a no-op: the trigger relinks them
 immediately, and correctly — the emails match. Unlink is only meaningful for a
