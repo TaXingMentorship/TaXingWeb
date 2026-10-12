@@ -407,7 +407,7 @@ export const portalCopy = {
     scopeHint: (count: number, season: string) =>
       `导出 ${season} 当前筛选出的 ${count} 位导师。`,
     failed: "导出失败，请稍后重试。",
-    noPopup: "无法打开打印窗口，请检查浏览器设置后重试。",
+    noPopup: "浏览器拦截了新标签页，请允许本站弹出窗口后重试。",
     title: (season: string) => `${season} 导师信息`,
     footer: (date: string) => `导出日期：${date} · 仅限本届 mentee 内部使用`,
     mentorCount: (count: number) => `共 ${count} 位导师`,

@@ -20,7 +20,8 @@ import {
   downloadTextFile,
   loadAvatars,
   localDateStamp,
-  printHtml,
+  openPrintTab,
+  writeAndPrint,
 } from "@/lib/portal/exportBrowser";
 import { portalCopy } from "@/data/portalCopy";
 
@@ -47,6 +48,13 @@ export default function ExportMentorsButton({
   const run = async (kind: "pdf" | "csv") => {
     setAnchor(null);
     setError(null);
+    // The printable page opens in its own tab, which must be opened right here,
+    // before anything is awaited (see openPrintTab).
+    const tab = kind === "pdf" ? openPrintTab(copy.preparing) : null;
+    if (kind === "pdf" && !tab) {
+      setError(copy.noPopup);
+      return;
+    }
     setBusy(true);
     try {
       const exportedOn = localDateStamp();
@@ -64,9 +72,10 @@ export default function ExportMentorsButton({
           "text/csv;charset=utf-8",
         );
       } else {
-        await printHtml(buildMentorsHtml(entries, { season, exportedOn, copy }));
+        await writeAndPrint(tab!, buildMentorsHtml(entries, { season, exportedOn, copy }));
       }
     } catch {
+      tab?.close();
       setError(copy.failed);
     } finally {
       setBusy(false);

@@ -77,43 +77,38 @@ export function downloadTextFile(name: string, content: string, mime: string): v
 }
 
 /**
- * Open the browser's print dialog on a document, from a hidden frame. A frame
- * rather than a new window: avatars are fetched first, so by the time we print
- * the click's user activation is gone and a popup would be blocked. The person
- * chooses 「另存为 PDF」 there; printing to PDF embeds the fonts it used.
+ * Open the tab the printable page will appear in. It has to be opened here,
+ * synchronously, from the click: avatars are fetched afterwards, and by then
+ * the click's user activation is gone and a popup would be blocked. Returns
+ * null when the browser blocks it. The tab shows a short note until the page is
+ * written into it.
  */
-export function printHtml(html: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    Object.assign(frame.style, {
-      position: "fixed",
-      right: "0",
-      bottom: "0",
-      width: "1px",
-      height: "1px",
-      border: "0",
-      opacity: "0",
-      pointerEvents: "none",
-    });
-    const cleanup = () => frame.remove();
-    frame.onload = () => {
-      const target = frame.contentWindow;
-      if (!target) {
-        cleanup();
-        reject(new Error("no print window"));
-        return;
-      }
-      target.addEventListener("afterprint", cleanup);
-      // Some browsers never fire afterprint for a frame; do not leak it.
-      setTimeout(cleanup, 10 * 60 * 1000);
-      target.focus();
-      target.print();
-      resolve();
-    };
-    document.body.appendChild(frame);
-    frame.srcdoc = html;
-  });
+export function openPrintTab(waitingText: string): Window | null {
+  const tab = window.open("", "_blank");
+  if (!tab) return null;
+  tab.document.title = waitingText;
+  tab.document.body.style.cssText = "font:16px system-ui,sans-serif;padding:24px;color:#555";
+  tab.document.body.textContent = waitingText;
+  return tab;
+}
+
+/**
+ * Write the page into the tab, then open the print dialog on it. The person
+ * sees the document first, and chooses 「另存为 PDF」 in the dialog; printing to
+ * PDF embeds the fonts it used. This is a real page in a real tab rather than a
+ * hidden frame: browsers print a tiny or hidden frame as a blank page.
+ */
+export async function writeAndPrint(tab: Window, html: string): Promise<void> {
+  tab.document.open();
+  tab.document.write(html);
+  tab.document.close();
+  // Avatars are data: URLs, but decoding is still asynchronous: print only once
+  // they can be drawn, or they come out blank.
+  await Promise.all(
+    Array.from(tab.document.images).map((image) => image.decode().catch(() => undefined)),
+  );
+  tab.focus();
+  tab.print();
 }
 
 /** Local calendar date as YYYY-MM-DD (not UTC: a late-night export is that day). */
