@@ -17,6 +17,8 @@ import Alert from "@mui/material/Alert";
 import type { ParticipantRole, Profile } from "@/types/portal";
 import {
   listCohorts,
+  listMentorGroupMembers,
+  listMentorGroups,
   listProfiles,
   listVolunteerGroups,
   listVolunteers,
@@ -24,6 +26,7 @@ import {
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import ProfileDialog from "@/components/portal/ProfileDialog";
 import DirectoryCard from "@/components/portal/DirectoryCard";
+import { mentorGroupColors } from "@/data/mentorGroupColors";
 import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
 
 export default function DirectoryPage() {
@@ -94,6 +97,29 @@ export default function DirectoryPage() {
   const isVolunteer = React.useCallback(
     (profile: Profile) => seasonVolunteerIds.has(profile.id),
     [seasonVolunteerIds],
+  );
+
+  // A mentor's answer group belongs to one season: the one the volunteer tab is
+  // showing (an admin's picked project, otherwise the member's newest season).
+  const { data: mentorGroups } = useQuery({
+    queryKey: ["portal", "mentorGroups", volunteerCohortId],
+    queryFn: () => listMentorGroups({ cohortId: volunteerCohortId }),
+    enabled: Boolean(volunteerCohortId),
+  });
+  const { data: mentorGroupMembers } = useQuery({
+    queryKey: ["portal", "mentorGroupMembers", volunteerCohortId],
+    queryFn: () => listMentorGroupMembers({ cohortId: volunteerCohortId }),
+    enabled: Boolean(volunteerCohortId),
+  });
+  const groupColors = React.useMemo(() => mentorGroupColors(mentorGroups ?? []), [mentorGroups]);
+  const groupOf = React.useCallback(
+    (profile: Profile) => {
+      const groupId = mentorGroupMembers?.find((m) => m.profile_id === profile.id)?.group_id;
+      const group = mentorGroups?.find((g) => g.id === groupId);
+      const color = groupId ? groupColors.get(groupId) : undefined;
+      return group && color ? { name: group.name, color } : null;
+    },
+    [mentorGroupMembers, mentorGroups, groupColors],
   );
 
   const visible = React.useMemo(() => {
@@ -211,14 +237,22 @@ export default function DirectoryPage() {
           <Grid container spacing={2}>
             {filtered.map((p) => (
               <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                <DirectoryCard profile={p} onSelect={setSelected} />
+                <DirectoryCard
+                  profile={p}
+                  onSelect={setSelected}
+                  group={p.participant_role === "mentor" ? groupOf(p) : null}
+                />
               </Grid>
             ))}
           </Grid>
         )
       )}
 
-      <ProfileDialog profile={selected} onClose={() => setSelected(null)} />
+      <ProfileDialog
+        profile={selected}
+        onClose={() => setSelected(null)}
+        groupName={selected?.participant_role === "mentor" ? groupOf(selected)?.name : null}
+      />
     </Box>
   );
 }
