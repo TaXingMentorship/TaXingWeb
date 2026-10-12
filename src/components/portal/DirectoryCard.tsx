@@ -52,7 +52,7 @@ export default function DirectoryCard({
         <CardContent>
           <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5 }}>
             <Avatar src={profile.avatar_url ?? undefined} sx={{ width: 52, height: 52 }} />
-            <Box sx={{ minWidth: 0 }}>
+            <Box>
               <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
                 {profile.full_name}
               </Typography>
@@ -77,22 +77,6 @@ export default function DirectoryCard({
                       <Chip key={label} size="small" label={label} color="secondary" variant="outlined" />
                     ))}
               </Stack>
-              {group && (
-                <Tooltip title={portalCopy.board.groupChip(group.name)} placement="bottom-start">
-                  <Chip
-                    size="small"
-                    aria-label={portalCopy.board.groupChip(group.name)}
-                    label={<GroupLabel name={group.name} />}
-                    sx={{
-                      mt: 0.5,
-                      maxWidth: "100%",
-                      bgcolor: group.color.bg,
-                      color: group.color.text,
-                      border: `1.5px solid ${group.color.dot}`,
-                    }}
-                  />
-                </Tooltip>
-              )}
             </Box>
           </Stack>
           <Typography
@@ -113,6 +97,22 @@ export default function DirectoryCard({
               <Chip key={i} size="small" label={i} />
             ))}
           </Stack>
+          {group && (
+            <Tooltip title={portalCopy.board.groupChip(group.name)} placement="bottom-start">
+              <Chip
+                size="small"
+                aria-label={portalCopy.board.groupChip(group.name)}
+                label={<GroupLabel name={group.name} />}
+                sx={{
+                  mt: 1,
+                  maxWidth: "100%",
+                  bgcolor: group.color.bg,
+                  color: group.color.text,
+                  border: `1.5px solid ${group.color.dot}`,
+                }}
+              />
+            </Tooltip>
+          )}
         </CardContent>
       </CardActionArea>
     </Card>
@@ -130,6 +130,9 @@ function GroupLabel({ name }: { name: string }) {
   const tail = match ? match[2].trim() : "";
   return (
     <Box component="span" sx={{ display: "flex", minWidth: 0 }}>
+      <Box component="span" sx={{ flex: "none", pr: 0.5 }}>
+        {portalCopy.mentorGroups.columnLabel} ·
+      </Box>
       <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {head}
       </Box>
