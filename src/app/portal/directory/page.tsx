@@ -23,12 +23,14 @@ import {
   listVolunteerGroups,
   listVolunteers,
 } from "@/lib/portal/store";
+import { canExportMentors } from "@/lib/portal/exportMentors";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import ProfileDialog from "@/components/portal/ProfileDialog";
 import DirectoryCard from "@/components/portal/DirectoryCard";
 import { mentorGroupColors } from "@/data/mentorGroupColors";
 import { matchesGroupFilter, matchesSearch } from "@/lib/portal/directoryFilters";
 import { portalCopy } from "@/data/portalCopy";
+import ExportMentorsButton from "@/components/portal/ExportMentorsButton";
 import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
 
 export default function DirectoryPage() {
@@ -101,6 +103,16 @@ export default function DirectoryPage() {
     [seasonVolunteerIds],
   );
 
+  /**
+   * 「导出」 is for admins and the volunteers of the season shown. The user's own
+   * id is looked up directly: their profile need not be among `visible`.
+   */
+  const canExport = canExportMentors({
+    isAdmin: Boolean(currentUser?.is_admin),
+    userId: currentUser?.id,
+    seasonVolunteerIds,
+  });
+
   // A mentor's answer group belongs to one season: the one the volunteer tab is
   // showing (an admin's picked project, otherwise the member's newest season).
   const { data: mentorGroups } = useQuery({
@@ -126,6 +138,12 @@ export default function DirectoryPage() {
       return group && color ? { name: group.name, color } : null;
     },
     [groupIdOf, mentorGroups, groupColors],
+  );
+  // The export names the group but does not need its colour.
+  const groupNameOf = React.useCallback(
+    (profileId: string) =>
+      mentorGroups?.find((g) => g.id === groupIdOf.get(profileId))?.name ?? null,
+    [groupIdOf, mentorGroups],
   );
 
   // The answer-group filter belongs to the season on screen, so a different
@@ -184,6 +202,17 @@ export default function DirectoryPage() {
     (p) => p.participant_role === "mentor" && !groupIdOf.has(p.id),
   ).length;
   const filterCopy = portalCopy.directoryFilters;
+
+  // What gets exported: the mentors the filters show, within the one season the
+  // export is for (an admin's picked project, a volunteer's own season).
+  const exportable = React.useMemo(
+    () =>
+      tab === "mentor" && volunteerCohortId
+        ? filtered.filter((p) => p.cohort_ids.includes(volunteerCohortId))
+        : [],
+    [tab, filtered, volunteerCohortId],
+  );
+  const seasonName = cohorts?.find((c) => c.id === volunteerCohortId)?.name ?? "";
 
   return (
     <Box>
@@ -277,6 +306,14 @@ export default function DirectoryPage() {
           )}
         />
       </Stack>
+
+      {tab === "mentor" && canExport && (
+        <ExportMentorsButton
+          mentors={exportable}
+          groupNameOf={groupNameOf}
+          season={seasonName}
+        />
+      )}
 
       {isLoading ? (
         <Typography color="text.secondary">加载中…</Typography>

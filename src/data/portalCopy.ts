@@ -398,6 +398,34 @@ export const portalCopy = {
     allGroups: "全部答疑组",
     groupOption: (name: string, count: number) => `${name}（${count}）`,
   },
+  /** 目录页「导出导师信息」: an offline copy of the mentors for mentees without outside access. */
+  directoryExport: {
+    button: "导出",
+    menuPdf: "导出 PDF",
+    menuCsv: "导出 CSV",
+    preparing: "正在准备…",
+    scopeHint: (count: number, season: string) =>
+      `导出 ${season} 当前筛选出的 ${count} 位导师。`,
+    failed: "导出失败，请稍后重试。",
+    noPopup: "无法打开打印窗口，请检查浏览器设置后重试。",
+    title: (season: string) => `${season} 导师信息`,
+    footer: (date: string) => `导出日期：${date} · 仅限本届 mentee 内部使用`,
+    mentorCount: (count: number) => `共 ${count} 位导师`,
+    /** One label per ProfileDialog field; also the CSV column headers. */
+    fields: {
+      name: "姓名",
+      field: "领域",
+      bio: "简介",
+      background: "学术经历 / 行业经历",
+      yearsExperience: "工作年限",
+      menteeCapacity: "可以帮助的 mentee 数量",
+      menteeExpectations: "对 mentee 的期望",
+      topics: "擅长与不擅长的话题",
+      interests: "兴趣方向",
+      group: "答疑组",
+      linkedin: "LinkedIn",
+    },
+  },
   board: {
     title: "留言板",
     listSubtitle: "选择下方的留言板，浏览并发布你的留言。",
