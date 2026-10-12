@@ -8,9 +8,6 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
-import TablePagination from "@mui/material/TablePagination";
 import Chip from "@mui/material/Chip";
 import Link from "@mui/material/Link";
 import Table from "@mui/material/Table";
@@ -20,8 +17,22 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type { Cohort } from "@/types/portal";
-import { listCohorts, listRosterInvites, setInviteNotParticipating } from "@/lib/portal/store";
+import {
+  listCohorts,
+  listProfiles,
+  listRosterInvites,
+  setInviteNotParticipating,
+} from "@/lib/portal/store";
+import { pendingInvites } from "@/lib/portal/rosterEntries";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
+import { dimmedRowSx } from "@/components/portal/RosterRows";
+import {
+  FilterRow,
+  FilterSearch,
+  FilterSelect,
+  TablePager,
+  usePagination,
+} from "@/components/portal/TableFilters";
 
 /**
  * People who were invited but have not signed in yet.
@@ -44,6 +55,10 @@ export default function PendingInvites() {
     queryKey: ["portal", "rosterInvites", "all"],
     queryFn: () => listRosterInvites(),
   });
+  const { data: profiles } = useQuery({
+    queryKey: ["portal", "profiles"],
+    queryFn: () => listProfiles(),
+  });
   const { data: cohorts } = useQuery({
     queryKey: ["portal", "cohorts"],
     queryFn: listCohorts,
@@ -57,21 +72,13 @@ export default function PendingInvites() {
   // People who will not take part sink to the bottom: the top of the list is
   // whoever can still be chased.
   const pending = React.useMemo(
-    () =>
-      (invites ?? [])
-        .filter((invite) => !invite.claimed_user_id)
-        .sort((a, b) => Number(a.not_participating) - Number(b.not_participating)),
-    [invites],
+    () => pendingInvites(invites ?? [], profiles),
+    [invites, profiles],
   );
+
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [seasonFilter, setSeasonFilter] = React.useState("all");
-  const [page, setPage] = React.useState(0);
-  const [rowsPerPage, setRowsPerPage] = React.useState(25);
-  React.useEffect(() => {
-    setPage(0);
-  }, [search, statusFilter, seasonFilter, rowsPerPage]);
-
   const visible = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     return pending.filter((invite) => {
@@ -82,7 +89,7 @@ export default function PendingInvites() {
       return true;
     });
   }, [pending, search, statusFilter, seasonFilter]);
-  const pagedInvites = visible.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  const pagination = usePagination(visible.length, [search, statusFilter, seasonFilter].join("|"));
 
   const outCount = pending.filter((invite) => invite.not_participating).length;
 
@@ -108,146 +115,119 @@ export default function PendingInvites() {
         <Alert severity="success">{copy.empty}</Alert>
       ) : (
         <>
-        <Alert severity="info" sx={{ mb: 2 }}>
-          {copy.summary(outCount, pending.length - outCount)}
-        </Alert>
-        <Stack
-          direction="row"
-          spacing={1.5}
-          useFlexGap
-          flexWrap="wrap"
-          alignItems="center"
-          sx={{ mb: 2 }}
-        >
-          <TextField
-            size="small"
-            label="搜索"
-            placeholder="姓名 / 邮箱"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            sx={{ flex: "1 1 200px", maxWidth: 280, minWidth: 160 }}
-          />
-          <TextField
-            select
-            size="small"
-            label="状态"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            sx={{ minWidth: 130 }}
-          >
-            <MenuItem value="all">全部</MenuItem>
-            <MenuItem value="waiting">{copy.stillExpected}</MenuItem>
-            <MenuItem value="out">{copy.notParticipating}</MenuItem>
-          </TextField>
-          <TextField
-            select
-            size="small"
-            label={copy.columns.season}
-            value={seasonFilter}
-            onChange={(e) => setSeasonFilter(e.target.value)}
-            sx={{ minWidth: 130 }}
-          >
-            <MenuItem value="all">全部季度</MenuItem>
-            {(cohorts ?? []).map((c: Cohort) => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Typography variant="body2" color="text.secondary">
-            共 {visible.length} 条
-            {visible.length !== pending.length ? `（筛选自 ${pending.length} 条）` : ""}
-          </Typography>
-        </Stack>
-        <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
-          <TableContainer sx={{ overflowX: "auto" }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>{copy.columns.name}</TableCell>
-                  <TableCell>{copy.columns.email}</TableCell>
-                  <TableCell>{copy.columns.identity}</TableCell>
-                  <TableCell>{copy.columns.season}</TableCell>
-                  <TableCell>{copy.columns.invitedAt}</TableCell>
-                  <TableCell>{copy.columns.status}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {pagedInvites.map((invite) => (
-                  <TableRow
-                    key={invite.id}
-                    hover
-                    sx={
-                      invite.not_participating
-                        ? { bgcolor: "action.selected", color: "text.secondary" }
-                        : undefined
-                    }
-                  >
-                    <TableCell sx={{ minWidth: 100, wordBreak: "break-word" }}>
-                      {invite.full_name ?? "—"}
-                    </TableCell>
-                    <TableCell sx={{ minWidth: 180 }}>
-                      <Link
-                        href={`mailto:${invite.email}`}
-                        variant="body2"
-                        sx={{ wordBreak: "break-all" }}
-                      >
-                        {invite.email}
-                      </Link>
-                    </TableCell>
-                    <TableCell sx={{ minWidth: 100 }}>
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                        {profileLabels(invite).map((label) => (
-                          <Chip key={label} size="small" variant="outlined" label={label} />
-                        ))}
-                      </Stack>
-                    </TableCell>
-                    <TableCell sx={{ minWidth: 90 }}>
-                      {cohortName.get(invite.cohort_id) ?? "—"}
-                    </TableCell>
-                    <TableCell
-                      sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}
-                    >
-                      {new Date(invite.invited_at).toLocaleDateString("zh-CN")}
-                    </TableCell>
-                    <TableCell sx={{ minWidth: 190, whiteSpace: "nowrap" }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        {invite.not_participating ? (
-                          <Chip size="small" color="default" label={copy.notParticipating} />
-                        ) : (
-                          <Chip size="small" variant="outlined" label={copy.stillExpected} />
-                        )}
-                        <Button
-                          size="small"
-                          disabled={markMutation.isPending}
-                          onClick={() =>
-                            markMutation.mutate({
-                              id: invite.id,
-                              value: !invite.not_participating,
-                            })
-                          }
-                        >
-                          {invite.not_participating ? copy.unmark : copy.mark}
-                        </Button>
-                      </Stack>
-                    </TableCell>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {copy.summary(outCount, pending.length - outCount)}
+          </Alert>
+          {markMutation.isError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => markMutation.reset()}>
+              {copy.markFailed}
+            </Alert>
+          )}
+          <FilterRow>
+            <FilterSearch
+              value={search}
+              onChange={setSearch}
+              placeholder={copy.searchPlaceholder}
+            />
+            <FilterSelect
+              label={copy.statusLabel}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "all", label: portalCopy.tableFilters.all },
+                { value: "waiting", label: copy.stillExpected },
+                { value: "out", label: copy.notParticipating },
+              ]}
+            />
+            <FilterSelect
+              label={copy.columns.season}
+              value={seasonFilter}
+              onChange={setSeasonFilter}
+              options={[
+                { value: "all", label: copy.allSeasons },
+                ...(cohorts ?? []).map((c: Cohort) => ({ value: c.id, label: c.name })),
+              ]}
+            />
+            <Typography variant="body2" color="text.secondary">
+              {copy.total(visible.length, pending.length)}
+            </Typography>
+          </FilterRow>
+          <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
+            <TableContainer sx={{ overflowX: "auto" }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>{copy.columns.name}</TableCell>
+                    <TableCell>{copy.columns.email}</TableCell>
+                    <TableCell>{copy.columns.identity}</TableCell>
+                    <TableCell>{copy.columns.season}</TableCell>
+                    <TableCell>{copy.columns.invitedAt}</TableCell>
+                    <TableCell>{copy.columns.status}</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <TablePagination
-            component="div"
-            count={visible.length}
-            page={page}
-            onPageChange={(_, next) => setPage(next)}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(e) => setRowsPerPage(Number(e.target.value))}
-            rowsPerPageOptions={[25, 50, 100]}
-            labelRowsPerPage="每页"
-            labelDisplayedRows={({ from, to, count }) => `${from}–${to} / ${count}`}
-          />
-        </Paper>
+                </TableHead>
+                <TableBody>
+                  {pagination.slice(visible).map((invite) => (
+                    <TableRow
+                      key={invite.id}
+                      hover
+                      sx={invite.not_participating ? dimmedRowSx : undefined}
+                    >
+                      <TableCell sx={{ minWidth: 100, wordBreak: "break-word" }}>
+                        {invite.full_name ?? "—"}
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 180 }}>
+                        <Link
+                          href={`mailto:${invite.email}`}
+                          variant="body2"
+                          color="inherit"
+                          sx={{ wordBreak: "break-all" }}
+                        >
+                          {invite.email}
+                        </Link>
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 100 }}>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {profileLabels(invite).map((label) => (
+                            <Chip key={label} size="small" variant="outlined" label={label} />
+                          ))}
+                        </Stack>
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 90 }}>
+                        {cohortName.get(invite.cohort_id) ?? "—"}
+                      </TableCell>
+                      <TableCell
+                        sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {new Date(invite.invited_at).toLocaleDateString("zh-CN")}
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 190, whiteSpace: "nowrap" }}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          {invite.not_participating ? (
+                            <Chip size="small" color="default" label={copy.notParticipating} />
+                          ) : (
+                            <Chip size="small" variant="outlined" label={copy.stillExpected} />
+                          )}
+                          <Button
+                            size="small"
+                            disabled={markMutation.isPending}
+                            onClick={() =>
+                              markMutation.mutate({
+                                id: invite.id,
+                                value: !invite.not_participating,
+                              })
+                            }
+                          >
+                            {invite.not_participating ? copy.unmark : copy.mark}
+                          </Button>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <TablePager pagination={pagination} />
+          </Paper>
         </>
       )}
     </Box>

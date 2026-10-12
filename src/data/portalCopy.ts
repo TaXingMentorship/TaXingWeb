@@ -363,6 +363,7 @@ export const portalCopy = {
     fieldLabel: (season: string) => `答疑组 · ${season}`,
     unassigned: "未分组",
     lockedHint: "答疑组由负责人分配，如需调整请提交申请并写明理由。",
+    previewHint: "你正在预览视角，只有这个季度的 mentor 本人才能提交申请。",
     requestButton: "申请调整",
     dialogTitle: "申请调整答疑组",
     currentLabel: "当前答疑组",
@@ -824,8 +825,61 @@ export const portalCopy = {
     stillExpected: "待激活",
     mark: "标记不参与",
     unmark: "取消标记",
+    markFailed: "更新标记失败，请稍后重试。",
     summary: (out: number, waiting: number) =>
       `其中 ${out} 人已标记为不参与本次项目，${waiting} 人仍在等待激活。`,
+    searchPlaceholder: "姓名 / 邮箱",
+    statusLabel: "状态",
+    allSeasons: "全部季度",
+    total: (shown: number, all: number) =>
+      shown === all ? `共 ${shown} 条` : `共 ${shown} 条（筛选自 ${all} 条）`,
+  },
+  /** Shared by every filterable, paged table. */
+  tableFilters: {
+    searchLabel: "搜索",
+    all: "全部",
+    rowsPerPage: "每页",
+    displayedRows: (from: number, to: number, count: number) =>
+      `${from}–${to} / ${count}`,
+  },
+  rosterTable: {
+    searchPlaceholder: "姓名 / 邮箱 / 微信号 / 备注",
+    statusLabel: "激活状态",
+    statusOptions: {
+      active: "已激活（含待填资料）",
+      setup: "已激活 · 待填资料",
+      waiting: "已邀请 · 待激活",
+      out: "不参与本次项目",
+    },
+    roleLabel: "身份",
+    roleOptions: {
+      all: "全部身份",
+      mentor: "导师",
+      mentee: "学员",
+      volunteer: "志愿者",
+      admin: "负责人",
+    },
+    doneLabel: "完成情况",
+    doneOptions: { done: "已完成", todo: "未完成" },
+    /** The status chip in the 状态 column. */
+    state: {
+      active: "已激活",
+      setup: "已激活 · 待填资料",
+      waiting: "待激活",
+      out: "不参与本次项目",
+    },
+    statusColumn: "状态",
+    total: (shown: number, all: number) =>
+      shown === all ? `共 ${shown} 人` : `共 ${shown} 人（筛选自 ${all} 人）`,
+    emptyCohort: "该项目暂时没有成员。",
+    emptyFiltered: "没有符合筛选条件的成员。",
+  },
+  personPicker: {
+    placeholder: "输入姓名或邮箱搜索",
+    noOptions: "没有匹配的人",
+    clear: "清除",
+    open: "展开",
+    close: "收起",
   },
   persona: {
     label: "当前视角",

@@ -6,6 +6,7 @@ import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { Profile } from "@/types/portal";
+import { portalCopy } from "@/data/portalCopy";
 
 type Person = Pick<Profile, "id" | "full_name" | "email" | "wechat_number">;
 
@@ -34,6 +35,7 @@ export default function PersonAutocomplete({
   disabled?: boolean;
   helperText?: string;
 }) {
+  const copy = portalCopy.personPicker;
   const sorted = React.useMemo(
     () => [...options].sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? "", "zh")),
     [options],
@@ -50,10 +52,10 @@ export default function PersonAutocomplete({
       filterOptions={filter}
       disabled={disabled}
       autoHighlight
-      noOptionsText="没有匹配的人"
-      clearText="清除"
-      openText="展开"
-      closeText="收起"
+      noOptionsText={copy.noOptions}
+      clearText={copy.clear}
+      openText={copy.open}
+      closeText={copy.close}
       fullWidth
       renderOption={(props, p) => {
         const { key, ...rest } = props;
@@ -73,7 +75,7 @@ export default function PersonAutocomplete({
         );
       }}
       renderInput={(params) => (
-        <TextField {...params} label={label} helperText={helperText} placeholder="输入姓名或邮箱搜索" />
+        <TextField {...params} label={label} helperText={helperText} placeholder={copy.placeholder} />
       )}
     />
   );
