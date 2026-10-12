@@ -8,6 +8,7 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
+import PersonAutocomplete from "@/components/portal/PersonAutocomplete";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
@@ -522,36 +523,22 @@ function StaffView({
               </Alert>
             )}
             <Stack spacing={2}>
-              <TextField
-                select
+              <PersonAutocomplete
                 label="导师"
+                options={mentors}
                 value={mentorId}
-                onChange={(e) => setMentorId(e.target.value)}
-                fullWidth
+                onChange={setMentorId}
                 disabled={isMentor}
                 helperText={isMentor ? "导师只能记录自己的辅导场次" : undefined}
-              >
-                {mentors.map((m) => (
-                  <MenuItem key={m.id} value={m.id}>
-                    {m.full_name}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
+              />
+              <PersonAutocomplete
                 label="学员"
+                options={mentees}
                 value={menteeId}
-                onChange={(e) => setMenteeId(e.target.value)}
-                fullWidth
+                onChange={setMenteeId}
                 disabled={mentorBlocked}
                 helperText={isMentor ? "仅显示与你配对的学员" : undefined}
-              >
-                {mentees.map((m) => (
-                  <MenuItem key={m.id} value={m.id}>
-                    {m.full_name}
-                  </MenuItem>
-                ))}
-              </TextField>
+              />
               <TextField
                 select
                 label="类型"
@@ -692,32 +679,18 @@ function EditSessionDialog({
       {draft && (
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              select
+            <PersonAutocomplete
               label="导师"
+              options={mentors}
               value={draft.mentor_id}
-              onChange={(e) => setDraft({ ...draft, mentor_id: e.target.value })}
-              fullWidth
-            >
-              {mentors.map((m) => (
-                <MenuItem key={m.id} value={m.id}>
-                  {m.full_name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              select
+              onChange={(id) => setDraft({ ...draft, mentor_id: id })}
+            />
+            <PersonAutocomplete
               label="学员"
+              options={mentees}
               value={draft.mentee_id}
-              onChange={(e) => setDraft({ ...draft, mentee_id: e.target.value })}
-              fullWidth
-            >
-              {mentees.map((m) => (
-                <MenuItem key={m.id} value={m.id}>
-                  {m.full_name}
-                </MenuItem>
-              ))}
-            </TextField>
+              onChange={(id) => setDraft({ ...draft, mentee_id: id })}
+            />
             <TextField
               select
               label="类型"
