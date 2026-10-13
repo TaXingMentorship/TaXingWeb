@@ -510,8 +510,14 @@ Nav filtering is presentation only. Every page also checks `is_admin` itself, an
 
 - `avatars` — public bucket, 2 MB cap
 - `participation` — private bucket, 5 MB cap, read through short-lived signed URLs
+- `bulletin` — private bucket, up to four source images per post
 
-`src/lib/portal/uploads.ts` holds the size and MIME validation for both. Reuse it rather than calling `supabase.storage` directly.
+`src/lib/portal/uploads.ts` holds the size and MIME validation for all three.
+It converts new avatars to 256 px WebP files and bulletin images to WebP files
+with a 1200 px maximum dimension before upload. UUID object names are immutable,
+so uploads use a one-year cache lifetime; changing an image must create a new
+path rather than overwriting one. Reuse these helpers rather than calling
+`supabase.storage` directly.
 
 ---
 

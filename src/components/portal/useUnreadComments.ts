@@ -11,8 +11,8 @@ export const UNREAD_COMMENTS_KEY = ["portal", "unreadComments"] as const;
  * Comments by others on the signed-in user's own posts that they have not
  * opened yet. Shared by the sidebar badge, the home card and the board so all
  * three agree. Keyed on the real account — like tasks, this is not a persona
- * thing — and re-polled every 10 s while the tab is visible so a reply shows up
- * without a reload.
+ * thing — and re-polled every 5 minutes while the tab is visible so a reply
+ * shows up without a reload without continuously hitting the API.
  */
 export function useUnreadComments() {
   const { realUser } = usePortalSession();
@@ -20,10 +20,11 @@ export function useUnreadComments() {
     queryKey: [...UNREAD_COMMENTS_KEY, realUser?.id],
     queryFn: listMyUnreadComments,
     enabled: Boolean(realUser),
-    // Short, because this is the only way a reply reaches an open page: clients
-    // have no SELECT on the comment tables (0009), so Realtime cannot push them.
-    // react-query pauses it while the tab is hidden.
-    refetchInterval: 10_000,
+    // Clients have no SELECT on the comment tables (0009), so Realtime cannot
+    // push them. Mutations invalidate this query immediately; this interval is
+    // only the background fallback for comments created in another browser.
+    refetchInterval: 300_000,
+    refetchOnWindowFocus: true,
   });
   const posts = React.useMemo(() => query.data ?? [], [query.data]);
   // Memoised: callers use these as hook dependencies.
