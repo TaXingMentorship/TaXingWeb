@@ -80,6 +80,7 @@ import UnreadBar from "@/components/portal/board/UnreadBar";
 import QaSearchResults from "@/components/portal/board/QaSearchResults";
 
 type SortMode = "newest" | "reactions";
+const POSTS_PAGE_SIZE = 20;
 
 function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
   const map = new Map<string, T[]>();
@@ -180,6 +181,7 @@ function BoardPageContent() {
   const [openProfile, setOpenProfile] = React.useState<Profile | null>(null);
   const [filter, setFilter] = React.useState<BulletinCategory | "all">("all");
   const [sort, setSort] = React.useState<SortMode>("newest");
+  const [visiblePostCount, setVisiblePostCount] = React.useState(POSTS_PAGE_SIZE);
 
   // RLS scopes this already: members get their own cohorts, admins get all.
   const { data: cohorts } = useQuery({
@@ -656,6 +658,23 @@ function BoardPageContent() {
       return countOf(b.id) - countOf(a.id);
     });
   }, [posts, filter, sort, reactionsByPost, isQa, groupSel, currentUser?.id, promotedIds]);
+  React.useEffect(() => {
+    setVisiblePostCount(POSTS_PAGE_SIZE);
+  }, [boardId, groupSel, filter, sort, query]);
+  React.useEffect(() => {
+    if (
+      focusPostId &&
+      visiblePosts.findIndex((post) => post.id === focusPostId) >= visiblePostCount
+    ) {
+      setVisiblePostCount(
+        Math.ceil(
+          (visiblePosts.findIndex((post) => post.id === focusPostId) + 1) /
+            POSTS_PAGE_SIZE,
+        ) * POSTS_PAGE_SIZE,
+      );
+    }
+  }, [focusPostId, visiblePosts, visiblePostCount]);
+  const displayedPosts = visiblePosts.slice(0, visiblePostCount);
 
   const postCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1003,7 +1022,7 @@ function BoardPageContent() {
               )}
 
               <PostWall
-                posts={visiblePosts}
+                posts={displayedPosts}
                 board={selectedBoard}
                 commentsByPost={commentsByPost}
                 reactionsByPost={reactionsByPost}
@@ -1030,6 +1049,18 @@ function BoardPageContent() {
                     : undefined
                 }
               />
+              {displayedPosts.length < visiblePosts.length && (
+                <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() =>
+                      setVisiblePostCount((count) => count + POSTS_PAGE_SIZE)
+                    }
+                  >
+                    加载更多（还有 {visiblePosts.length - displayedPosts.length} 条）
+                  </Button>
+                </Box>
+              )}
                     </>
                   )}
                 </Box>

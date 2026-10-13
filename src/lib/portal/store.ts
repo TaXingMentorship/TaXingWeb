@@ -153,13 +153,21 @@ export async function getCohort(id: string): Promise<Cohort | null> {
 export async function listProfiles(filter?: {
   participantRole?: ParticipantRole;
   cohortId?: string;
+  ids?: string[];
 }): Promise<Profile[]> {
-  let query = createClient().from("profiles").select("*");
+  if (filter?.ids?.length === 0) return [];
+
+  let query = createClient().from("profiles").select(
+    "id,participant_role,is_admin,is_volunteer,cohort_ids,full_name,email,wechat_number,bio,field,background,interests,linkedin,avatar_url,visible,years_experience,mentee_capacity,mentee_expectations,topics,help_needed,admin_notes,created_at,updated_at",
+  );
   if (filter?.participantRole) {
     query = query.eq("participant_role", filter.participantRole);
   }
   if (filter?.cohortId) {
     query = query.contains("cohort_ids", [filter.cohortId]);
+  }
+  if (filter?.ids) {
+    query = query.in("id", filter.ids);
   }
 
   const { data, error } = await query.order("created_at", { ascending: true });
@@ -365,7 +373,11 @@ export async function listPosts(filter?: {
   cohortId?: string;
   includeHidden?: boolean;
 }): Promise<BulletinPost[]> {
-  let query = createClient().from("bulletin_posts_readable").select("*");
+  let query = createClient()
+    .from("bulletin_posts_readable")
+    .select(
+      "id,cohort_id,board_id,author_id,category,title,body,is_anonymous,color,pinned,resolved,image_paths,hidden,created_at,edited_at,group_id",
+    );
   if (filter?.boardId) query = query.eq("board_id", filter.boardId);
   if (filter?.cohortId) query = query.eq("cohort_id", filter.cohortId);
   if (!filter?.includeHidden) query = query.eq("hidden", false);
@@ -499,7 +511,9 @@ export async function listComments(filter: {
 
   let query = createClient()
     .from("bulletin_comments_readable")
-    .select("*")
+    .select(
+      "id,post_id,cohort_id,author_id,body,is_anonymous,hidden,created_at,edited_at",
+    )
     .in("post_id", filter.postIds);
   if (!filter.includeHidden) query = query.eq("hidden", false);
 
@@ -537,7 +551,7 @@ export async function listReactions(filter: {
 
   const { data, error } = await createClient()
     .from("bulletin_reactions")
-    .select("*")
+    .select("id,post_id,cohort_id,user_id,emoji,created_at")
     .in("post_id", filter.postIds);
   throwQueryError("读取表情反应", error);
   return (data ?? []) as BulletinReaction[];

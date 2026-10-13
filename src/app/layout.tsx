@@ -12,8 +12,14 @@ interface RootLayoutProps {
   children: React.ReactNode;
 }
 
-// Create a client for React Query
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (

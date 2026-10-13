@@ -32,8 +32,8 @@ export default function FavoritesCard() {
   const [selected, setSelected] = React.useState<Profile | null>(null);
 
   const { data: profiles } = useQuery({
-    queryKey: ["portal", "profiles"],
-    queryFn: () => listProfiles(),
+    queryKey: ["portal", "favoriteProfiles", ids],
+    queryFn: () => listProfiles({ ids }),
     enabled: ids.length > 0,
   });
 

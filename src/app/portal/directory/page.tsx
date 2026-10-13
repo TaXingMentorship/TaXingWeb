@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
+import Button from "@mui/material/Button";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Typography from "@mui/material/Typography";
@@ -37,6 +38,8 @@ import ExportMentorsButton from "@/components/portal/ExportMentorsButton";
 import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
 import { useFavorites } from "@/components/portal/useFavorites";
 
+const DIRECTORY_PAGE_SIZE = 18;
+
 export default function DirectoryPage() {
   const { currentUser } = usePortalSession();
   const [tab, setTab] = React.useState<ParticipantRole | "volunteer">("mentor");
@@ -45,6 +48,7 @@ export default function DirectoryPage() {
   const [interests, setInterests] = React.useState<string[]>([]);
   const [selected, setSelected] = React.useState<Profile | null>(null);
   const [onlyFavorites, setOnlyFavorites] = React.useState(false);
+  const [visibleCount, setVisibleCount] = React.useState(DIRECTORY_PAGE_SIZE);
   const { ids: favoriteIds } = useFavorites();
 
   const { data: profiles, isLoading } = useQuery({
@@ -196,6 +200,10 @@ export default function DirectoryPage() {
           : true,
       );
   }, [visible, tab, search, interests, isVolunteer, groupOf, groupIdOf, groupFilter, onlyFavorites, favoriteSet]);
+  React.useEffect(() => {
+    setVisibleCount(DIRECTORY_PAGE_SIZE);
+  }, [tab, cohortId, search, interests, groupFilter, onlyFavorites]);
+  const displayed = filtered.slice(0, visibleCount);
 
   // How many of the mentors on screen sit in each group, for the dropdown.
   const groupCounts = React.useMemo(() => {
@@ -348,7 +356,7 @@ export default function DirectoryPage() {
       ) : (
         tab === "volunteer" ? (
           <VolunteerDirectory
-            profiles={filtered}
+            profiles={displayed}
             volunteers={volunteers ?? []}
             groups={groups ?? []}
             cohortId={volunteerCohortId}
@@ -356,7 +364,7 @@ export default function DirectoryPage() {
           />
         ) : (
           <Grid container spacing={2}>
-            {filtered.map((p) => (
+            {displayed.map((p) => (
               <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
                 <DirectoryCard
                   profile={p}
@@ -367,6 +375,16 @@ export default function DirectoryPage() {
             ))}
           </Grid>
         )
+      )}
+      {displayed.length < filtered.length && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setVisibleCount((count) => count + DIRECTORY_PAGE_SIZE)}
+          >
+            加载更多（还有 {filtered.length - displayed.length} 人）
+          </Button>
+        </Box>
       )}
 
       <ProfileDialog

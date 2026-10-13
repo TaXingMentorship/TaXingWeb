@@ -24,6 +24,7 @@ import { getProfile, updateProfile } from "@/lib/portal/store";
 import {
   AVATAR_MAX_BYTES,
   IMAGE_ACCEPT,
+  removeReplacedAvatar,
   uploadAvatar,
   validateImageFile,
 } from "@/lib/portal/uploads";
@@ -78,10 +79,26 @@ export default function MyProfilePage() {
   const mutation = useMutation({
     mutationFn: (patch: Parameters<typeof updateProfile>[1]) =>
       updateProfile(userId!, patch),
-    onSuccess: () => {
+    onSuccess: async (updated, patch) => {
       queryClient.invalidateQueries({ queryKey: ["portal", "profile", userId] });
       queryClient.invalidateQueries({ queryKey: ["portal", "profiles"] });
       queryClient.invalidateQueries({ queryKey: ["portal", "currentUser"] });
+      if (
+        patch.avatar_url &&
+        profile?.avatar_url &&
+        patch.avatar_url !== profile.avatar_url
+      ) {
+        try {
+          await removeReplacedAvatar(profile.avatar_url);
+        } catch (cleanupError) {
+          setAvatarError(
+            cleanupError instanceof Error
+              ? `资料已保存，但${cleanupError.message}`
+              : "资料已保存，但旧头像清理失败。",
+          );
+        }
+      }
+      setForm(updated);
       setToast(true);
       completeProfileTasks();
     },
