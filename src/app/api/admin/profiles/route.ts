@@ -55,6 +55,13 @@ export async function PATCH(request: Request) {
     }
   }
 
+  const { data: before, error: beforeError } = await supabase
+    .from("profiles")
+    .select("participant_role, is_admin, is_volunteer")
+    .eq("id", id)
+    .single();
+  if (beforeError) return databaseError("读取成员身份", beforeError.message);
+
   const { data, error } = await supabase
     .from("profiles")
     .update(identity)
@@ -68,16 +75,33 @@ export async function PATCH(request: Request) {
   // invite that still says "mentor" for an account that no longer is one reads
   // as 身份不符 — the person drops out of the table and into 待激活 even though
   // they have long since activated. The admin's edit is the newer intent.
+  //
+  // Only what this edit changed is written: an invite can deliberately differ
+  // from the account elsewhere (a volunteer imported as a mentee is flagged
+  // 身份不符 on purpose), and an unrelated edit must not erase that. A role
+  // change carries the whole identity, because an invite must keep at least
+  // one identity (roster_invites_has_identity).
+  const roleChanged = before.participant_role !== identity.participant_role;
+  const inviteChanges = roleChanged
+    ? identity
+    : {
+        ...(before.is_admin !== identity.is_admin && { is_admin: identity.is_admin }),
+        ...(before.is_volunteer !== identity.is_volunteer && {
+          is_volunteer: identity.is_volunteer,
+        }),
+      };
+  if (Object.keys(inviteChanges).length === 0) return NextResponse.json(data);
+
   const claimed = await supabase
     .from("roster_invites")
-    .update(identity)
+    .update(inviteChanges)
     .eq("claimed_user_id", id);
   if (claimed.error) return databaseError("同步邀请身份", claimed.error.message);
 
   if (data.email) {
     const unclaimed = await supabase
       .from("roster_invites")
-      .update(identity)
+      .update(inviteChanges)
       .is("claimed_user_id", null)
       .ilike("email", data.email);
     if (unclaimed.error) {

@@ -140,14 +140,19 @@ export default function RosterPage() {
   });
 
   const rows = React.useMemo<MemberRowData[]>(() => {
+    // Admin- or volunteer-only accounts belong here too: this table is where
+    // an identity is edited, so an account with no mentor / mentee role must
+    // stay reachable or its identity could never be changed again.
     const members = (profiles ?? []).filter(
-      (p) => p.participant_role !== null && p.cohort_ids.includes(cohortId),
+      (p) =>
+        (p.participant_role !== null || p.is_admin || p.is_volunteer) &&
+        p.cohort_ids.includes(cohortId),
     );
     return members.map((p) => {
       const sessionCount = (sessions ?? []).filter((s) =>
         p.participant_role === "mentor"
           ? s.mentor_id === p.id
-          : s.mentee_id === p.id,
+          : p.participant_role === "mentee" && s.mentee_id === p.id,
       ).length;
       const submitted =
         p.participant_role === "mentee"
@@ -164,7 +169,7 @@ export default function RosterPage() {
       const completedAll =
         p.participant_role === "mentee"
           ? Boolean(submitted) && Boolean(gaveGratitude)
-          : sessionCount > 0;
+          : p.participant_role === "mentor" && sessionCount > 0;
       return { profile: p, sessionCount, submitted, gaveGratitude, completedAll };
     });
   }, [profiles, sessions, participation, cohortId]);
