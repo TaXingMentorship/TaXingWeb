@@ -169,7 +169,9 @@ export default function RosterPage() {
       const completedAll =
         p.participant_role === "mentee"
           ? Boolean(submitted) && Boolean(gaveGratitude)
-          : p.participant_role === "mentor" && sessionCount > 0;
+          : p.participant_role === "mentor"
+            ? sessionCount > 0
+            : null;
       return { profile: p, sessionCount, submitted, gaveGratitude, completedAll };
     });
   }, [profiles, sessions, participation, cohortId]);

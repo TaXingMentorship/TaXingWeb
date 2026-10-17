@@ -129,7 +129,6 @@ export default function PendingInvites() {
               countOf("out"),
               countOf("waiting"),
               countOf("account"),
-              countOf("identity"),
             )}
           </Alert>
           {markMutation.isError && (
@@ -151,7 +150,6 @@ export default function PendingInvites() {
                 { value: "all", label: portalCopy.tableFilters.all },
                 { value: "waiting", label: copy.stillExpected },
                 { value: "account", label: copy.accountOnly },
-                { value: "identity", label: copy.identityMismatch },
                 { value: "out", label: copy.notParticipating },
               ]}
             />
