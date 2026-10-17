@@ -164,8 +164,6 @@ export function InviteStateChip({ state }: { state: InviteState }) {
       return <Chip size="small" color="info" variant="outlined" label={stateCopy.setup} />;
     case "account":
       return <Chip size="small" color="secondary" variant="outlined" label={stateCopy.account} />;
-    case "identity":
-      return <Chip size="small" color="secondary" variant="outlined" label={stateCopy.identity} />;
     case "out":
       return <Chip size="small" color="default" label={stateCopy.out} />;
     default:

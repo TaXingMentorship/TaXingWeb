@@ -8,10 +8,11 @@ export type MemberRowData = {
   sessionCount: number;
   submitted: boolean | null;
   gaveGratitude: boolean | null;
-  completedAll: boolean;
+  /** null when completion does not apply (no mentor / mentee role). */
+  completedAll: boolean | null;
 };
 
-export type InviteState = "setup" | "account" | "identity" | "waiting" | "out";
+export type InviteState = "setup" | "account" | "waiting" | "out";
 
 export type RosterEntry =
   | { kind: "member"; row: MemberRowData }
@@ -22,16 +23,15 @@ export type ClassifiedInvite = { invite: RosterInvite; state: InviteState };
 const emailKey = (email: string | null | undefined) => (email ?? "").trim().toLowerCase();
 
 /**
- * Is the invite's person already listed in the invite's season? The roster
- * table lists mentors and mentees, so for a mentor / mentee invite the account
- * needs a participant role as well as the season. A volunteer-only (or
- * admin-only) invite has no such requirement: those accounts carry the season
- * without a participant role (0025 syncs it), and must not be mistaken for
- * people who were never added.
+ * Is the invite's person already listed in the invite's season? Once an
+ * account exists, the account is the only authority on who someone is: the
+ * invite only carried identity and season into the account at activation, and
+ * is history after that. So only the account's seasons are consulted, never
+ * the invite's participant_role (an admin may have changed the identity on the
+ * web since).
  */
 const isListed = (p: Profile, invite: RosterInvite) =>
-  p.cohort_ids.includes(invite.cohort_id) &&
-  (invite.participant_role === null || p.participant_role !== null);
+  p.cohort_ids.includes(invite.cohort_id);
 
 /**
  * What an invite means, judged against the accounts that exist. Both lists use
@@ -46,11 +46,6 @@ const isListed = (p: Profile, invite: RosterInvite) =>
  *                email matches one) that does not list this season. 0035 stops
  *                imports producing this; the state stays so a person can never
  *                silently fall out of both lists.
- *  - "identity": the account does list the season, but the invite carries a
- *                mentor / mentee identity the account does not have (a
- *                volunteer imported as a mentee). Adding the season does not add
- *                the identity, and the fix for this is not "add to season", so
- *                it is its own state rather than a misleading "not in season".
  *  - "waiting": unclaimed, no account → has not signed in.
  *  - "out":     flagged as not taking part (checked before "account").
  *  - null:      nothing to show: already listed in the season.
@@ -64,9 +59,8 @@ export function classifyInvites(
   const order: Record<InviteState, number> = {
     setup: 0,
     account: 1,
-    identity: 2,
-    waiting: 3,
-    out: 4,
+    waiting: 2,
+    out: 3,
   };
 
   return invites
@@ -85,9 +79,7 @@ export function classifyInvites(
       if (isListed(account, invite)) return [];
       const state: InviteState = invite.not_participating
         ? "out"
-        : account.cohort_ids.includes(invite.cohort_id)
-          ? "identity"
-          : "account";
+        : "account";
       return [{ invite, state }];
     })
     .sort((a, b) => order[a.state] - order[b.state]);
@@ -134,7 +126,7 @@ export function pendingInvites(
 export type RosterFilters = {
   search: string;
   role: "all" | "mentor" | "mentee" | "volunteer" | "admin";
-  status: "all" | "active" | "setup" | "account" | "identity" | "waiting" | "out";
+  status: "all" | "active" | "setup" | "account" | "waiting" | "out";
   done: "all" | "done" | "todo";
   /** "all", "none" (unassigned) or a group id. */
   group: string;
@@ -206,6 +198,8 @@ export function filterEntries(
     // so the filter only speaks about activated members.
     if (filters.done !== "all") {
       if (entry.kind !== "member") return false;
+      // No mentor / mentee role: completion does not apply.
+      if (entry.row.completedAll === null) return false;
       if (filters.done === "done" && !entry.row.completedAll) return false;
       if (filters.done === "todo" && entry.row.completedAll) return false;
     }

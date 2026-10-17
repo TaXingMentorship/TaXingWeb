@@ -868,12 +868,10 @@ export const portalCopy = {
     unmark: "取消标记",
     markFailed: "更新标记失败，请稍后重试。",
     accountOnly: "已有账号 · 不在本季名单",
-    identityMismatch: "已有账号 · 身份不符",
     loadFailed: "读取邀请名单或成员资料失败，请刷新页面重试。",
-    summary: (out: number, waiting: number, account: number, identity: number) =>
+    summary: (out: number, waiting: number, account: number) =>
       `其中 ${out} 人已标记为不参与本次项目，${waiting} 人仍在等待激活` +
       (account > 0 ? `，${account} 人已有账号但不在对应季度的名单里` : "") +
-      (identity > 0 ? `，${identity} 人已有账号但缺少邀请里的导师/学员身份` : "") +
       "。",
     searchPlaceholder: "姓名 / 邮箱",
     statusLabel: "状态",
@@ -897,7 +895,6 @@ export const portalCopy = {
       setup: "已激活 · 待填资料",
       waiting: "已邀请 · 待激活",
       account: "已有账号 · 不在本季名单",
-      identity: "已有账号 · 身份不符",
       out: "不参与本次项目",
     },
     roleLabel: "身份",
@@ -916,7 +913,6 @@ export const portalCopy = {
       setup: "已激活 · 待填资料",
       waiting: "待激活",
       account: "已有账号 · 不在本季名单",
-      identity: "已有账号 · 身份不符",
       out: "不参与本次项目",
     },
     statusColumn: "状态",
