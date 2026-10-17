@@ -63,5 +63,27 @@ export async function PATCH(request: Request) {
     .single();
   if (error) return databaseError("更新成员身份", error.message);
 
+  // Keep the person's invites in step with the identity just chosen. The
+  // roster judges an invite against the account (`classifyInvites`), and an
+  // invite that still says "mentor" for an account that no longer is one reads
+  // as 身份不符 — the person drops out of the table and into 待激活 even though
+  // they have long since activated. The admin's edit is the newer intent.
+  const claimed = await supabase
+    .from("roster_invites")
+    .update(identity)
+    .eq("claimed_user_id", id);
+  if (claimed.error) return databaseError("同步邀请身份", claimed.error.message);
+
+  if (data.email) {
+    const unclaimed = await supabase
+      .from("roster_invites")
+      .update(identity)
+      .is("claimed_user_id", null)
+      .ilike("email", data.email);
+    if (unclaimed.error) {
+      return databaseError("同步邀请身份", unclaimed.error.message);
+    }
+  }
+
   return NextResponse.json(data);
 }
