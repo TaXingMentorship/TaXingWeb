@@ -82,20 +82,42 @@ test("a volunteer-only invite is satisfied by the season alone, no participant r
   );
 });
 
-test("a volunteer imported as a mentee has the season but not the identity: 'identity', not 'account'", () => {
-  // 0035 adds the season to the account but never the mentee identity.
-  const volunteerAccount = profile("p1", "m@x.com", { participant_role: null, cohort_ids: ["fall"] });
-  const rows = classifyInvites(
-    [invite("i", "m@x.com", { claimed_user_id: "p1" })],
-    [volunteerAccount],
-  );
-  assert.deepEqual(rows.map((r) => r.state), ["identity"]);
+test("once an invite maps to an account, the account's identity decides, not the invite's", () => {
+  // A mentor invite whose account an admin has since made volunteer-only on
+  // the web: the person is listed, not stranded under 待激活.
+  const volunteerAccount = profile("p1", "m@x.com", {
+    participant_role: null,
+    is_volunteer: true,
+    cohort_ids: ["fall"],
+  });
+  const claimed = invite("i", "m@x.com", { participant_role: "mentor", claimed_user_id: "p1" });
+  assert.deepEqual(classifyInvites([claimed], [volunteerAccount]), []);
+  // the same holds for an unclaimed invite that matches the account by email
+  const unclaimed = invite("u", "M@x.com ", { participant_role: "mentor" });
+  assert.deepEqual(classifyInvites([unclaimed], [volunteerAccount]), []);
   // without the season it is the season that is missing
   const noSeason = { ...volunteerAccount, cohort_ids: ["old"] };
-  assert.deepEqual(
-    classifyInvites([invite("i", "m@x.com", { claimed_user_id: "p1" })], [noSeason]).map((r) => r.state),
-    ["account"],
+  assert.deepEqual(classifyInvites([claimed], [noSeason]).map((r) => r.state), ["account"]);
+});
+
+test("a role-less member is listed, but completion does not apply to them", () => {
+  const mentor = profile("mentor", "mentor@x.com");
+  const staff = profile("staff", "staff@x.com", { participant_role: null, is_admin: true });
+  const entries = buildEntries(
+    [row(mentor), { ...row(staff), completedAll: null }],
+    [invite("i", "staff@x.com", { participant_role: "mentor", claimed_user_id: "staff" })],
+    [mentor, staff],
   );
+  const ids = (f) =>
+    filterEntries(entries, { ...all, ...f }, new Map()).map((e) =>
+      e.kind === "member" ? e.row.profile.id : e.invite.id,
+    );
+  // listed once, as a member: the mismatched invite produces no row
+  assert.deepEqual(ids({}), ["mentor", "staff"]);
+  assert.deepEqual(ids({ role: "admin" }), ["staff"]);
+  // neither 未完成 nor 已完成
+  assert.deepEqual(ids({ done: "todo" }), ["mentor"]);
+  assert.deepEqual(ids({ done: "done" }), []);
 });
 
 test("unclaimed: no account is waiting or out", () => {

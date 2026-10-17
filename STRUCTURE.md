@@ -360,8 +360,8 @@ a new invite is claimed by an account that already exists — a returning mentor
 or mentee re-imported into a new season — the invite's season is added to that
 account, so an import now reaches the account for everyone, not only volunteers.
 It adds the season only: the account keeps its single `participant_role`, so a
-volunteer imported as a mentee gets the season but not the mentee identity
-(成员名单 shows that person as 「已有账号 · 身份不符」, see below). Migration `0025`
+volunteer imported as a mentee gets the season but not the mentee identity —
+an admin changes that on the web (see below). Migration `0025`
 (`sync_volunteer_access`) does the same for volunteers: every `volunteer_seasons` row
 guarantees a `roster_invites` row for that season and — if the volunteer has an
 account — a `cohort_ids` entry. It also fires when a volunteer gains an email or
@@ -376,11 +376,14 @@ acting, because `protect_profile_privileges` forbids a non-admin changing
 one function, `classifyInvites` (`lib/portal/rosterEntries.ts`), so they cannot
 disagree about a person: 待激活 (no account), 已激活 · 待填资料 (claimed, no profile
 yet), 已有账号 · 不在本季名单 (account does not list the season — what an import
-produced before `0035`), 已有账号 · 身份不符 (account lists the season but lacks the
-mentor / mentee identity the invite carries), 不参与本次项目 (admin flag,
-`roster_invites.not_participating`, `0033`). A volunteer-only invite is satisfied
-by the season alone; a mentor / mentee invite also needs the account to have a
-participant role.
+produced before `0035`), 不参与本次项目 (admin flag,
+`roster_invites.not_participating`, `0033`). **Once an invite maps to an account**
+(claimed, or unclaimed but matching by email), **the account decides who the
+person is**: only its `cohort_ids` are checked, never the invite's identity, so
+an identity changed on the web is never second-guessed by an old invite. The
+roster table lists every account of the season with any identity — mentor,
+mentee, admin or volunteer — so each one stays editable; completion (完成情况)
+does not apply to rows without a mentor / mentee role.
 
 Unlinking an email-matched volunteer is a no-op: the trigger relinks them
 immediately, and correctly — the emails match. Unlink is only meaningful for a
