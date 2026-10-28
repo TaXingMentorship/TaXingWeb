@@ -21,8 +21,8 @@ type ImageOptimization = {
 };
 
 const AVATAR_OPTIMIZATION: ImageOptimization = {
-  maxDimension: 256,
-  targetBytes: 200 * 1024,
+  maxDimension: 128,
+  targetBytes: 50 * 1024,
   square: true,
 };
 const BULLETIN_OPTIMIZATION: ImageOptimization = {

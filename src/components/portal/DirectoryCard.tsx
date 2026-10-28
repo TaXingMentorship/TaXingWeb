@@ -5,7 +5,7 @@ import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
-import Avatar from "@mui/material/Avatar";
+import MemberAvatar from "@/components/portal/MemberAvatar";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
@@ -55,7 +55,7 @@ export default function DirectoryCard({
       <CardActionArea onClick={() => onSelect(profile)} sx={{ height: "100%" }}>
         <CardContent>
           <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5 }}>
-            <Avatar src={profile.avatar_url ?? undefined} sx={{ width: 52, height: 52 }} />
+            <MemberAvatar src={profile.avatar_url ?? undefined} sx={{ width: 52, height: 52 }} />
             <Box>
               <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
                 {profile.full_name}

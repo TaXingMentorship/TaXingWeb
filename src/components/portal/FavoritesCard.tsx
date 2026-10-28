@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import Avatar from "@mui/material/Avatar";
+import MemberAvatar from "@/components/portal/MemberAvatar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -102,7 +102,7 @@ export default function FavoritesCard() {
                   borderColor: "divider",
                 }}
               >
-                <Avatar src={p.avatar_url ?? undefined} sx={{ width: 44, height: 44 }} />
+                <MemberAvatar src={p.avatar_url ?? undefined} sx={{ width: 44, height: 44 }} />
                 <Box sx={{ minWidth: 0 }}>
                   <Typography fontWeight={700} noWrap>
                     {p.full_name}
