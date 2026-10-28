@@ -1,6 +1,6 @@
 "use client";
 
-import Avatar from "@mui/material/Avatar";
+import MemberAvatar from "@/components/portal/MemberAvatar";
 import ButtonBase from "@mui/material/ButtonBase";
 import Typography from "@mui/material/Typography";
 import type { Profile } from "@/types/portal";
@@ -23,7 +23,7 @@ export function AuthorAvatar({
   onOpen: (profile: Profile) => void;
 }) {
   const avatar = (
-    <Avatar
+    <MemberAvatar
       src={author?.avatar_url ?? undefined}
       sx={{ width: size, height: size, fontSize: size * 0.45 }}
     />

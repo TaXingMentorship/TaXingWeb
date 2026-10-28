@@ -34,7 +34,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
-import Avatar from "@mui/material/Avatar";
+import MemberAvatar from "@/components/portal/MemberAvatar";
 import Tooltip from "@mui/material/Tooltip";
 import LinkIcon from "@mui/icons-material/Link";
 import StarFilledIcon from "@mui/icons-material/Star";
@@ -655,12 +655,12 @@ function VolunteerRow({
     <TableRow hover>
       <TableCell sx={{ minWidth: 150 }}>
         <Stack direction="row" spacing={1} alignItems="center">
-          <Avatar
+          <MemberAvatar
             src={volunteer.avatar_url ?? undefined}
             sx={{ width: 28, height: 28, fontSize: 13 }}
           >
             {volunteer.full_name.slice(0, 1)}
-          </Avatar>
+          </MemberAvatar>
           <Typography
             variant="body2"
             fontWeight={600}

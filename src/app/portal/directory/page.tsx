@@ -38,7 +38,7 @@ import ExportMentorsButton from "@/components/portal/ExportMentorsButton";
 import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
 import { useFavorites } from "@/components/portal/useFavorites";
 
-const DIRECTORY_PAGE_SIZE = 18;
+const DIRECTORY_PAGE_SIZE = 12;
 
 export default function DirectoryPage() {
   const { currentUser } = usePortalSession();

@@ -516,11 +516,16 @@ Nav filtering is presentation only. Every page also checks `is_admin` itself, an
 - `bulletin` — private bucket, up to four source images per post
 
 `src/lib/portal/uploads.ts` holds the size and MIME validation for all three.
-It converts new avatars to 256 px WebP files and bulletin images to WebP files
+It converts new avatars to 128 px WebP files (at most 50 KiB) and bulletin images to WebP files
 with a 1200 px maximum dimension before upload. UUID object names are immutable,
 so uploads use a one-year cache lifetime; changing an image must create a new
 path rather than overwriting one. Reuse these helpers rather than calling
 `supabase.storage` directly.
+
+Avatars of other members render through `MemberAvatar`, which lazy-loads the
+image; only the signed-in user's own avatar and single-profile views use the
+plain MUI `Avatar`. Avatars uploaded before the WebP conversion were shrunk
+once with `scripts/migrateAvatars.mjs` (see `scripts/avatar-migration/README.md`).
 
 ---
 

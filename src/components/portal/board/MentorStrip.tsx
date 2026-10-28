@@ -1,6 +1,6 @@
 "use client";
 
-import Avatar from "@mui/material/Avatar";
+import MemberAvatar from "@/components/portal/MemberAvatar";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
@@ -56,7 +56,7 @@ export default function MentorStrip({
             clickable
             variant="outlined"
             onClick={() => onOpenProfile(mentor)}
-            avatar={<Avatar src={mentor.avatar_url ?? undefined} />}
+            avatar={<MemberAvatar src={mentor.avatar_url ?? undefined} />}
             label={mentor.full_name ?? "—"}
           />
         </Tooltip>
@@ -70,7 +70,7 @@ function MentorCard({ mentor }: { mentor: Profile }) {
   return (
     <Box>
       <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 0.75 }}>
-        <Avatar src={mentor.avatar_url ?? undefined} sx={{ width: 36, height: 36 }} />
+        <MemberAvatar src={mentor.avatar_url ?? undefined} sx={{ width: 36, height: 36 }} />
         <Typography variant="subtitle2" fontWeight={700}>
           {mentor.full_name}
         </Typography>

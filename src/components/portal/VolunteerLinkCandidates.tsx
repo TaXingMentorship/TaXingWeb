@@ -8,7 +8,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Alert from "@mui/material/Alert";
-import Avatar from "@mui/material/Avatar";
+import MemberAvatar from "@/components/portal/MemberAvatar";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -127,7 +127,7 @@ export default function VolunteerLinkCandidates() {
                     </TableCell>
                     <TableCell sx={{ minWidth: 200 }}>
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <Avatar
+                        <MemberAvatar
                           src={profile.avatar_url ?? undefined}
                           sx={{ width: 28, height: 28, fontSize: 13 }}
                         />

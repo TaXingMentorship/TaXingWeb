@@ -16,7 +16,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
-import Avatar from "@mui/material/Avatar";
+import MemberAvatar from "@/components/portal/MemberAvatar";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Checkbox from "@mui/material/Checkbox";
@@ -501,7 +501,7 @@ export default function RosterPage() {
           {pairGroups.groups.map(({ mentor, mentees }) => (
             <Paper key={mentor.id} sx={{ p: 2.5, borderRadius: 3 }}>
               <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
-                <Avatar src={mentor.avatar_url ?? undefined} sx={{ width: 40, height: 40 }} />
+                <MemberAvatar src={mentor.avatar_url ?? undefined} sx={{ width: 40, height: 40 }} />
                 <Box sx={{ flexGrow: 1 }}>
                   <Typography fontWeight={700}>{mentor.full_name}</Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -525,7 +525,7 @@ export default function RosterPage() {
                         spacing={1.5}
                         alignItems="center"
                       >
-                        <Avatar
+                        <MemberAvatar
                           src={mentee.avatar_url ?? undefined}
                           sx={{ width: 28, height: 28 }}
                         />
@@ -562,7 +562,7 @@ export default function RosterPage() {
                 {pairGroups.unmatched.map((mentee) => (
                   <Chip
                     key={mentee.id}
-                    avatar={<Avatar src={mentee.avatar_url ?? undefined} />}
+                    avatar={<MemberAvatar src={mentee.avatar_url ?? undefined} />}
                     label={mentee.full_name ?? mentee.id}
                     variant="outlined"
                   />
