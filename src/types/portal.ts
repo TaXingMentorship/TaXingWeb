@@ -56,6 +56,8 @@ export type Profile = {
   is_volunteer: boolean;
   cohort_ids: string[];
   full_name: string | null;
+  /** Optional guide for saying the member's name aloud. */
+  name_pronunciation?: string | null;
   email: string | null;
   wechat_number: string | null;
   bio: string | null;

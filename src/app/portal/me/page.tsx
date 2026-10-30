@@ -28,7 +28,7 @@ import {
   uploadAvatar,
   validateImageFile,
 } from "@/lib/portal/uploads";
-import { profileLabels } from "@/data/portalCopy";
+import { portalCopy, profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import MyVolunteerSection from "@/components/portal/MyVolunteerSection";
 import NameChangeField from "@/components/portal/NameChangeField";
@@ -155,6 +155,7 @@ export default function MyProfilePage() {
       // Nicknames are locked for everyone but admins (migration 0021): sending
       // the field would be rejected if it were stale, so it isn't sent.
       ...(currentUser?.is_admin ? { full_name: form.full_name } : {}),
+      name_pronunciation: form.name_pronunciation,
       wechat_number: form.wechat_number,
       bio: form.bio,
       field: form.field,
@@ -235,6 +236,15 @@ export default function MyProfilePage() {
               <NameChangeField
                 name={form.full_name ?? ""}
                 onNameChange={(value) => set("full_name", value)}
+              />
+              <TextField
+                label={portalCopy.namePronunciation.fieldLabel}
+                value={form.name_pronunciation ?? ""}
+                onChange={(e) => set("name_pronunciation", e.target.value)}
+                fullWidth
+                placeholder={portalCopy.namePronunciation.placeholder}
+                helperText={portalCopy.namePronunciation.helperText}
+                inputProps={{ maxLength: 200 }}
               />
               <MentorGroupField />
               <TextField

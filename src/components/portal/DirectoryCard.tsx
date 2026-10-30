@@ -60,6 +60,11 @@ export default function DirectoryCard({
               <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
                 {profile.full_name}
               </Typography>
+              {profile.name_pronunciation && (
+                <Typography variant="caption" color="text.secondary" display="block">
+                  {portalCopy.namePronunciation.directoryLabel}：{profile.name_pronunciation}
+                </Typography>
+              )}
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                 {badges
                   ? badges.map((badge) => (
