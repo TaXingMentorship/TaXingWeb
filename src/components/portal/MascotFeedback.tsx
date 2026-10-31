@@ -86,16 +86,14 @@ export default function MascotFeedback() {
   const [offset, setOffset] = React.useState<Offset>(HOME);
   const [dragging, setDragging] = React.useState(false);
 
-  const mascotRef = React.useRef<HTMLButtonElement | null>(null);
+  // The layout box excludes the button's collapsed and hover transforms.
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
   // Mirrors `offset` so drag end and resize can read it without re-subscribing.
   const offsetRef = React.useRef<Offset>(HOME);
   const dragRef = React.useRef<{
     pointerId: number;
     startX: number;
     startY: number;
-    base: Offset;
-    /** Her box at drag start; the container moves 1:1 with the offset. */
-    rect: DOMRect;
     moved: boolean;
   } | null>(null);
   // A drag ends with a click event that must not toggle the bubble.
@@ -106,7 +104,7 @@ export default function MascotFeedback() {
     setOffset(next);
   }, []);
 
-  /** Pulls a candidate offset back until she sits fully inside the viewport. */
+  /** Keeps the whole layout, including an open bubble, inside the viewport. */
   const clampOffset = React.useCallback(
     (candidate: Offset, base: Offset, rect: DOMRect): Offset => {
       const left = rect.left + (candidate.x - base.x);
@@ -147,7 +145,7 @@ export default function MascotFeedback() {
   React.useEffect(() => {
     const stored = parseOffset(readStorage(OFFSET_KEY));
     if (!stored || isHome(stored)) return;
-    const node = mascotRef.current;
+    const node = containerRef.current;
     // The window may have been resized since she was parked there. Her box is
     // still measured at HOME here, because the offset has not been applied yet.
     applyOffset(
@@ -155,19 +153,25 @@ export default function MascotFeedback() {
     );
   }, [applyOffset, clampOffset]);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const onResize = () => {
-      const node = mascotRef.current;
+      const node = containerRef.current;
       const current = offsetRef.current;
-      if (!node || isHome(current)) return;
+      if (!node || (isHome(current) && (collapsed || !(open || greeting)))) return;
       const next = clampOffset(current, current, node.getBoundingClientRect());
       if (next.x === current.x && next.y === current.y) return;
       applyOffset(next);
       writeStorage(OFFSET_KEY, JSON.stringify(next));
     };
+    onResize();
+    const observer = new ResizeObserver(onResize);
+    if (containerRef.current) observer.observe(containerRef.current);
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [applyOffset, clampOffset]);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", onResize);
+    };
+  }, [applyOffset, clampOffset, collapsed, open, greeting]);
 
   const collapse = () => {
     setOpen(false);
@@ -181,14 +185,13 @@ export default function MascotFeedback() {
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const node = mascotRef.current;
-    if (event.button !== 0 || !node) return;
+    if (event.button !== 0 || !event.isPrimary || dragRef.current) return;
+    suppressClickRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      base: offsetRef.current,
-      rect: node.getBoundingClientRect(),
       moved: false,
     };
   };
@@ -196,21 +199,30 @@ export default function MascotFeedback() {
   const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.buttons === 0) {
+      handlePointerEnd(event);
+      return;
+    }
+    const node = containerRef.current;
+    if (!node) return;
     const dx = event.clientX - drag.startX;
     const dy = event.clientY - drag.startY;
     if (!drag.moved) {
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
       drag.moved = true;
       setDragging(true);
-      event.currentTarget.setPointerCapture(event.pointerId);
     }
+    const current = offsetRef.current;
+    // The measured box reflects rendered state, not a pending pointer update.
     applyOffset(
       clampOffset(
-        { x: drag.base.x + dx, y: drag.base.y + dy },
-        drag.base,
-        drag.rect,
+        { x: current.x + dx, y: current.y + dy },
+        offset,
+        node.getBoundingClientRect(),
       ),
     );
+    drag.startX = event.clientX;
+    drag.startY = event.clientY;
   };
 
   const handlePointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -222,7 +234,7 @@ export default function MascotFeedback() {
     }
     if (!drag.moved) return;
     setDragging(false);
-    suppressClickRef.current = true;
+    suppressClickRef.current = event.type === "pointerup";
     writeStorage(OFFSET_KEY, JSON.stringify(offsetRef.current));
   };
 
@@ -251,6 +263,7 @@ export default function MascotFeedback() {
 
   return (
     <Box
+      ref={containerRef}
       sx={{
         position: "fixed",
         right: { xs: 12, sm: 24 },
@@ -264,8 +277,6 @@ export default function MascotFeedback() {
         "& > *": { pointerEvents: "auto" },
         // The bubble rides along so its tail keeps pointing at her.
         transform: home ? "none" : `translate3d(${offset.x}px, ${offset.y}px, 0)`,
-        transition: dragging ? "none" : "transform 0.3s ease",
-        "@media (prefers-reduced-motion: reduce)": { transition: "none" },
       }}
     >
       {!collapsed && (open || greeting) && (
@@ -275,7 +286,8 @@ export default function MascotFeedback() {
           elevation={6}
           sx={{
             position: "relative",
-            maxWidth: 252,
+            maxWidth: "min(252px, calc(100vw - 16px))",
+            boxSizing: "border-box",
             p: 2,
             borderRadius: 3,
             border: "2px solid",
@@ -296,59 +308,67 @@ export default function MascotFeedback() {
             },
           }}
         >
-          {open ? (
-            <>
-              <Typography fontWeight={800} gutterBottom>
-                {copy.bubbleTitle}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                {copy.bubbleBody}
-              </Typography>
-              <Typography variant="body2" fontWeight={600} sx={{ mb: 1.5 }}>
-                {pending.length > 0 ? (
-                  <>
-                    {copy.tasksLeft(pending.length)}{" "}
-                    <Link href="/portal/tasks" onClick={() => setOpen(false)}>
-                      {copy.tasksLink}
-                    </Link>
-                  </>
-                ) : (
-                  copy.tasksDone
-                )}
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button
-                  component={Link}
-                  href={MASCOT_FEEDBACK_HREF}
-                  size="small"
-                  variant="contained"
-                  color="warning"
-                  onClick={() => setOpen(false)}
-                >
-                  {copy.feedbackAction}
-                </Button>
-                <Button size="small" onClick={() => setOpen(false)}>
-                  {copy.later}
-                </Button>
-                <Button size="small" color="inherit" onClick={collapse}>
-                  {copy.hide}
-                </Button>
-              </Stack>
-            </>
-          ) : (
-            <Typography variant="body2">{copy.greeting}</Typography>
-          )}
+          <Box
+            sx={{
+              // Reserve the mascot, gap, paper padding and viewport margins.
+              maxHeight: { xs: "calc(100dvh - 150px)", sm: "calc(100dvh - 180px)" },
+              overflowY: "auto",
+            }}
+          >
+            {open ? (
+              <>
+                <Typography fontWeight={800} gutterBottom>
+                  {copy.bubbleTitle}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  {copy.bubbleBody}
+                </Typography>
+                <Typography variant="body2" fontWeight={600} sx={{ mb: 1.5 }}>
+                  {pending.length > 0 ? (
+                    <>
+                      {copy.tasksLeft(pending.length)}{" "}
+                      <Link href="/portal/tasks" onClick={() => setOpen(false)}>
+                        {copy.tasksLink}
+                      </Link>
+                    </>
+                  ) : (
+                    copy.tasksDone
+                  )}
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button
+                    component={Link}
+                    href={MASCOT_FEEDBACK_HREF}
+                    size="small"
+                    variant="contained"
+                    color="warning"
+                    onClick={() => setOpen(false)}
+                  >
+                    {copy.feedbackAction}
+                  </Button>
+                  <Button size="small" onClick={() => setOpen(false)}>
+                    {copy.later}
+                  </Button>
+                  <Button size="small" color="inherit" onClick={collapse}>
+                    {copy.hide}
+                  </Button>
+                </Stack>
+              </>
+            ) : (
+              <Typography variant="body2">{copy.greeting}</Typography>
+            )}
+          </Box>
         </Paper>
       )}
 
       <ButtonBase
-        ref={mascotRef}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
+        onLostPointerCapture={handlePointerEnd}
         title={copy.dragHint}
         aria-label={collapsed ? copy.show : copy.ariaLabel}
         aria-expanded={collapsed ? undefined : open}
@@ -362,11 +382,11 @@ export default function MascotFeedback() {
           touchAction: "none",
           // Collapsed: tuck most of her off the screen edge, leaving a peek.
           // Only at home, where there is an edge to tuck against.
-          transform: collapsed && home ? "translateX(62%)" : "none",
+          transform: collapsed && home && !dragging ? "translateX(62%)" : "none",
           opacity: collapsed ? 0.9 : 1,
-          transition: "transform 0.35s ease, opacity 0.35s ease",
+          transition: dragging ? "none" : "transform 0.35s ease, opacity 0.35s ease",
           "&:hover": {
-            transform: collapsed && home ? "translateX(40%)" : "scale(1.06)",
+            transform: dragging ? "none" : collapsed && home ? "translateX(40%)" : "scale(1.06)",
           },
           "&:focus-visible": { outline: "3px solid", outlineColor: "warning.main" },
           "@media (prefers-reduced-motion: reduce)": {

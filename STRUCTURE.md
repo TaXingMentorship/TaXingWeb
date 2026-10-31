@@ -62,6 +62,14 @@ Copy `.env.example` → `.env.local` and fill in from the Supabase dashboard (Pr
 
 Migrations in `supabase/migrations/` are applied by hand in the Supabase SQL editor — there is no CLI migration step in the build. Apply them in filename order, and let each one commit before running the next.
 
+For nickname pronunciation, apply `0037_profile_name_pronunciation.sql` in both
+production and preview databases **before deploying the frontend**. Confirm that
+`public.profiles.name_pronunciation` exists and PostgREST can read it first:
+profile saves and directory queries require this column. After deploying, verify
+saving and clearing the optional pronunciation on 我的资料 and displaying it in
+the directory cards and profile dialogs. The release owner must confirm migration
+status; a successful frontend build does not prove that it has been applied.
+
 ### Deployment
 
 The site runs on Vercel. **The same variables must also be set in the Vercel project, per environment** — Vercel scopes them to Production / Preview / Development separately, and Preview is the one people forget. A pull-request preview with no variables looks like this:

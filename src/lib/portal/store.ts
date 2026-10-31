@@ -158,7 +158,7 @@ export async function listProfiles(filter?: {
   if (filter?.ids?.length === 0) return [];
 
   let query = createClient().from("profiles").select(
-    "id,participant_role,is_admin,is_volunteer,cohort_ids,full_name,email,wechat_number,bio,field,background,interests,linkedin,avatar_url,visible,years_experience,mentee_capacity,mentee_expectations,topics,help_needed,admin_notes,created_at,updated_at",
+    "id,participant_role,is_admin,is_volunteer,cohort_ids,full_name,name_pronunciation,email,wechat_number,bio,field,background,interests,linkedin,avatar_url,visible,years_experience,mentee_capacity,mentee_expectations,topics,help_needed,admin_notes,created_at,updated_at",
   );
   if (filter?.participantRole) {
     query = query.eq("participant_role", filter.participantRole);
