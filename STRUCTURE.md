@@ -419,6 +419,25 @@ if the read fails.
 
 ---
 
+## Activity sub-items (子活动)
+
+The 主线 / 支线 timeline on `/portal/activities` is still hardcoded — `src/data/activityTimeline.ts`, one row per entry with real `from` / `to` dates — but each row can carry 子活动 (migration `0038`, `activity_items`), shown nested inside the row. Every timeline row has a `key` (`qa_group`, `roundtable_w4`, …); a sub-item hangs under the row whose key equals its `parent_key`. There is no foreign key — the timeline lives in code — so **renaming a row's key orphans its sub-items**, and when the timeline is rewritten for a new season, new keys simply start empty. The timeline is pinned to one season (`TIMELINE_COHORT_ID`, 2026秋季), and its sub-items are read and written for that cohort only — not the newest cohort, which would change under the timeline as soon as the next season is created. Rewrite the rows and the id together.
+
+A sub-item is one of two `kind`s:
+
+- **`link`**: title, `url`, optional one-line summary — e.g. the 答疑组 Tencent sheet.
+- **`session`**: `starts_at`, title (主题), optional summary, `meeting_url`, `recording_url`. The recording is usually added afterwards by editing.
+
+**Sessions are placed by date, links by click.** A link stays under the row whose ＋ was clicked. A session goes to the row of the same series that covers its date (`placeSession`): rows of one recurring activity share a `series` (the two 圆桌分享会 rows are `roundtable`), so an 11/24 圆桌 added from the Week 4 row lands under Week 5–7, and the dialog says so before saving. A date no row of the series covers is refused. Row dates are program dates in `PROGRAM_TIME_ZONE` (Asia/Shanghai), and a session is placed by its date there (`programDay`), not in the editor's own zone — so re-saving a session from another time zone never moves it. A viewer abroad may therefore see a session near a row boundary dated one day outside the row's label; the time itself is always shown in their zone. Editing a session's date can move it.
+
+A check constraint enforces the shape (a link has a `url`, a session a `starts_at`) and every link column must be `http(s)` with a host (`0039`; the dialog's `HTTP_URL` is the same rule). The dialog saves only the chosen kind's fields, and each row picks which kind the dialog opens on (`defaultKind`).
+
+Everyone signed in reads. Admins and the season's volunteers (`is_season_volunteer`, the board-notice rule from `0032`) write, from the browser client — no API route. The UI shows a ＋ on every row and a pencil on every sub-item under the same rule as board notices, through the shared `useIsSeasonStaff` hook: `is_admin`, or the volunteer persona plus `isSeasonVolunteer`. Update and delete ask for the row back and fail loudly when none changed (RLS or a concurrent delete), instead of closing the dialog as if saved. Readers see nothing extra on rows without sub-items.
+
+Within a row, links come first, then sessions in date order. A session reads 即将开始 before `starts_at`, 进行中 for three hours after (there is no end time), then 已结束. The page re-evaluates this every minute. The meeting link disappears once it is past, and a past session with no recording reads 录屏整理中. Times are entered and shown in the viewer's own time zone, with the zone printed.
+
+---
+
 ## Tasks
 
 Admin-assigned to-dos that show up as reminders in the portal (migration
