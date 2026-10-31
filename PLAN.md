@@ -61,7 +61,7 @@ Nav order: **首页 · 我的资料 · 本期活动 · 成员目录 · 进度跟
 |---|---|---|
 | `/portal` | Role-aware landing tiles | ✅ prototype |
 | `/portal/me` | Edit own profile (昵称, 领域, 经历, role fields, 公开开关) | ✅ |
-| `/portal/activities` | 本期活动: 重要文件 / 主线活动 / 支线活动 (links TBD) | ✅ (placeholder) |
+| `/portal/activities` | 本期活动: 重要文件 / 主线活动 / 支线活动, with 子活动 (links, sessions with recordings) nested under each timeline row, editable in place | ✅ |
 | `/portal/directory` | 成员目录: 导师/学员 tabs, search + interest filter, detail dialog | ✅ |
 | `/portal/board` | 留言板: Padlet 式单页 — 顶部 tab 切换留言板、彩色卡片瀑布流、标题/匿名/配色/emoji 投稿、表情反应、评论；admin 可新建留言板并置顶/标记已解答/隐藏 | ✅ |
 | `/portal/board/[boardId]` | 重定向到 `/portal/board?board=<id>`（保留旧链接） | ✅ |
@@ -189,7 +189,7 @@ Goal: connect the existing UI to a real Supabase project so we can do manual tes
 - [ ] Rate-limit bulletin posts (per user per minute).
 - [x] Import dry-run mode. Done for the volunteer import (`admin_import_volunteers(p_rows, p_dry_run)`); the roster/match imports still write straight away.
 - [ ] Finalize "全部完成本期活动" requirements definition (currently a placeholder heuristic in the roster view).
-- [ ] Wire real 本期活动 resource links once provided.
+- [x] 本期活动 resource links: admins and season volunteers add them as 子活动 under timeline rows (migration `0038`).
 
 ---
 

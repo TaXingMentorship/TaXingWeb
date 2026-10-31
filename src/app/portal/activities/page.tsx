@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
@@ -9,14 +9,29 @@ import Stack from "@mui/material/Stack";
 import Divider from "@mui/material/Divider";
 import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import AddIcon from "@mui/icons-material/Add";
 import DescriptionIcon from "@mui/icons-material/Description";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import ExploreIcon from "@mui/icons-material/Explore";
 import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
+import ActivitySubItems, {
+  activityItemsKey,
+  useActivityItems,
+} from "@/components/portal/ActivitySubItems";
+import ActivityItemDialog from "@/components/portal/ActivityItemDialog";
 import { listCohorts } from "@/lib/portal/store";
 import { portalCopy } from "@/data/portalCopy";
+import type { ActivityItem } from "@/types/portal";
+import {
+  formatRange,
+  TIMELINE_COHORT_ID,
+  timelineRows,
+  type TimelineRow,
+} from "@/data/activityTimeline";
 
 type Section = {
   key: "files" | "main" | "side";
@@ -28,25 +43,6 @@ const sections: Section[] = [
   { key: "files", label: portalCopy.activities.sections.files, icon: <DescriptionIcon color="secondary" /> },
   { key: "main", label: portalCopy.activities.sections.main, icon: <TimelineIcon color="secondary" /> },
   { key: "side", label: portalCopy.activities.sections.side, icon: <ExploreIcon color="secondary" /> },
-];
-
-type Activity = {
-  week: string;
-  dates: string;
-  title: string;
-  track: "main" | "side";
-};
-
-const activities: Activity[] = [
-  { week: "Week 0–1", dates: "10月10日 – 10月18日", title: "成员破冰", track: "main" },
-  { week: "Week 0–1", dates: "10月10日 – 10月18日", title: "自主培训", track: "main" },
-  { week: "Week 2–3", dates: "10月19日 – 11月1日", title: "Mentor 答疑组活动", track: "main" },
-  { week: "Week 4", dates: "11月2日 – 11月8日", title: "Mentor–Mentee 1v1 配对", track: "main" },
-  { week: "Week 4", dates: "11月2日 – 11月8日", title: "圆桌分享会", track: "side" },
-  { week: "Week 5–7", dates: "11月9日 – 11月29日", title: "Mentor–Mentee 1v1 交流", track: "main" },
-  { week: "Week 5–8", dates: "11月9日 – 12月6日", title: "Office Hour 活动", track: "side" },
-  { week: "Week 5–7", dates: "11月9日 – 11月29日", title: "圆桌分享会", track: "side" },
-  { week: "Week 8", dates: "11月30日 – 12月6日", title: "毕业活动", track: "side" },
 ];
 
 const importantFiles = [
@@ -61,12 +57,30 @@ const importantFiles = [
 ];
 
 export default function ActivitiesPage() {
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
+  const queryClient = useQueryClient();
   const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
 
   const myCohorts = (cohorts ?? []).filter((c) =>
     currentUser?.cohort_ids.includes(c.id),
   );
+  // The timeline below is pinned to one season, and so are its 子活动 — not
+  // the newest cohort, which changes the moment the next season is created.
+  const timelineCohortId = cohorts?.some((c) => c.id === TIMELINE_COHORT_ID)
+    ? TIMELINE_COHORT_ID
+    : undefined;
+  const { items: subItems, canEdit, now } = useActivityItems(timelineCohortId);
+
+  const [dialog, setDialog] = React.useState<{
+    parent: TimelineRow;
+    item: ActivityItem | null;
+  } | null>(null);
+  // Kept apart from `dialog` so the title does not change while it fades out.
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const openDialog = (parent: TimelineRow, item: ActivityItem | null) => {
+    setDialog({ parent, item });
+    setDialogOpen(true);
+  };
 
   return (
     <Box sx={{ maxWidth: 880 }}>
@@ -132,11 +146,11 @@ export default function ActivitiesPage() {
               </Stack>
             ) : (
               <Stack spacing={1.5}>
-                {activities
+                {timelineRows
                   .filter((activity) => activity.track === section.key)
                   .map((activity) => (
                     <Box
-                      key={`${activity.week}-${activity.title}`}
+                      key={activity.key}
                       sx={{
                         p: 2,
                         borderRadius: 2,
@@ -154,15 +168,35 @@ export default function ActivitiesPage() {
                         <Box>
                           <Typography fontWeight={700}>{activity.title}</Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {activity.dates}
+                            {formatRange(activity.from, activity.to)}
                           </Typography>
                         </Box>
-                        <Chip
-                          size="small"
-                          label={activity.week}
-                          color={section.key === "main" ? "primary" : "default"}
-                        />
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <Chip
+                            size="small"
+                            label={activity.week}
+                            color={section.key === "main" ? "primary" : "default"}
+                          />
+                          {canEdit && (
+                            <Tooltip title={portalCopy.activities.subItems.add}>
+                              <IconButton
+                                size="small"
+                                color="secondary"
+                                aria-label={portalCopy.activities.subItems.add}
+                                onClick={() => openDialog(activity, null)}
+                              >
+                                <AddIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Stack>
                       </Stack>
+                      <ActivitySubItems
+                        items={subItems.filter((i) => i.parent_key === activity.key)}
+                        canEdit={canEdit}
+                        now={now}
+                        onEdit={(item) => openDialog(activity, item)}
+                      />
                     </Box>
                   ))}
               </Stack>
@@ -170,6 +204,21 @@ export default function ActivitiesPage() {
           </Paper>
         ))}
       </Stack>
+
+      {canEdit && timelineCohortId && realUser && dialog && (
+        <ActivityItemDialog
+          open={dialogOpen}
+          item={dialog.item}
+          parent={dialog.parent}
+          cohortId={timelineCohortId}
+          createdBy={realUser.id}
+          onClose={() => setDialogOpen(false)}
+          onSaved={() => {
+            setDialogOpen(false);
+            void queryClient.invalidateQueries({ queryKey: activityItemsKey(timelineCohortId) });
+          }}
+        />
+      )}
     </Box>
   );
 }
