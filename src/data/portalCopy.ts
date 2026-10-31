@@ -326,6 +326,7 @@ export const portalCopy = {
     hide: "收起",
     show: "展开小萤",
     ariaLabel: "反馈小助手",
+    dragHint: "可以拖动小萤到任意位置，双击让她回到右下角",
   },
   boardReplies: {
     title: (n: number) => `你参与的留言有 ${n} 条新评论`,
@@ -800,6 +801,13 @@ export const portalCopy = {
     rejectNoteLabel: "拒绝原因",
     rejectNoteHint: "必填，申请人会看到这段话。",
     confirmReject: "确认拒绝",
+  },
+  namePronunciation: {
+    fieldLabel: "昵称读音（选填）",
+    placeholder: "例如：Xiǎo Míng，或“像……”",
+    helperText: "帮助大家更准确地称呼你，可填写拼音、音标或文字说明。",
+    directoryLabel: "读音",
+    dialogLabel: "读音提示",
   },
   roster: {
     identityTitle: "编辑身份",

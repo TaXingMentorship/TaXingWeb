@@ -40,6 +40,11 @@ export default function ProfileDialog({
               <Typography variant="h6" fontWeight={800}>
                 {profile.full_name}
               </Typography>
+              {profile.name_pronunciation && (
+                <Typography variant="body2" color="text.secondary">
+                  {portalCopy.namePronunciation.dialogLabel}：{profile.name_pronunciation}
+                </Typography>
+              )}
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                 {profileLabels(profile).map((label) => (
                   <Chip key={label} size="small" label={label} color="secondary" />
