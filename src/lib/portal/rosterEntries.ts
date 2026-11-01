@@ -128,6 +128,10 @@ export type RosterFilters = {
   role: "all" | "mentor" | "mentee" | "volunteer" | "admin";
   status: "all" | "active" | "setup" | "account" | "waiting" | "out";
   done: "all" | "done" | "todo";
+  /** 活动记录 submitted? Mentees only; everyone else drops out once it is set. */
+  activity: "all" | "done" | "todo";
+  /** 感谢赠言 given? Mentees only; everyone else drops out once it is set. */
+  gratitude: "all" | "done" | "todo";
   /** "all", "none" (unassigned) or a group id. */
   group: string;
 };
@@ -203,8 +207,45 @@ export function filterEntries(
       if (filters.done === "done" && !entry.row.completedAll) return false;
       if (filters.done === "todo" && entry.row.completedAll) return false;
     }
+
+    if (!matchesFlag(entry, "submitted", filters.activity)) return false;
+    if (!matchesFlag(entry, "gaveGratitude", filters.gratitude)) return false;
     return true;
   });
+}
+
+// A per-item completion filter. The flag is null when it does not apply
+// (non-mentees) and invites have no records, so both fail any active filter.
+function matchesFlag(
+  entry: RosterEntry,
+  key: "submitted" | "gaveGratitude",
+  want: "all" | "done" | "todo",
+): boolean {
+  if (want === "all") return true;
+  if (entry.kind !== "member") return false;
+  const value = entry.row[key];
+  if (value === null) return false;
+  return want === "done" ? value : !value;
+}
+
+/**
+ * The shown entries an export lists. People flagged 不参与本次项目 are not
+ * part of the season, so they stay out unless the status filter asks for them.
+ */
+export function exportEntries(
+  entries: RosterEntry[],
+  status: RosterFilters["status"],
+): RosterEntry[] {
+  if (status === "out") return entries;
+  return entries.filter((e) => !(e.kind === "invited" && e.state === "out"));
+}
+
+/** Display names of the entries shown, in table order; blanks are dropped. */
+export function rosterNames(entries: RosterEntry[]): string[] {
+  return entries
+    .map((e) => (e.kind === "member" ? e.row.profile.full_name : e.invite.full_name))
+    .map((n) => (n ?? "").trim())
+    .filter((n) => n !== "");
 }
 
 /**

@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   buildEntries,
   classifyInvites,
+  exportEntries,
   filterEntries,
+  rosterNames,
   inviteRows,
   pendingInvites,
   selectableMentorIds,
@@ -40,7 +42,15 @@ const row = (p) => ({
   gaveGratitude: null,
   completedAll: false,
 });
-const all = { search: "", role: "all", status: "all", done: "all", group: "all" };
+const all = {
+  search: "",
+  role: "all",
+  status: "all",
+  done: "all",
+  activity: "all",
+  gratitude: "all",
+  group: "all",
+};
 
 test("claimed with no profile is setup", () => {
   const rows = classifyInvites([invite("i", "b@x.com", { claimed_user_id: "ghost" })], []);
@@ -221,4 +231,33 @@ test("clampPage pulls an out-of-range page back to the last real page", () => {
   assert.equal(clampPage(2, 50, 25), 1); // one row removed: page 2 no longer exists
   assert.equal(clampPage(5, 3, 25), 0);
   assert.equal(clampPage(-1, 100, 25), 0);
+});
+
+test("activity / gratitude filters apply to mentees only, and rosterNames lists the result", () => {
+  const mentee = (id, submitted, gaveGratitude) => ({
+    kind: "member",
+    row: { ...row(profile(id, `${id}@x.org`, { participant_role: "mentee" })), submitted, gaveGratitude },
+  });
+  const entries = [
+    mentee("a", true, false),
+    mentee("b", false, true),
+    { kind: "member", row: row(profile("m", "m@x.org")) },
+    { kind: "invited", invite: invite("i", "i@x.org"), state: "waiting" },
+  ];
+  const names = (f) => rosterNames(filterEntries(entries, { ...all, ...f }, new Map()));
+  assert.deepEqual(names({ gratitude: "done" }), ["b"]);
+  assert.deepEqual(names({ gratitude: "todo" }), ["a"]);
+  assert.deepEqual(names({ activity: "done" }), ["a"]);
+  assert.deepEqual(names({ activity: "done", gratitude: "done" }), []);
+  assert.deepEqual(names({}), ["a", "b", "m", "i"]);
+});
+
+test("exportEntries leaves out 不参与 invites unless the status filter asks for them", () => {
+  const entries = [
+    { kind: "member", row: row(profile("m", "m@x.org")) },
+    { kind: "invited", invite: invite("w", "w@x.org"), state: "waiting" },
+    { kind: "invited", invite: invite("o", "o@x.org"), state: "out" },
+  ];
+  assert.deepEqual(rosterNames(exportEntries(entries, "all")), ["m", "w"]);
+  assert.deepEqual(rosterNames(exportEntries(entries, "out")), ["m", "w", "o"]);
 });

@@ -929,7 +929,7 @@ export const portalCopy = {
     statusLabel: "状态",
     allSeasons: "全部季度",
     total: (shown: number, all: number) =>
-      shown === all ? `共 ${shown} 条` : `共 ${shown} 条（筛选自 ${all} 条）`,
+      shown === all ? `共 ${shown} 条` : `共 ${shown} 条 (筛选自 ${all} 条)`,
   },
   /** Shared by every filterable, paged table. */
   tableFilters: {
@@ -959,6 +959,11 @@ export const portalCopy = {
     },
     doneLabel: "完成情况",
     doneOptions: { done: "已完成", todo: "未完成" },
+    activityLabel: "活动记录",
+    gratitudeLabel: "感谢赠言",
+    exportButton: "导出名单",
+    exportHeader: "昵称",
+    exportFailed: "导出失败，请稍后重试。",
     /** The status chip in the 状态 column. */
     state: {
       active: "已激活",
@@ -969,7 +974,7 @@ export const portalCopy = {
     },
     statusColumn: "状态",
     total: (shown: number, all: number) =>
-      shown === all ? `共 ${shown} 人` : `共 ${shown} 人（筛选自 ${all} 人）`,
+      shown === all ? `共 ${shown} 人` : `共 ${shown} 人\n(筛选自 ${all} 人)`,
     emptyCohort: "该项目暂时没有成员。",
     emptyFiltered: "没有符合筛选条件的成员。",
   },

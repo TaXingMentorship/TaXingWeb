@@ -22,6 +22,7 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Checkbox from "@mui/material/Checkbox";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import type { Profile } from "@/types/portal";
 import {
   listCohorts,
@@ -37,11 +38,15 @@ import {
 } from "@/lib/portal/store";
 import {
   buildEntries,
+  exportEntries,
   filterEntries,
+  rosterNames,
   selectableMentorIds,
   type MemberRowData,
   type RosterFilters,
 } from "@/lib/portal/rosterEntries";
+import { buildNamesCsv, namesFileName } from "@/lib/portal/exportMentors";
+import { downloadTextFile, localDateStamp } from "@/lib/portal/exportBrowser";
 import { portalCopy } from "@/data/portalCopy";
 import MentorGroupsDialog from "@/components/portal/MentorGroupsDialog";
 import NameChangeReviewCard from "@/components/portal/NameChangeReviewCard";
@@ -188,8 +193,19 @@ export default function RosterPage() {
   const [roleFilter, setRoleFilter] = React.useState<RosterFilters["role"]>("all");
   const [statusFilter, setStatusFilter] = React.useState<RosterFilters["status"]>("all");
   const [doneFilter, setDoneFilter] = React.useState<RosterFilters["done"]>("all");
+  const [activityFilter, setActivityFilter] = React.useState<RosterFilters["activity"]>("all");
+  const [gratitudeFilter, setGratitudeFilter] = React.useState<RosterFilters["gratitude"]>("all");
   const [groupFilter, setGroupFilter] = React.useState("all");
-  const resetKey = [cohortId, search, roleFilter, statusFilter, doneFilter, groupFilter].join("|");
+  const resetKey = [
+    cohortId,
+    search,
+    roleFilter,
+    statusFilter,
+    doneFilter,
+    activityFilter,
+    gratitudeFilter,
+    groupFilter,
+  ].join("|");
 
   const entries = React.useMemo(
     () => buildEntries(rows, invites ?? [], profiles),
@@ -199,10 +215,28 @@ export default function RosterPage() {
     () =>
       filterEntries(
         entries,
-        { search, role: roleFilter, status: statusFilter, done: doneFilter, group: groupFilter },
+        {
+          search,
+          role: roleFilter,
+          status: statusFilter,
+          done: doneFilter,
+          activity: activityFilter,
+          gratitude: gratitudeFilter,
+          group: groupFilter,
+        },
         groupOfMentor,
       ),
-    [entries, search, roleFilter, statusFilter, doneFilter, groupFilter, groupOfMentor],
+    [
+      entries,
+      search,
+      roleFilter,
+      statusFilter,
+      doneFilter,
+      activityFilter,
+      gratitudeFilter,
+      groupFilter,
+      groupOfMentor,
+    ],
   );
   const pagination = usePagination(filtered.length, resetKey);
   const paged = pagination.slice(filtered);
@@ -247,6 +281,60 @@ export default function RosterPage() {
     return { groups, unmatched, hasMatches: cohortMatches.length > 0 };
   }, [profiles, matches, cohortId]);
 
+  // Completion and group filters read sessions, participation and group
+  // members. Until all three have loaded (or when one failed) every mentee
+  // looks 未完成 and every mentor 未分组, so an export then would be wrong.
+  const exportReady =
+    sessions !== undefined && participation !== undefined && groupMembers !== undefined;
+  const [exportError, setExportError] = React.useState(false);
+  const toExport = exportEntries(filtered, statusFilter);
+
+  // The file name carries every active filter but the search, so a list saved
+  // as 感谢赠言已完成 is recognisable later.
+  const exportNames = () => {
+    const tag = (label: string, v: string) =>
+      v === "all" ? "" : `${label}${tableCopy.doneOptions[v as "done" | "todo"]}`;
+    const season = (cohorts ?? []).find((c) => c.id === cohortId)?.name ?? "";
+    const groupName =
+      groupFilter === "all"
+        ? ""
+        : groupFilter === "none"
+          ? groupCopy.unassigned
+          : ((groups ?? []).find((g) => g.id === groupFilter)?.name ?? "");
+    const label = [
+      roleFilter === "all" ? "" : tableCopy.roleOptions[roleFilter],
+      statusFilter === "all" ? "" : tableCopy.statusOptions[statusFilter],
+      groupName,
+      tag(tableCopy.doneLabel, doneFilter),
+      tag(tableCopy.activityLabel, activityFilter),
+      tag(tableCopy.gratitudeLabel, gratitudeFilter),
+    ]
+      .filter(Boolean)
+      .join("-");
+    try {
+      downloadTextFile(
+        namesFileName(season, label, localDateStamp()),
+        buildNamesCsv(rosterNames(toExport), tableCopy.exportHeader),
+        "text/csv;charset=utf-8",
+      );
+      setExportError(false);
+    } catch {
+      setExportError(true);
+    }
+  };
+
+  // 未分组 N 位 counts every mentor of the season, so the jump clears the
+  // filters that could hide some of them (a mentee role, a completion filter).
+  const showUnassigned = () => {
+    setSearch("");
+    setRoleFilter("all");
+    setStatusFilter("all");
+    setDoneFilter("all");
+    setActivityFilter("all");
+    setGratitudeFilter("all");
+    setGroupFilter("none");
+  };
+
   if (!currentUser?.is_admin) {
     return <Alert severity="error">仅负责人可访问成员名单。</Alert>;
   }
@@ -266,14 +354,13 @@ export default function RosterPage() {
 
       <NameChangeReviewCard />
       <MentorGroupChangeReviewCard />
-
       <Stack
         direction="row"
         spacing={1.5}
         useFlexGap
         flexWrap="wrap"
         alignItems="center"
-        sx={{ mb: 3 }}
+        sx={{ mb: 2 }}
       >
         <TextField
           select
@@ -302,12 +389,49 @@ export default function RosterPage() {
 
         {view === "table" && (
           <>
-            <FilterSearch
-              value={search}
-              onChange={setSearch}
-              placeholder={tableCopy.searchPlaceholder}
-            />
+            <Box sx={{ flexGrow: 1 }} />
+            <Button size="small" variant="outlined" onClick={() => setGroupsOpen(true)}>
+              {groupCopy.manageButton}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={!exportReady || toExport.length === 0}
+              startIcon={<FileDownloadIcon sx={{ transform: "translateY(-1px)" }} />}
+              onClick={exportNames}
+            >
+              {tableCopy.exportButton}
+            </Button>
+          </>
+        )}
+      </Stack>
+      {exportError && (
+        <Alert severity="error" onClose={() => setExportError(false)} sx={{ mb: 2 }}>
+          {tableCopy.exportFailed}
+        </Alert>
+      )}
+
+      {view === "table" && (
+        <>
+          {/* One grid so every filter shares a column width and a left edge. */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+              gap: 1.5,
+              mb: 1.5,
+            }}
+          >
+            <Box sx={{ gridColumn: { xs: "1 / -1", sm: "span 2" } }}>
+              <FilterSearch
+                fullWidth
+                value={search}
+                onChange={setSearch}
+                placeholder={tableCopy.searchPlaceholder}
+              />
+            </Box>
             <FilterSelect
+              fullWidth
               label={tableCopy.statusLabel}
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as RosterFilters["status"])}
@@ -317,12 +441,14 @@ export default function RosterPage() {
               ]}
             />
             <FilterSelect
+              fullWidth
               label={tableCopy.roleLabel}
               value={roleFilter}
               onChange={(v) => setRoleFilter(v as RosterFilters["role"])}
               options={toOptions(tableCopy.roleOptions)}
             />
             <FilterSelect
+              fullWidth
               label={groupCopy.columnLabel}
               value={groupFilter}
               onChange={setGroupFilter}
@@ -333,6 +459,7 @@ export default function RosterPage() {
               ]}
             />
             <FilterSelect
+              fullWidth
               label={tableCopy.doneLabel}
               value={doneFilter}
               onChange={(v) => setDoneFilter(v as RosterFilters["done"])}
@@ -341,60 +468,88 @@ export default function RosterPage() {
                 ...toOptions(tableCopy.doneOptions),
               ]}
             />
-            <Typography variant="body2" color="text.secondary">
-              {tableCopy.total(filtered.length, entries.length)}
-            </Typography>
-          </>
-        )}
-      </Stack>
+            <FilterSelect
+              fullWidth
+              label={tableCopy.activityLabel}
+              value={activityFilter}
+              onChange={(v) => setActivityFilter(v as RosterFilters["activity"])}
+              options={[
+                { value: "all", label: portalCopy.tableFilters.all },
+                ...toOptions(tableCopy.doneOptions),
+              ]}
+            />
+            <FilterSelect
+              fullWidth
+              label={tableCopy.gratitudeLabel}
+              value={gratitudeFilter}
+              onChange={(v) => setGratitudeFilter(v as RosterFilters["gratitude"])}
+              options={[
+                { value: "all", label: portalCopy.tableFilters.all },
+                ...toOptions(tableCopy.doneOptions),
+              ]}
+            />
+            {/* Fills the last grid cell, so the count needs no row of its own.
+                The unassigned warning only shows when there is one, and jumps
+                straight to those mentors. */}
+            <Stack justifyContent="center" sx={{ minHeight: 40 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
+                {tableCopy.total(filtered.length, entries.length)}
+              </Typography>
+              {unassignedCount > 0 && (
+                <Button
+                  size="small"
+                  color="warning"
+                  onClick={showUnassigned}
+                  sx={{ alignSelf: "flex-start", minWidth: 0, p: 0 }}
+                >
+                  {groupCopy.unassignedCount(unassignedCount)}
+                </Button>
+              )}
+            </Stack>
+          </Box>
 
-      {view === "table" && mentorIds.length > 0 && (
-        <Stack
-          direction="row"
-          spacing={1.5}
-          alignItems="center"
-          flexWrap="wrap"
-          useFlexGap
-          sx={{ mb: 2 }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            {groupCopy.selectedCount(selectedVisible.length)}
-          </Typography>
-          <TextField
-            select
-            size="small"
-            value=""
-            disabled={selectedVisible.length === 0 || assignMutation.isPending}
-            onChange={(e) =>
-              assignMutation.mutate(
-                {
-                  profileIds: selectedVisible,
-                  groupId: e.target.value === "__none" ? null : e.target.value,
-                },
-                { onSuccess: () => setSelected([]) },
-              )
-            }
-            slotProps={{ select: { displayEmpty: true, renderValue: () => groupCopy.bulkAssign } }}
-            sx={{ minWidth: 180 }}
-          >
-            {(groups ?? []).map((g) => (
-              <MenuItem key={g.id} value={g.id}>
-                {g.name}
-              </MenuItem>
-            ))}
-            <MenuItem value="__none">{groupCopy.bulkClear}</MenuItem>
-          </TextField>
-          <Box sx={{ flexGrow: 1 }} />
-          <Typography
-            variant="body2"
-            color={unassignedCount > 0 ? "warning.main" : "text.secondary"}
-          >
-            {groupCopy.unassignedCount(unassignedCount)}
-          </Typography>
-          <Button size="small" variant="outlined" onClick={() => setGroupsOpen(true)}>
-            {groupCopy.manageButton}
-          </Button>
-        </Stack>
+          {/* Bulk assignment only exists while something is selected. */}
+          {selectedVisible.length > 0 && (
+            <Stack
+              direction="row"
+              spacing={1.5}
+              alignItems="center"
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ mb: 1.5 }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                {groupCopy.selectedCount(selectedVisible.length)}
+              </Typography>
+              <TextField
+                select
+                size="small"
+                value=""
+                disabled={assignMutation.isPending}
+                onChange={(e) =>
+                  assignMutation.mutate(
+                    {
+                      profileIds: selectedVisible,
+                      groupId: e.target.value === "__none" ? null : e.target.value,
+                    },
+                    { onSuccess: () => setSelected([]) },
+                  )
+                }
+                slotProps={{
+                  select: { displayEmpty: true, renderValue: () => groupCopy.bulkAssign },
+                }}
+                sx={{ minWidth: 180 }}
+              >
+                {(groups ?? []).map((g) => (
+                  <MenuItem key={g.id} value={g.id}>
+                    {g.name}
+                  </MenuItem>
+                ))}
+                <MenuItem value="__none">{groupCopy.bulkClear}</MenuItem>
+              </TextField>
+            </Stack>
+          )}
+        </>
       )}
       {assignMutation.error && (
         <Alert severity="error" sx={{ mb: 2 }}>

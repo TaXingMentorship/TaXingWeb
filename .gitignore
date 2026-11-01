@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+# roster / directory exports saved at the repo root hold member names
+/*.csv
 
 # debug
 npm-debug.log*
