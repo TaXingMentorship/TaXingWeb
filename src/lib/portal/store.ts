@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type {
+  ActivityItem,
   BulletinBoard,
   BulletinCategory,
   BulletinColor,
@@ -995,6 +996,75 @@ export async function updateBoardNotice(id: string, body: string): Promise<void>
 export async function deleteBoardNotice(id: string): Promise<void> {
   const { error } = await createClient().from("board_notices").delete().eq("id", id);
   throwQueryError("删除须知或提醒", error);
+}
+
+// --- Activity items --------------------------------------------------------
+
+/**
+ * 子活动 under the timeline rows on /portal/activities (0038). Everyone reads;
+ * admins and the season's volunteers write, under the same rule as board
+ * notices. Editing a session's date may move it to another row of its series.
+ */
+export type ActivityItemInput = Pick<
+  ActivityItem,
+  | "parent_key"
+  | "kind"
+  | "title"
+  | "starts_at"
+  | "summary"
+  | "url"
+  | "meeting_url"
+  | "recording_url"
+>;
+
+export async function listActivityItems(cohortId: string): Promise<ActivityItem[]> {
+  const { data, error } = await createClient()
+    .from("activity_items")
+    .select("*")
+    .eq("cohort_id", cohortId)
+    .order("starts_at", { ascending: true, nullsFirst: true })
+    .order("created_at", { ascending: true });
+  throwQueryError("读取子活动", error);
+  return (data ?? []) as ActivityItem[];
+}
+
+export async function createActivityItem(
+  input: ActivityItemInput & { cohort_id: string; created_by: string },
+): Promise<void> {
+  const { error } = await createClient().from("activity_items").insert(input);
+  throwQueryError("添加活动", error);
+}
+
+// RLS turns a write it does not allow — or one on a row someone else already
+// deleted — into "0 rows, no error". Ask for the rows back so that case fails
+// loudly instead of closing the dialog as if it had saved.
+function throwIfNoRow(operation: string, rows: unknown[] | null): void {
+  if (!rows || rows.length === 0) {
+    throw new Error(`${operation}失败：这条子活动已被删除，或你没有编辑权限。请刷新页面后重试。`);
+  }
+}
+
+export async function updateActivityItem(
+  id: string,
+  input: ActivityItemInput,
+): Promise<void> {
+  const { data, error } = await createClient()
+    .from("activity_items")
+    .update(input)
+    .eq("id", id)
+    .select("id");
+  throwQueryError("更新活动", error);
+  throwIfNoRow("更新活动", data);
+}
+
+export async function deleteActivityItem(id: string): Promise<void> {
+  const { data, error } = await createClient()
+    .from("activity_items")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  throwQueryError("删除活动", error);
+  throwIfNoRow("删除活动", data);
 }
 
 // --- Volunteers ------------------------------------------------------------

@@ -43,7 +43,6 @@ import {
   editComment,
   editPost,
   listBoardNotices,
-  isSeasonVolunteer,
   markPostSeen,
   listBoards,
   listCohorts,
@@ -63,6 +62,7 @@ import {
 import { categoryLabels, portalCopy } from "@/data/portalCopy";
 import { uploadBulletinImage } from "@/lib/portal/uploads";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
+import { useIsSeasonStaff } from "@/components/portal/useSeasonStaff";
 import BoardTabs, { BoardDialog } from "@/components/portal/board/BoardTabs";
 import SeasonTabs from "@/components/portal/board/SeasonTabs";
 import PostWall from "@/components/portal/board/PostWall";
@@ -269,13 +269,8 @@ function BoardPageContent() {
     queryFn: () => listMentorGroupMembers({ cohortId: cohortId! }),
     enabled: Boolean(cohortId) && isQa,
   });
-  // Only this season's volunteers (and admins) edit notices — see 0032. Asked
-  // only while looking through the volunteer persona, which is a display lens.
-  const { data: seasonVolunteer } = useQuery({
-    queryKey: ["portal", "seasonVolunteer", realUser?.id, cohortId],
-    queryFn: () => isSeasonVolunteer(cohortId!),
-    enabled: Boolean(cohortId) && isQa && Boolean(currentUser?.is_volunteer),
-  });
+  // Only this season's volunteers (and admins) edit notices — see 0032.
+  const canEditNotices = useIsSeasonStaff(cohortId ?? undefined, isQa);
   const { data: notices } = useQuery({
     queryKey: ["portal", "boardNotices", boardId],
     queryFn: () => listBoardNotices(boardId!),
@@ -879,11 +874,7 @@ function BoardPageContent() {
                   <BoardNotices
                     boardId={selectedBoard.id}
                     notices={notices ?? []}
-                    // Mirrors board_notices_staff_all (0032): admins, and the
-                    // volunteers on this season's roster.
-                    canEdit={
-                      isAdmin || (Boolean(currentUser?.is_volunteer) && Boolean(seasonVolunteer))
-                    }
+                    canEdit={canEditNotices}
                     currentUserId={currentUser?.id ?? ""}
                     authorOf={authorOf}
                   />

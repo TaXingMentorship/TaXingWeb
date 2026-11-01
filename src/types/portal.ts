@@ -431,6 +431,28 @@ export type BoardNotice = {
   expires_at: string | null;
 };
 
+/** 子活动 under a timeline row on /portal/activities (migration 0038). */
+export type ActivityItemKind = "link" | "session";
+
+export type ActivityItem = {
+  id: string;
+  cohort_id: string;
+  /** The `key` of the hardcoded timeline row this hangs under. */
+  parent_key: string;
+  kind: ActivityItemKind;
+  title: string;
+  /** Required for sessions, null for links. */
+  starts_at: string | null;
+  summary: string | null;
+  /** Required for links, null for sessions. */
+  url: string | null;
+  meeting_url: string | null;
+  recording_url: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /** One of the viewer's own posts with comments by others they have not opened (migration 0029). */
 export type UnreadPostSummary = {
   post_id: string;
