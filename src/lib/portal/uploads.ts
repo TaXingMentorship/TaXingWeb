@@ -41,6 +41,20 @@ export function validateImageFile(file: File, maxBytes: number): string | null {
   return null;
 }
 
+/**
+ * A v4 UUID for storage object names. `crypto.randomUUID` is missing before
+ * Chrome 92 and in browsers on older Chromium cores (360, QQ and the like), so
+ * fall back to `crypto.getRandomValues`, which every browser we load in has.
+ */
+function randomId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function canvasToWebp(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -125,7 +139,7 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
 
   const supabase = createClient();
   const optimized = await optimizeImage(file, AVATAR_OPTIMIZATION);
-  const path = `${userId}/avatar-${crypto.randomUUID()}.webp`;
+  const path = `${userId}/avatar-${randomId()}.webp`;
   const { error } = await supabase.storage.from("avatars").upload(path, optimized, {
     contentType: optimized.type,
     cacheControl: IMMUTABLE_CACHE_SECONDS,
@@ -160,7 +174,7 @@ export async function uploadParticipationScreenshot(
   if (validationError) throw new Error(validationError);
 
   const extension = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-  const path = `${userId}/${crypto.randomUUID()}.${extension}`;
+  const path = `${userId}/${randomId()}.${extension}`;
   const { error } = await createClient()
     .storage.from("participation")
     .upload(path, file, {
@@ -191,7 +205,7 @@ export async function uploadBulletinImage(userId: string, file: File): Promise<s
   if (validationError) throw new Error(validationError);
 
   const optimized = await optimizeImage(file, BULLETIN_OPTIMIZATION);
-  const path = `${userId}/${crypto.randomUUID()}.webp`;
+  const path = `${userId}/${randomId()}.webp`;
   const { error } = await createClient()
     .storage.from("bulletin")
     .upload(path, optimized, {
