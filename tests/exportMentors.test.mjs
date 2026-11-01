@@ -118,3 +118,9 @@ test("file name: season and local date, safe characters only", () => {
   assert.equal(exportFileName("2026 秋季", "2026-10-12"), "导师信息-2026秋季-20261012.csv");
   assert.equal(exportFileName("a/b:c", "2026-01-02"), "导师信息-abc-20260102.csv");
 });
+
+test("buildNamesCsv: header + one name per line, escaped", async () => {
+  const { buildNamesCsv, namesFileName } = await import("../src/lib/portal/exportMentors.ts");
+  assert.equal(buildNamesCsv(["小明", "=x"], "昵称"), "﻿昵称\r\n小明\r\n'=x\r\n");
+  assert.equal(namesFileName("2026 秋季", "感谢赠言已完成", "2026-11-01"), "名单-2026秋季-感谢赠言已完成-20261101.csv");
+});

@@ -83,3 +83,15 @@ export function exportFileName(season: string, exportedOn: string): string {
   const safe = season.replace(/[\\/:*?"<>|\s]+/g, "");
   return `导师信息-${safe}-${exportedOn.replace(/-/g, "")}.csv`;
 }
+
+/** The roster's filtered names, one per line under a single header. */
+export function buildNamesCsv(names: string[], header: string): string {
+  return BOM + [header, ...names].map(csvCell).join("\r\n") + "\r\n";
+}
+
+/** e.g. 名单-2026秋季-学员-感谢赠言已完成-20261101.csv */
+export function namesFileName(season: string, label: string, exportedOn: string): string {
+  const safe = (t: string) => t.replace(/[\\/:*?"<>|\s]+/g, "");
+  const parts = ["名单", safe(season), safe(label)].filter(Boolean);
+  return `${parts.join("-")}-${exportedOn.replace(/-/g, "")}.csv`;
+}

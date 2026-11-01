@@ -52,10 +52,13 @@ export function FilterSearch({
   value,
   onChange,
   placeholder,
+  fullWidth,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  /** Fill the parent (a grid cell) instead of the standalone flex sizing. */
+  fullWidth?: boolean;
 }) {
   return (
     <TextField
@@ -64,7 +67,8 @@ export function FilterSearch({
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      sx={{ flex: "1 1 200px", maxWidth: 280, minWidth: 160 }}
+      fullWidth={fullWidth}
+      sx={fullWidth ? undefined : { flex: "1 1 200px", maxWidth: 280, minWidth: 160 }}
     />
   );
 }
@@ -74,11 +78,13 @@ export function FilterSelect({
   value,
   onChange,
   options,
+  fullWidth,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
+  fullWidth?: boolean;
 }) {
   return (
     <TextField
@@ -87,6 +93,7 @@ export function FilterSelect({
       label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      fullWidth={fullWidth}
       sx={{ minWidth: 130 }}
     >
       {options.map((option) => (
