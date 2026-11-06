@@ -20,11 +20,11 @@ import {
   viewerDayKey,
 } from "@/components/portal/ActivitySubItems";
 import { portalCopy } from "@/data/portalCopy";
-import { programDaySpan, type TimelineRow } from "@/data/activityTimeline";
+import type { TimelineRow } from "@/data/activityTimeline";
 
 // Days are the viewer's own, like the times — a session at 01:00 for her sits
-// in that day's cell, wherever the program's zone puts it. The row's program
-// dates are converted the same way, so the shaded range matches the cells.
+// in that day's cell, wherever the program's zone puts it. The grid spans the
+// row's own dates, widened only to reach a session the zone pushes outside.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -86,12 +86,9 @@ export default function ActivitySessionCalendar({
     if (list) list.push(s);
     else byDay.set(key, [s]);
   }
-  // Every viewer day that overlaps the row's program days.
-  const rowFrom = viewerDayKey(new Date(programDaySpan(row.from).start));
-  const rowTo = viewerDayKey(new Date(programDaySpan(row.to).end - 1));
   const sessionDays = [...byDay.keys()].sort();
-  const first = [rowFrom, sessionDays[0]].filter(Boolean).sort()[0]!;
-  const last = [rowTo, sessionDays[sessionDays.length - 1]].filter(Boolean).sort().reverse()[0]!;
+  const first = [row.from, sessionDays[0]].filter(Boolean).sort()[0]!;
+  const last = [row.to, sessionDays[sessionDays.length - 1]].filter(Boolean).sort().reverse()[0]!;
 
   const start = dayToUtc(first) - weekdayIndex(dayToUtc(first)) * DAY_MS;
   const endMs = dayToUtc(last);
@@ -135,10 +132,12 @@ export default function ActivitySessionCalendar({
           </Typography>
         ))}
         {weeks.flat().map((day, i) => {
-          const inRow = rowFrom <= day && day <= rowTo;
+          const items = byDay.get(day) ?? [];
+          // A day holding one of the row's sessions belongs to the row even
+          // when the viewer's zone moves it past the row's program dates.
+          const inRow = (row.from <= day && day <= row.to) || items.length > 0;
           const isToday = day === today;
           const [, m, d] = day.split("-").map(Number);
-          const items = byDay.get(day) ?? [];
           return (
             <Box
               key={day}
