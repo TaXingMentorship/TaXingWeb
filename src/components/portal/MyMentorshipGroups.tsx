@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
@@ -65,13 +64,14 @@ export default function MyMentorshipGroups() {
   const member = (id: string) => {
     const profile: Profile | undefined = profiles.get(id);
     return (
-      <Grid key={id} size={{ xs: 12, sm: 6, md: 4 }}>
-        {id === realUser?.id && <Chip size="small" label={copy.you} sx={{ mb: 1 }} />}
-        {profile ? (
-          <DirectoryCard profile={profile} onSelect={(p) => setSelectedId(p.id)} />
-        ) : (
-          <Alert severity="info">{copy.unavailable}</Alert>
-        )}
+      <Grid key={id} size={{ xs: 12, sm: 6, md: 4 }} sx={{ minWidth: 0, display: "flex" }}>
+        <Box sx={{ width: "100%", minWidth: 0 }}>
+          {profile ? (
+            <DirectoryCard profile={profile} onSelect={(p) => setSelectedId(p.id)} />
+          ) : (
+            <Alert severity="info">{copy.unavailable}</Alert>
+          )}
+        </Box>
       </Grid>
     );
   };

@@ -54,9 +54,9 @@ export default function DirectoryCard({
       <FavoriteButton profileId={profile.id} sx={{ position: "absolute", top: 8, right: 8, zIndex: 1 }} />
       <CardActionArea onClick={() => onSelect(profile)} sx={{ height: "100%" }}>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5 }}>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5, pr: 4 }}>
             <MemberAvatar src={profile.avatar_url ?? undefined} sx={{ width: 52, height: 52 }} />
-            <Box>
+            <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
               <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
                 {profile.full_name}
               </Typography>
