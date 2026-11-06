@@ -37,6 +37,7 @@ import { portalCopy } from "@/data/portalCopy";
 import ExportMentorsButton from "@/components/portal/ExportMentorsButton";
 import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
 import { useFavorites } from "@/components/portal/useFavorites";
+import MyMentorshipGroups from "@/components/portal/MyMentorshipGroups";
 
 const DIRECTORY_PAGE_SIZE = 12;
 
@@ -239,6 +240,8 @@ export default function DirectoryPage() {
       <Typography color="text.secondary" sx={{ mb: 2 }}>
         浏览导师、学员、负责人与志愿者，按姓名、简介或兴趣筛选。
       </Typography>
+
+      <MyMentorshipGroups />
 
       {currentUser?.is_admin && (
         <TextField

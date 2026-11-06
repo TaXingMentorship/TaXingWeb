@@ -14,6 +14,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import TablePagination from "@mui/material/TablePagination";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import MemberAvatar from "@/components/portal/MemberAvatar";
@@ -23,7 +24,6 @@ import Checkbox from "@mui/material/Checkbox";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
-import type { Profile } from "@/types/portal";
 import {
   listCohorts,
   listMatches,
@@ -62,19 +62,23 @@ import {
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 export default function RosterPage() {
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
   const queryClient = useQueryClient();
   const tableCopy = portalCopy.rosterTable;
   const groupCopy = portalCopy.mentorGroups;
+  const pairCopy = portalCopy.roster;
 
-  const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
+  const { data: cohorts, error: cohortsError } = useQuery({
+    queryKey: ["portal", "cohorts"],
+    queryFn: listCohorts,
+  });
 
   const [cohortId, setCohortId] = React.useState("");
   React.useEffect(() => {
     if (!cohortId && cohorts?.length) setCohortId(cohorts[0].id);
   }, [cohorts, cohortId]);
 
-  const { data: profiles } = useQuery({
+  const { data: profiles, error: profilesError } = useQuery({
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
   });
@@ -85,19 +89,19 @@ export default function RosterPage() {
     enabled: Boolean(cohortId),
   });
 
-  const { data: sessions } = useQuery({
+  const { data: sessions, error: sessionsError } = useQuery({
     queryKey: ["portal", "sessions", cohortId, "all"],
     queryFn: () => listSessions({ cohortId }),
     enabled: Boolean(cohortId),
   });
 
-  const { data: participation } = useQuery({
+  const { data: participation, error: participationError } = useQuery({
     queryKey: ["portal", "participation", cohortId],
     queryFn: () => listParticipation({ cohortId }),
     enabled: Boolean(cohortId),
   });
 
-  const { data: matches } = useQuery({
+  const { data: matches, error: matchesError } = useQuery({
     queryKey: ["portal", "matches", cohortId],
     queryFn: () => listMatches({ cohortId }),
     enabled: Boolean(cohortId),
@@ -258,28 +262,67 @@ export default function RosterPage() {
 
   // Nested view: each mentor with their matched mentees (from uploaded matches).
   const pairGroups = React.useMemo(() => {
-    const mentors = (profiles ?? [])
-      .filter((p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId))
-      .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""));
+    const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
     const cohortMatches = (matches ?? []).filter((m) => m.cohort_id === cohortId);
+    // A match survives a profile's role/season change or an unavailable profile.
+    const mentorIds = new Set([
+      ...(profiles ?? [])
+        .filter((p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId))
+        .map((p) => p.id),
+      ...cohortMatches.map((m) => m.mentor_id),
+    ]);
     const matchedMenteeIds = new Set(cohortMatches.map((m) => m.mentee_id));
-    const groups = mentors.map((mentor) => {
-      const menteeIds = cohortMatches
-        .filter((m) => m.mentor_id === mentor.id)
-        .map((m) => m.mentee_id);
-      const mentees = menteeIds
-        .map((id) => (profiles ?? []).find((p) => p.id === id))
-        .filter((p): p is Profile => Boolean(p));
-      return { mentor, mentees };
-    });
+    const groups = Array.from(mentorIds)
+      .map((mentorId) => {
+        const mentor = profileById.get(mentorId);
+        const menteeIds = cohortMatches
+          .filter((m) => m.mentor_id === mentorId)
+          .map((m) => m.mentee_id);
+        const mentees = menteeIds.map((id) => ({ id, profile: profileById.get(id) }));
+        return { mentorId, mentor, mentees };
+      })
+      .sort((a, b) =>
+        (a.mentor?.full_name ?? a.mentorId).localeCompare(b.mentor?.full_name ?? b.mentorId),
+      );
     const unmatched = (profiles ?? []).filter(
       (p) =>
         p.participant_role === "mentee" &&
         p.cohort_ids.includes(cohortId) &&
         !matchedMenteeIds.has(p.id),
     );
-    return { groups, unmatched, hasMatches: cohortMatches.length > 0 };
+    const hasUnavailableProfiles = groups.some(
+      (g) => !g.mentor || g.mentees.some((m) => !m.profile),
+    );
+    return { groups, unmatched, hasMatches: cohortMatches.length > 0, hasUnavailableProfiles };
   }, [profiles, matches, cohortId]);
+
+  const [pairSearch, setPairSearch] = React.useState("");
+  const filteredPairGroups = React.useMemo(() => {
+    const term = pairSearch.trim().toLocaleLowerCase();
+    return pairGroups.groups.filter(({ mentorId, mentor }) =>
+      [mentorId, mentor?.full_name, mentor?.email].some(
+        (value) => value?.toLocaleLowerCase().includes(term),
+      ),
+    );
+  }, [pairGroups.groups, pairSearch]);
+  const pairPagination = usePagination(
+    filteredPairGroups.length,
+    JSON.stringify([pairSearch, cohortId, realUser?.id]),
+  );
+  const { setRowsPerPage: setPairRowsPerPage } = pairPagination;
+  // Keep the shared hook's reset/clamp behavior without changing the main table's page sizes.
+  React.useEffect(() => setPairRowsPerPage(10), [setPairRowsPerPage]);
+  const pagedPairGroups = pairPagination.slice(filteredPairGroups);
+  const pairError =
+    cohortsError || profilesError || matchesError || sessionsError || participationError;
+  const pairLoading =
+    cohorts === undefined ||
+    (Boolean(cohortId) &&
+      (profiles === undefined ||
+        matches === undefined ||
+        sessions === undefined ||
+        participation === undefined)) ||
+    pairPagination.rowsPerPage !== 10;
 
   // Completion and group filters read sessions, participation and group
   // members. Until all three have loaded (or when one failed) every mentee
@@ -402,6 +445,16 @@ export default function RosterPage() {
             >
               {tableCopy.exportButton}
             </Button>
+          </>
+        )}
+        {view === "pairs" && (
+          <>
+            <Box sx={{ flexGrow: 1 }} />
+            <FilterSearch
+              value={pairSearch}
+              onChange={setPairSearch}
+              placeholder={pairCopy.pairSearchPlaceholder}
+            />
           </>
         )}
       </Stack>
@@ -647,20 +700,32 @@ export default function RosterPage() {
           </TableContainer>
           <TablePager pagination={pagination} />
         </Paper>
+      ) : pairError ? (
+        <Alert severity="error">{pairCopy.pairLoadError}</Alert>
+      ) : pairLoading ? (
+        <Alert severity="info">{pairCopy.pairLoading}</Alert>
+      ) : !cohortId ? (
+        <Alert severity="info">{pairCopy.pairNoCohort}</Alert>
       ) : !pairGroups.hasMatches ? (
         <Alert severity="info">
-          负责人尚未上传本项目的配对结果。请在「名单导入」页上传配对表。
+          {pairCopy.pairNoMatches}
         </Alert>
       ) : (
         <Stack spacing={2}>
-          {pairGroups.groups.map(({ mentor, mentees }) => (
-            <Paper key={mentor.id} sx={{ p: 2.5, borderRadius: 3 }}>
+          {pairGroups.hasUnavailableProfiles && (
+            <Alert severity="warning">{pairCopy.pairUnavailableHint}</Alert>
+          )}
+          {filteredPairGroups.length === 0 && (
+            <Alert severity="info">{pairCopy.pairNoSearchResults}</Alert>
+          )}
+          {pagedPairGroups.map(({ mentorId, mentor, mentees }) => (
+            <Paper key={mentorId} sx={{ p: 2.5, borderRadius: 3 }}>
               <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
-                <MemberAvatar src={mentor.avatar_url ?? undefined} sx={{ width: 40, height: 40 }} />
+                <MemberAvatar src={mentor?.avatar_url ?? undefined} sx={{ width: 40, height: 40 }} />
                 <Box sx={{ flexGrow: 1 }}>
-                  <Typography fontWeight={700}>{mentor.full_name}</Typography>
+                  <Typography fontWeight={700}>{mentor?.full_name ?? pairCopy.pairUnavailableMentor}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    导师 · {mentor.id}
+                    导师 · {mentorId}
                   </Typography>
                 </Box>
                 <Chip size="small" label={`${mentees.length} 名学员`} color="primary" variant="outlined" />
@@ -671,35 +736,41 @@ export default function RosterPage() {
                 </Typography>
               ) : (
                 <Stack spacing={1} sx={{ pl: 6.5 }}>
-                  {mentees.map((mentee) => {
-                    const r = rowByProfileId.get(mentee.id);
+                  {mentees.map(({ id, profile: mentee }) => {
+                    const r = rowByProfileId.get(id);
                     return (
                       <Stack
-                        key={mentee.id}
+                        key={id}
                         direction="row"
                         spacing={1.5}
                         alignItems="center"
                       >
                         <MemberAvatar
-                          src={mentee.avatar_url ?? undefined}
+                          src={mentee?.avatar_url ?? undefined}
                           sx={{ width: 28, height: 28 }}
                         />
                         <Typography variant="body2" sx={{ flexGrow: 1 }}>
-                          {mentee.full_name}
+                          {mentee?.full_name ?? pairCopy.pairUnavailableMentee}
                           <Typography component="span" variant="caption" color="text.secondary">
                             {" "}
-                            · {mentee.id}
+                            · {id}
                           </Typography>
                         </Typography>
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          label={`交流 ${r?.sessionCount ?? 0}`}
-                        />
-                        {r?.completedAll ? (
-                          <Chip size="small" color="success" label="已完成" />
+                        {!r || r.profile.participant_role !== "mentee" ? (
+                          <Chip size="small" variant="outlined" label={pairCopy.pairActivityUnavailable} />
                         ) : (
-                          <Chip size="small" color="default" variant="outlined" label="未完成" />
+                          <>
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`交流 ${r.sessionCount}`}
+                            />
+                            {r.completedAll ? (
+                              <Chip size="small" color="success" label="已完成" />
+                            ) : (
+                              <Chip size="small" color="default" variant="outlined" label="未完成" />
+                            )}
+                          </>
                         )}
                       </Stack>
                     );
@@ -708,6 +779,18 @@ export default function RosterPage() {
               )}
             </Paper>
           ))}
+          <TablePagination
+            component="div"
+            count={pairPagination.total}
+            page={pairPagination.page}
+            onPageChange={(_, next) => pairPagination.setPage(next)}
+            rowsPerPage={10}
+            rowsPerPageOptions={[10]}
+            labelRowsPerPage={pairCopy.pairRowsPerPage}
+            labelDisplayedRows={({ from, to, count }) =>
+              pairCopy.pairDisplayedRows(from, to, count)
+            }
+          />
           {pairGroups.unmatched.length > 0 && (
             <Paper sx={{ p: 2.5, borderRadius: 3 }}>
               <Typography fontWeight={700} gutterBottom>
@@ -727,9 +810,12 @@ export default function RosterPage() {
           )}
         </Stack>
       )}
-      <Divider sx={{ my: 5 }} />
-
-      <PendingInvites />
+      {view === "table" && (
+        <>
+          <Divider sx={{ my: 5 }} />
+          <PendingInvites />
+        </>
+      )}
 
     </Box>
   );
