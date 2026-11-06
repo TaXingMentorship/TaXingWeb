@@ -371,11 +371,12 @@ export const portalCopy = {
       delete: "删除",
       deleteConfirm: "确定删除这条子活动吗？删除后无法恢复。",
     },
+    /** The button on each 重要文件 entry. */
+    openPdf: "PDF",
     timelineHeading: (range: string) => `2026 秋季项目时间线 · ${range}`,
     upNext: {
       title: "接下来",
       more: (n: number) => `之后还有 ${n} 场`,
-      empty: "近期没有安排中的场次。",
     },
     browse: {
       showPast: (n: number) => `已结束 ${n} 场`,
@@ -389,7 +390,6 @@ export const portalCopy = {
         past: "已结束",
         upcoming: "未开始",
       },
-      sessionCount: (n: number) => `${n} 场`,
     },
     calendar: {
       weekdays: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],

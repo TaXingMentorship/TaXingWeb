@@ -75,6 +75,9 @@ function UpNext({
   );
   if (upcoming.length === 0) return null;
   const rowTitle = new Map(rows.map((r) => [r.key, r.title]));
+  const sheetByRow = new Map(
+    rows.map((r) => [r.key, rowSheetUrl(items.filter((i) => i.parent_key === r.key))]),
+  );
   const shown = upcoming.slice(0, UP_NEXT_COUNT);
   const statusCopy = portalCopy.activities.subItems.status;
 
@@ -135,7 +138,7 @@ function UpNext({
                 <SessionLinks
                   item={item}
                   past={false}
-                  sheetUrl={rowSheetUrl(items.filter((i) => i.parent_key === item.parent_key))}
+                  sheetUrl={sheetByRow.get(item.parent_key) ?? null}
                 />
               </Stack>
             </Stack>
@@ -275,7 +278,7 @@ export default function ActivitiesPage() {
                 endIcon={<OpenInNewIcon />}
                 sx={{ flexShrink: 0 }}
               >
-                PDF
+                {portalCopy.activities.openPdf}
               </Button>
             </Stack>
           ))}
@@ -495,6 +498,10 @@ export default function ActivitiesPage() {
             gridRow: { lg: 1 },
             position: { lg: "sticky" },
             top: { lg: 88 },
+            // Taller than the window, a sticky column would hide its bottom
+            // until the timeline ran out; scroll it on its own instead.
+            maxHeight: { lg: "calc(100vh - 112px)" },
+            overflowY: { lg: "auto" },
           }}
         >
           <UpNext items={subItems} rows={rows} now={now} />

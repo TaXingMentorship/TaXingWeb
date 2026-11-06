@@ -1133,12 +1133,17 @@ export async function saveTimelineDates(input: TimelineDatesInput): Promise<void
 
 /** Drops the override, so the row shows its defaults again. */
 export async function resetTimelineDates(cohortId: string, rowKey: string): Promise<void> {
-  const { error } = await createClient()
+  const { data, error } = await createClient()
     .from("activity_timeline_dates")
     .delete()
     .eq("cohort_id", cohortId)
-    .eq("row_key", rowKey);
+    .eq("row_key", rowKey)
+    .select("row_key");
   throwQueryError("恢复默认时间", error);
+  // RLS turns a non-admin's delete into a silent no-op; say so instead.
+  if (!data || data.length === 0) {
+    throw new Error("恢复默认时间失败：只有负责人可以修改活动时间，或这一行已是默认时间。请刷新页面后重试。");
+  }
 }
 
 // --- Volunteers ------------------------------------------------------------

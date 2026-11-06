@@ -27,6 +27,19 @@ export function programDay(moment: Date): string {
   return programDayFormat.format(moment);
 }
 
+/** PROGRAM_TIME_ZONE's offset from UTC. Asia/Shanghai has no DST, so it is fixed. */
+const PROGRAM_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+/**
+ * Program day `day` (`YYYY-MM-DD`) as the moments it spans: its first
+ * millisecond and the first millisecond of the next day.
+ */
+export function programDaySpan(day: string): { start: number; end: number } {
+  const [y, m, d] = day.split("-").map(Number);
+  const start = Date.UTC(y, m - 1, d) - PROGRAM_UTC_OFFSET_MS;
+  return { start, end: start + 24 * 60 * 60 * 1000 };
+}
+
 /** One row of the 主线 / 支线 timeline on /portal/activities. */
 export type TimelineRow = {
   /**

@@ -80,6 +80,16 @@ const dayKeyFormat = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
+/** `19:00`, in the viewer's zone. */
+export function formatClock(startsAt: string): string {
+  return clockFormat.format(new Date(startsAt));
+}
+
+/** A moment's `YYYY-MM-DD` in the viewer's zone — the day a session is listed under. */
+export function viewerDayKey(moment: Date): string {
+  return dayKeyFormat.format(moment);
+}
+
 /** The viewer's zone as the browser abbreviates it, e.g. `GMT+8`. */
 export function viewerZoneName(): string {
   return (
@@ -109,6 +119,19 @@ const VISIBLE_UPCOMING = 5;
 /** …unless that would hide only one or two. */
 const COLLAPSE_SLACK = 2;
 
+const FEISHU_DOMAINS = ["feishu.cn", "larksuite.com", "larkoffice.com"];
+
+/** Whether `url`'s host is one of `domains` or a subdomain of one. False for a bad URL. */
+function hostIn(url: string, domains: string[]): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return domains.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
 /**
  * Which app a meeting link opens, so the button can say 加入飞书会议 rather
  * than a bare 会议链接 — people need to know whether to install Feishu first.
@@ -116,31 +139,17 @@ const COLLAPSE_SLACK = 2;
  */
 export function meetingProvider(url: string): string | null {
   const providers = portalCopy.activities.subItems.providers;
-  let host: string;
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-  const is = (domain: string) => host === domain || host.endsWith(`.${domain}`);
-  if (is("feishu.cn") || is("larksuite.com") || is("larkoffice.com")) return providers.feishu;
-  if (is("meeting.tencent.com") || is("voovmeeting.com")) return providers.tencent;
-  if (is("zoom.us") || is("zoom.com")) return providers.zoom;
+  if (hostIn(url, FEISHU_DOMAINS)) return providers.feishu;
+  if (hostIn(url, ["meeting.tencent.com", "voovmeeting.com"])) return providers.tencent;
+  if (hostIn(url, ["zoom.us", "zoom.com"])) return providers.zoom;
   return null;
 }
 
 /** Which app a document link opens in (飞书 / 腾讯文档), or null. */
 export function docApp(url: string): string | null {
   const apps = portalCopy.activities.subItems.docApps;
-  let host: string;
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-  const is = (domain: string) => host === domain || host.endsWith(`.${domain}`);
-  if (is("feishu.cn") || is("larksuite.com") || is("larkoffice.com")) return apps.feishu;
-  if (is("docs.qq.com")) return apps.tencentDocs;
+  if (hostIn(url, FEISHU_DOMAINS)) return apps.feishu;
+  if (hostIn(url, ["docs.qq.com"])) return apps.tencentDocs;
   return null;
 }
 
@@ -228,7 +237,7 @@ function SessionRow({
           color={past ? "text.secondary" : "primary.dark"}
           sx={{ minWidth: 42, fontVariantNumeric: "tabular-nums", pt: { xs: 0.25, sm: 0 } }}
         >
-          {clockFormat.format(new Date(item.starts_at!))}
+          {formatClock(item.starts_at!)}
         </Typography>
         <Stack
           direction={{ xs: "column", sm: "row" }}

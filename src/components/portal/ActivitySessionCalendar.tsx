@@ -13,25 +13,18 @@ import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import type { ActivityItem } from "@/types/portal";
 import LinkifiedText from "@/components/portal/board/LinkifiedText";
 import {
+  formatClock,
   formatSessionTime,
   SessionLinks,
   sessionStatus,
+  viewerDayKey,
 } from "@/components/portal/ActivitySubItems";
 import { portalCopy } from "@/data/portalCopy";
-import type { TimelineRow } from "@/data/activityTimeline";
+import { programDaySpan, type TimelineRow } from "@/data/activityTimeline";
 
 // Days are the viewer's own, like the times — a session at 01:00 for her sits
-// in that day's cell, wherever the program's zone puts it.
-const dayKeyFormat = new Intl.DateTimeFormat("en-CA", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-const clockFormat = new Intl.DateTimeFormat("zh-CN", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
+// in that day's cell, wherever the program's zone puts it. The row's program
+// dates are converted the same way, so the shaded range matches the cells.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -88,14 +81,17 @@ export default function ActivitySessionCalendar({
 
   const byDay = new Map<string, ActivityItem[]>();
   for (const s of sessions) {
-    const key = dayKeyFormat.format(new Date(s.starts_at!));
+    const key = viewerDayKey(new Date(s.starts_at!));
     const list = byDay.get(key);
     if (list) list.push(s);
     else byDay.set(key, [s]);
   }
+  // Every viewer day that overlaps the row's program days.
+  const rowFrom = viewerDayKey(new Date(programDaySpan(row.from).start));
+  const rowTo = viewerDayKey(new Date(programDaySpan(row.to).end - 1));
   const sessionDays = [...byDay.keys()].sort();
-  const first = [row.from, sessionDays[0]].filter(Boolean).sort()[0]!;
-  const last = [row.to, sessionDays[sessionDays.length - 1]].filter(Boolean).sort().reverse()[0]!;
+  const first = [rowFrom, sessionDays[0]].filter(Boolean).sort()[0]!;
+  const last = [rowTo, sessionDays[sessionDays.length - 1]].filter(Boolean).sort().reverse()[0]!;
 
   const start = dayToUtc(first) - weekdayIndex(dayToUtc(first)) * DAY_MS;
   const endMs = dayToUtc(last);
@@ -104,7 +100,9 @@ export default function ActivitySessionCalendar({
   for (let ms = start; ms <= end; ms += 7 * DAY_MS) {
     weeks.push(Array.from({ length: 7 }, (_, i) => utcToDay(ms + i * DAY_MS)));
   }
-  const today = dayKeyFormat.format(new Date(now));
+  const today = viewerDayKey(new Date(now));
+  // Point to the 总表 only when no session carries its own meeting link.
+  const hint = sheetUrl && !sessions.some((s) => s.meeting_url) ? copy.hintWithSheet : copy.hint;
 
   const selected = open?.item;
   const selectedPast = selected ? sessionStatus(selected.starts_at!, now) === "past" : false;
@@ -112,7 +110,7 @@ export default function ActivitySessionCalendar({
   return (
     <Box sx={{ mt: 1.5 }}>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.75 }}>
-        {sheetUrl ? copy.hintWithSheet : copy.hint}
+        {hint}
       </Typography>
       <Box
         sx={{
@@ -137,7 +135,7 @@ export default function ActivitySessionCalendar({
           </Typography>
         ))}
         {weeks.flat().map((day, i) => {
-          const inRow = row.from <= day && day <= row.to;
+          const inRow = rowFrom <= day && day <= rowTo;
           const isToday = day === today;
           const [, m, d] = day.split("-").map(Number);
           const items = byDay.get(day) ?? [];
@@ -212,7 +210,7 @@ export default function ActivitySessionCalendar({
                         sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}
                       >
                         <Box component="span" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums", mr: 0.5 }}>
-                          {clockFormat.format(new Date(item.starts_at!))}
+                          {formatClock(item.starts_at!)}
                         </Box>
                         {shortSessionTitle(item.title)}
                       </Typography>
