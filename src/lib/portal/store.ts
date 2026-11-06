@@ -760,6 +760,38 @@ export async function setInviteNotParticipating(
 
 // --- Matching --------------------------------------------------------------
 
+/** Personal matches plus same-season siblings; the helper is keyed on auth.uid(). */
+export async function listMyMentorshipMatches(
+  cohortId: string,
+  userId: string,
+): Promise<Match[]> {
+  const client = createClient();
+  const { data: mentorIds, error: mentorError } = await client.rpc(
+    "my_mentorship_mentor_ids",
+    { p_cohort_id: cohortId },
+  );
+  throwQueryError("读取我的 mentorship 小组", mentorError);
+  const [asMentor, asMentee] = await Promise.all([
+    listMatches({ cohortId, mentorId: userId }),
+    listMatches({ cohortId, menteeId: userId }),
+  ]);
+  const ids = (mentorIds ?? []) as string[];
+  let siblings: Match[] = [];
+  if (ids.length) {
+    const { data, error } = await client
+      .from("matches")
+      .select("*")
+      .eq("cohort_id", cohortId)
+      .in("mentor_id", ids)
+      .order("created_at", { ascending: true });
+    throwQueryError("读取我的 mentorship 小组", error);
+    siblings = (data ?? []) as Match[];
+  }
+  return Array.from(
+    new Map([...asMentor, ...asMentee, ...siblings].map((m) => [m.id, m])).values(),
+  );
+}
+
 export async function listMatches(filter?: {
   cohortId?: string;
   mentorId?: string;

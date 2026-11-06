@@ -139,6 +139,33 @@ Users belong to many seasons through `profiles.cohort_ids uuid[]` — filter wit
 
 Mentor↔mentee `matches` are admin-uploaded. Mentors may log sessions only for matched mentees; admins are unrestricted. This is enforced both in RLS and in the sessions route handler.
 
+### 我的 mentorship 小组 (0040)
+
+成员目录 shows the real account's matches for a selected season: mentors see all
+their mentees; mentees see their mentor(s) and other mentees with the same mentor
+in that season. This is unrelated to the bulletin board's 答疑组. Reads go through
+`listMyMentorshipMatches` in `store.ts`; user/season-keyed queries and a separate
+season picker prevent stale groups when switching accounts or seasons.
+
+Apply `0040_mentorship_sibling_reads.sql` manually, in filename order, in production
+and preview **before deploying this frontend**. The authenticated-only
+`my_mentorship_mentor_ids` helper is SECURITY DEFINER to avoid recursive matches
+RLS, has a fixed empty search path, and reads only `auth.uid()`'s mentee matches
+in one of their own seasons. The additive SELECT policy grants only same-mentor,
+same-season siblings, never all matches in a cohort. Existing involved/admin
+reads and write/session policies are unchanged. Profile RLS and `visibleToMember`
+still apply: unavailable/hidden profiles are placeholders, not bypassed. The
+helper call fails explicitly if the migration is missing.
+
+After manual deployment, verify with separate mentor and mentee accounts (persona
+switching is presentation only): a mentor sees every own mentee; a mentee sees
+their mentor and siblings, but a direct matches query cannot read unrelated
+mentors' matches or siblings in another season. Verify a hidden profile stays
+unavailable, switching season refreshes the group/dialog, and an account without
+matches sees an explicit empty state. Admin 成员名单 → 配对关系 searches mentors
+before paging, ten mentors per page; verify search/cohort reset and page clamping
+after results shrink. A build/type check does not validate remote migration/RLS.
+
 ### Nicknames
 
 `profiles.full_name` (shown as 「昵称」) is the imported roster name and is locked for everyone but admins (migration `0021`): the `protect_profile_privileges` trigger raises `PROFILE_NAME_LOCKED`, and `claim_roster_invite` takes the name from the invite rather than the form. A member asks for a change from 我的资料 (`request_name_change`, reason required); an admin approves or rejects it from the card at the top of 成员名单 (`review_name_change`; a rejection needs a note). `name_change_requests` has no write policies — every write is one of those functions, plus `withdraw_name_change` and `mark_name_changes_seen`. The sidebar shows a count on 成员名单 for admins and a dot on 我的资料 for a requester with an unseen decision. `NameChangeField` follows the persona (a display lens), while the lock itself follows the real account.
