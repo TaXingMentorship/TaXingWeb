@@ -55,6 +55,7 @@ export default function ActivityItemDialog({
   open,
   item,
   parent,
+  rows,
   cohortId,
   createdBy,
   onClose,
@@ -63,6 +64,8 @@ export default function ActivityItemDialog({
   open: boolean;
   item: ActivityItem | null;
   parent: TimelineRow;
+  /** The timeline with date overrides applied (applyTimelineDates). */
+  rows: TimelineRow[];
   cohortId: string;
   createdBy: string;
   onClose: () => void;
@@ -94,11 +97,11 @@ export default function ActivityItemDialog({
   }, [open, item, parent.defaultKind]);
 
   const session = kind === "session";
-  const series = seriesRows(parent);
+  const series = seriesRows(rows, parent);
   // The datetime-local value is the editor's local time; the row is decided by
   // that moment's program date, so who re-saves it never changes where it sits.
   const target =
-    session && startsAt ? placeSession(parent, programDay(new Date(startsAt))) : null;
+    session && startsAt ? placeSession(rows, parent, programDay(new Date(startsAt))) : null;
   const outOfRange = session && Boolean(startsAt) && !target;
   const startsAtHelper = outOfRange
     ? copy.outOfRange(series.map((r) => formatRange(r.from, r.to)).join("、"))

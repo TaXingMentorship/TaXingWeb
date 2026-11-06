@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type {
   ActivityItem,
+  ActivityTimelineDates,
   BulletinBoard,
   BulletinCategory,
   BulletinColor,
@@ -1097,6 +1098,52 @@ export async function deleteActivityItem(id: string): Promise<void> {
     .select("id");
   throwQueryError("删除活动", error);
   throwIfNoRow("删除活动", data);
+}
+
+// --- Activity timeline dates ----------------------------------------------
+
+/**
+ * Admin overrides of the timeline rows' dates (0041). Everyone reads; only
+ * admins write. A row with no override uses the defaults in code.
+ */
+export async function listTimelineDates(cohortId: string): Promise<ActivityTimelineDates[]> {
+  const { data, error } = await createClient()
+    .from("activity_timeline_dates")
+    .select("*")
+    .eq("cohort_id", cohortId);
+  throwQueryError("读取活动时间", error);
+  return (data ?? []) as ActivityTimelineDates[];
+}
+
+export type TimelineDatesInput = Pick<
+  ActivityTimelineDates,
+  "cohort_id" | "row_key" | "from_day" | "to_day" | "week_label" | "updated_by"
+>;
+
+export async function saveTimelineDates(input: TimelineDatesInput): Promise<void> {
+  const { data, error } = await createClient()
+    .from("activity_timeline_dates")
+    .upsert(input, { onConflict: "cohort_id,row_key" })
+    .select("row_key");
+  throwQueryError("保存活动时间", error);
+  if (!data || data.length === 0) {
+    throw new Error("保存活动时间失败：只有负责人可以修改活动时间。");
+  }
+}
+
+/** Drops the override, so the row shows its defaults again. */
+export async function resetTimelineDates(cohortId: string, rowKey: string): Promise<void> {
+  const { data, error } = await createClient()
+    .from("activity_timeline_dates")
+    .delete()
+    .eq("cohort_id", cohortId)
+    .eq("row_key", rowKey)
+    .select("row_key");
+  throwQueryError("恢复默认时间", error);
+  // RLS turns a non-admin's delete into a silent no-op; say so instead.
+  if (!data || data.length === 0) {
+    throw new Error("恢复默认时间失败：只有负责人可以修改活动时间，或这一行已是默认时间。请刷新页面后重试。");
+  }
 }
 
 // --- Volunteers ------------------------------------------------------------
