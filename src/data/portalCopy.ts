@@ -316,6 +316,21 @@ export const portalCopy = {
       add: "添加子活动",
       open: "打开",
       meeting: "会议链接",
+      /** Meeting button by provider, e.g. 加入飞书会议. */
+      joinMeeting: (provider: string) => `加入${provider}`,
+      providers: {
+        feishu: "飞书会议",
+        tencent: "腾讯会议",
+        zoom: "Zoom",
+      },
+      meetingPending: "会议链接待更新",
+      /** A session with no link of its own, in a row with a 总表 link. */
+      sheet: (app: string | null) => (app ? `查看${app}总表` : "查看总表"),
+      openIn: (app: string | null) => (app ? `在${app}打开` : "打开"),
+      docApps: {
+        feishu: "飞书",
+        tencentDocs: "腾讯文档",
+      },
       recording: "观看录屏",
       recordingPending: "录屏整理中",
       status: {
@@ -355,6 +370,51 @@ export const portalCopy = {
       save: "保存",
       delete: "删除",
       deleteConfirm: "确定删除这条子活动吗？删除后无法恢复。",
+    },
+    timelineHeading: (range: string) => `2026 秋季项目时间线 · ${range}`,
+    upNext: {
+      title: "接下来",
+      more: (n: number) => `之后还有 ${n} 场`,
+      empty: "近期没有安排中的场次。",
+    },
+    browse: {
+      showPast: (n: number) => `已结束 ${n} 场`,
+      hidePast: "收起已结束",
+      showMore: (n: number) => `展开其余 ${n} 场`,
+      showLess: "收起",
+      details: "简介",
+      zoneNote: (zone: string) => `时间按你所在时区显示（${zone}）`,
+      rowPhase: {
+        current: "进行中",
+        past: "已结束",
+        upcoming: "未开始",
+      },
+      sessionCount: (n: number) => `${n} 场`,
+    },
+    calendar: {
+      weekdays: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
+      today: "今天",
+      hint: "点击场次查看简介和会议链接；右侧有摄像机图标的场次已经可以加入会议。",
+      hintWithSheet: "会议链接请看上方总表；点击场次查看简介。",
+      viewCalendar: "日历",
+      viewList: "列表",
+    },
+    datesDialog: {
+      edit: "修改活动时间",
+      title: (row: string) => `修改「${row}」的时间`,
+      fromLabel: "开始日期",
+      toLabel: "结束日期",
+      weekLabel: "周次标签",
+      weekPlaceholder: "Week 5–7",
+      helper: "按北京时间填写，含首尾两天。",
+      defaults: (range: string, week: string) => `默认：${range} · ${week}`,
+      rangeInvalid: "结束日期不能早于开始日期。",
+      required: "请填写开始日期、结束日期和周次标签。",
+      outside: (n: number) =>
+        `这一行下有 ${n} 场不在新的日期内。已添加的场次不会自动移动，保存后它们仍显示在这一行。`,
+      reset: "恢复默认",
+      cancel: "取消",
+      save: "保存",
     },
   },
   mascot: {

@@ -453,6 +453,22 @@ export type ActivityItem = {
   updated_at: string;
 };
 
+/**
+ * An admin's override of one timeline row's dates and week label for one
+ * season (migration 0041). Rows without one use the defaults in code.
+ */
+export type ActivityTimelineDates = {
+  cohort_id: string;
+  /** The `key` of the hardcoded timeline row. */
+  row_key: string;
+  /** `YYYY-MM-DD`, inclusive, in PROGRAM_TIME_ZONE. */
+  from_day: string;
+  to_day: string;
+  week_label: string;
+  updated_by: string | null;
+  updated_at: string;
+};
+
 /** One of the viewer's own posts with comments by others they have not opened (migration 0029). */
 export type UnreadPostSummary = {
   post_id: string;
