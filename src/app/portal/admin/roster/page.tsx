@@ -810,9 +810,12 @@ export default function RosterPage() {
           )}
         </Stack>
       )}
-      <Divider sx={{ my: 5 }} />
-
-      <PendingInvites />
+      {view === "table" && (
+        <>
+          <Divider sx={{ my: 5 }} />
+          <PendingInvites />
+        </>
+      )}
 
     </Box>
   );
