@@ -855,7 +855,7 @@ export const portalCopy = {
   },
   myMentorship: {
     title: "我的 mentorship 小组",
-    intro: "按季度查看你的导师与学员，以及同导师的其她学员。这里的小组由配对结果决定，与答疑组不同。",
+    intro: "按季度查看你的导师与学员，以及同导师的其她学员。",
     seasonLabel: "季度",
     loading: "正在加载我的 mentorship 小组…",
     loadError: "小组或成员资料加载失败，请重试。如果持续失败，请联系负责人确认配对读取迁移已部署。",
@@ -865,7 +865,6 @@ export const portalCopy = {
     unavailable: "成员资料不可用（资料未公开或不在可见季度内）。",
     mentor: "导师",
     mentees: "学员",
-    you: "你",
   },
   roster: {
     pairSearchPlaceholder: "搜索导师昵称、邮箱或 ID",
