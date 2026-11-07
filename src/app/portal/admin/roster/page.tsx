@@ -39,9 +39,12 @@ import {
   buildEntries,
   exportEntries,
   filterEntries,
+  groupBy,
+  noteSearchText,
   rosterNames,
   selectableMentorIds,
   type MemberRowData,
+  type NoteFilters,
   type RosterFilters,
 } from "@/lib/portal/rosterEntries";
 import { buildNamesCsv, namesFileName } from "@/lib/portal/exportMentors";
@@ -51,7 +54,16 @@ import MentorGroupsDialog from "@/components/portal/MentorGroupsDialog";
 import NameChangeReviewCard from "@/components/portal/NameChangeReviewCard";
 import MentorGroupChangeReviewCard from "@/components/portal/MentorGroupChangeReviewCard";
 import PendingInvites from "@/components/portal/PendingInvites";
-import { InvitedRow, MemberRow } from "@/components/portal/RosterRows";
+import {
+  InvitedRow,
+  MemberRow,
+  emailCellSx,
+  nameCellSx,
+  identityCellSx,
+  notesCellSx,
+  recommendCellSx,
+  wechatCellSx,
+} from "@/components/portal/RosterRows";
 import {
   FilterSearch,
   FilterSelect,
@@ -60,7 +72,15 @@ import {
 } from "@/components/portal/TableFilters";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import VolunteerRoster from "@/components/portal/VolunteerRoster";
-import { useRosterNotes } from "@/components/portal/useRosterNotes";
+import {
+  useMentorRecommendations,
+  useRosterNotes,
+  useRosterStaffAuthors,
+} from "@/components/portal/useRosterNotes";
+import { RosterAuthorsProvider } from "@/components/portal/RosterAuthorCard";
+import RosterNoteThread from "@/components/portal/RosterNoteThread";
+import StaffFilterSelects from "@/components/portal/RosterStaffFilters";
+import MentorRecommendCell from "@/components/portal/MentorRecommendCell";
 
 export default function RosterPage() {
   const { currentUser } = usePortalSession();
@@ -148,10 +168,22 @@ function AdminRoster() {
     },
   });
 
-  const { query: notesQuery, save: saveNote } = useRosterNotes(cohortId);
+  const {
+    query: notesQuery,
+    add: addNote,
+    edit: editNote,
+    remove: removeNote,
+  } = useRosterNotes(cohortId);
+  const {
+    query: recsQuery,
+    set: setRecommendation,
+    remove: removeRecommendation,
+  } = useMentorRecommendations(cohortId);
+  const { data: staffAuthors } = useRosterStaffAuthors(cohortId);
 
   const rows = React.useMemo<MemberRowData[]>(() => {
-    const notes = new Map((notesQuery.data ?? []).map((n) => [n.profile_id, n.notes]));
+    const notes = groupBy(notesQuery.data ?? [], (n) => n.profile_id);
+    const recs = groupBy(recsQuery.data ?? [], (r) => r.mentor_id);
     // Admin- or volunteer-only accounts belong here too: this table is where
     // an identity is edited, so an account with no mentor / mentee role must
     // stay reachable or its identity could never be changed again.
@@ -184,9 +216,19 @@ function AdminRoster() {
           : p.participant_role === "mentor"
             ? sessionCount > 0
             : null;
-      return { profile: p, notes: notes.get(p.id) ?? null, sessionCount, submitted, gaveGratitude, completedAll };
+      const noteEntries = notes.get(p.id) ?? [];
+      return {
+        profile: p,
+        notes: noteSearchText(noteEntries),
+        noteEntries,
+        recommendations: recs.get(p.id) ?? [],
+        sessionCount,
+        submitted,
+        gaveGratitude,
+        completedAll,
+      };
     });
-  }, [profiles, sessions, participation, cohortId, notesQuery.data]);
+  }, [profiles, sessions, participation, cohortId, notesQuery.data, recsQuery.data]);
 
   const mentorIds = React.useMemo(
     () => rows.filter((r) => r.profile.participant_role === "mentor").map((r) => r.profile.id),
@@ -203,7 +245,14 @@ function AdminRoster() {
   const [activityFilter, setActivityFilter] = React.useState<RosterFilters["activity"]>("all");
   const [gratitudeFilter, setGratitudeFilter] = React.useState<RosterFilters["gratitude"]>("all");
   const [groupFilter, setGroupFilter] = React.useState("all");
+  const [noteFilter, setNoteFilter] = React.useState<NoteFilters["note"]>("all");
+  const [noteAuthorFilter, setNoteAuthorFilter] = React.useState<string[]>([]);
+  const [recommendFilter, setRecommendFilter] = React.useState<NoteFilters["recommend"]>("all");
+  const viewerId = realUser?.id ?? null;
   const resetKey = [
+    noteFilter,
+    noteAuthorFilter.join(","),
+    recommendFilter,
     cohortId,
     search,
     roleFilter,
@@ -230,10 +279,20 @@ function AdminRoster() {
           activity: activityFilter,
           gratitude: gratitudeFilter,
           group: groupFilter,
+          note: noteFilter,
+          noteAuthor: noteAuthorFilter,
+          recommend: recommendFilter,
+          viewerId,
+          cohortId,
         },
         groupOfMentor,
       ),
     [
+      noteFilter,
+      noteAuthorFilter,
+      recommendFilter,
+      viewerId,
+      cohortId,
       entries,
       search,
       roleFilter,
@@ -387,7 +446,10 @@ function AdminRoster() {
   if (notesQuery.error) {
     return <Alert severity="error">{pairCopy.notesLoadError} {notesQuery.error.message}</Alert>;
   }
-  if (cohortId && notesQuery.isLoading) {
+  if (recsQuery.error) {
+    return <Alert severity="error">{pairCopy.notesLoadError} {recsQuery.error.message}</Alert>;
+  }
+  if (cohortId && (notesQuery.isLoading || recsQuery.isLoading)) {
     return <Alert severity="info">{pairCopy.staffLoading}</Alert>;
   }
 
@@ -395,6 +457,12 @@ function AdminRoster() {
     Object.entries(labels).map(([value, label]) => ({ value, label }));
 
   return (
+    <RosterAuthorsProvider
+      authors={staffAuthors ?? []}
+      noteEntries={notesQuery.data ?? []}
+      recommendations={recsQuery.data ?? []}
+      cohortId={cohortId}
+    >
     <Box>
       <Typography variant="h4" fontWeight={800} gutterBottom>
         成员名单
@@ -550,6 +618,16 @@ function AdminRoster() {
                 ...toOptions(tableCopy.doneOptions),
               ]}
             />
+            <StaffFilterSelects
+              entries={notesQuery.data ?? []}
+              viewerId={viewerId}
+              note={noteFilter}
+              onNote={setNoteFilter}
+              noteAuthor={noteAuthorFilter}
+              onNoteAuthor={setNoteAuthorFilter}
+              recommend={recommendFilter}
+              onRecommend={setRecommendFilter}
+            />
             {/* Fills the last grid cell, so the count needs no row of its own.
                 The unassigned warning only shows when there is one, and jumps
                 straight to those mentors. */}
@@ -645,23 +723,24 @@ function AdminRoster() {
                     />
                   </TableCell>
                   <TableCell>ID</TableCell>
-                  <TableCell>姓名</TableCell>
-                  <TableCell>邮箱</TableCell>
-                  <TableCell>微信号</TableCell>
-                  <TableCell>身份</TableCell>
+                  <TableCell sx={nameCellSx}>姓名</TableCell>
+                  <TableCell sx={emailCellSx}>邮箱</TableCell>
+                  <TableCell sx={wechatCellSx}>微信号</TableCell>
+                  <TableCell sx={identityCellSx}>身份</TableCell>
                   <TableCell>{tableCopy.statusColumn}</TableCell>
                   <TableCell sx={{ minWidth: 160, maxWidth: 220 }}>{groupCopy.columnLabel}</TableCell>
                   <TableCell align="right">交流场次</TableCell>
                   <TableCell align="center">活动记录</TableCell>
                   <TableCell align="center">感谢赠言</TableCell>
                   <TableCell align="center">全部完成</TableCell>
-                  <TableCell>备注</TableCell>
+                  <TableCell sx={recommendCellSx}>{pairCopy.recommendColumn}</TableCell>
+                  <TableCell sx={notesCellSx}>备注</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13}>
+                    <TableCell colSpan={14}>
                       <Alert severity="info" sx={{ my: 1 }}>
                         {entries.length === 0 ? tableCopy.emptyCohort : tableCopy.emptyFiltered}
                       </Alert>
@@ -694,12 +773,39 @@ function AdminRoster() {
                             groupId,
                           })
                         }
-                        onSaveNote={async (value) => {
-                          await saveNote.mutateAsync({
-                            profileId: entry.row.profile.id,
-                            notes: value,
-                          });
-                        }}
+                        recommendCell={
+                          <MentorRecommendCell
+                            mentorName={entry.row.profile.full_name ?? ""}
+                            cohortId={cohortId}
+                            viewerId={viewerId}
+                            recommendations={entry.row.recommendations ?? []}
+                            onSet={async (reason) => {
+                              await setRecommendation.mutateAsync({
+                                mentorId: entry.row.profile.id,
+                                reason,
+                              });
+                            }}
+                            onRemove={async () => {
+                              await removeRecommendation.mutateAsync(entry.row.profile.id);
+                            }}
+                          />
+                        }
+                        notesCell={
+                          <RosterNoteThread
+                            entries={entry.row.noteEntries ?? []}
+                            viewerId={viewerId}
+                            isAdmin
+                            onAdd={async (body) => {
+                              await addNote.mutateAsync({ profileId: entry.row.profile.id, body });
+                            }}
+                            onEdit={async (entryId, body) => {
+                              await editNote.mutateAsync({ entryId, body });
+                            }}
+                            onDelete={async (entryId) => {
+                              await removeNote.mutateAsync(entryId);
+                            }}
+                          />
+                        }
                       />
                     ),
                   )
@@ -827,5 +933,6 @@ function AdminRoster() {
       )}
 
     </Box>
+    </RosterAuthorsProvider>
   );
 }

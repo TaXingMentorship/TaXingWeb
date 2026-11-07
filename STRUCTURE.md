@@ -205,6 +205,33 @@ volunteer from another season cannot open the chosen season or write for a membe
 outside it. Confirm mixed participant/staff behavior, season changes, save errors
 and that existing admin actions remain available only to admins.
 
+### Note threads and mentor recommendations (0043)
+
+Notes are now a **thread of authored entries** (`roster_note_entries`), still
+member-level and shared across seasons, so staff can tell who wrote what. 0043
+copies each non-empty `roster_notes` value into one entry attributed to its last
+editor (`updated_by`; null shows as 「早期备注」). `roster_notes` is kept as
+history and no longer written by the UI. Entries are add/delete only: the author
+(while they still staff a season of that member) or an admin can delete one.
+
+`mentor_recommendations` holds one recommendation per recommender, mentor and
+season, with an optional reason. `list_mentor_recommendations(cohort)` returns
+**every season's** recommendations for the mentors in that season, so next
+season's staff see 「往期 N」. Both tables have RLS on and no client grants:
+reads and writes go only through the 0043 RPCs, which share the 0042 boundary
+(`assert_roster_staff`: admin or `is_season_volunteer`).
+
+The 备注 / 备注人 / 推荐 filters (`matchesNoteFilters` in `rosterEntries.ts`)
+appear on both roster views; the volunteer view also gets 身份. Pending
+invitations never match these filters. 备注人 is a multi-select built from the
+season's actual authors (viewer first, then by entry count); none selected = all.
+
+Hovering (or tapping / focusing) an author or recommender name shows a card:
+avatar, identity, email, WeChat and this season's counts. The profiles come from
+`list_roster_staff_authors(cohort)` (0044), which returns only people who wrote
+a note or recommendation visible in that season, through `RosterAuthorsProvider`.
+Without 0044 the names still render, just without the card.
+
 ### Nicknames
 
 `profiles.full_name` (shown as 「昵称」) is the imported roster name and is locked for everyone but admins (migration `0021`): the `protect_profile_privileges` trigger raises `PROFILE_NAME_LOCKED`, and `claim_roster_invite` takes the name from the invite rather than the form. A member asks for a change from 我的资料 (`request_name_change`, reason required); an admin approves or rejects it from the card at the top of 成员名单 (`review_name_change`; a rejection needs a note). `name_change_requests` has no write policies — every write is one of those functions, plus `withdraw_name_change` and `mark_name_changes_seen`. The sidebar shows a count on 成员名单 for admins and a dot on 我的资料 for a requester with an unseen decision. `NameChangeField` follows the persona (a display lens), while the lock itself follows the real account.

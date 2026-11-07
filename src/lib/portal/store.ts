@@ -21,7 +21,9 @@ import type {
   ParticipantRole,
   Profile,
   RosterInvite,
-  RosterNote,
+  RosterNoteEntry,
+  RosterStaffAuthor,
+  MentorRecommendation,
   SessionLog,
   SessionType,
   ResolvedVolunteer,
@@ -256,26 +258,85 @@ export async function listStaffRoster(cohortId: string): Promise<Profile[]> {
   return (data ?? []) as Profile[];
 }
 
-export async function listRosterNotes(cohortId: string): Promise<RosterNote[]> {
-  const { data, error } = await createClient().rpc("list_roster_notes", {
+export async function listRosterNoteEntries(cohortId: string): Promise<RosterNoteEntry[]> {
+  const { data, error } = await createClient().rpc("list_roster_note_entries", {
     p_cohort_id: cohortId,
   });
   throwQueryError("读取内部备注", error);
-  return (data ?? []) as RosterNote[];
+  return (data ?? []) as RosterNoteEntry[];
 }
 
-export async function setRosterNote(
+export async function addRosterNoteEntry(
   cohortId: string,
   profileId: string,
-  notes: string | null,
-): Promise<RosterNote> {
-  const { data, error } = await createClient().rpc("set_roster_note", {
+  body: string,
+): Promise<string> {
+  const { data, error } = await createClient().rpc("add_roster_note_entry", {
     p_cohort_id: cohortId,
     p_profile_id: profileId,
-    p_notes: notes,
+    p_body: body,
   });
-  throwQueryError("保存内部备注", error);
-  return data as RosterNote;
+  throwQueryError("添加内部备注", error);
+  return data as string;
+}
+
+export async function updateRosterNoteEntry(entryId: string, body: string): Promise<void> {
+  const { error } = await createClient().rpc("update_roster_note_entry", {
+    p_entry_id: entryId,
+    p_body: body,
+  });
+  throwQueryError("修改内部备注", error);
+}
+
+export async function deleteRosterNoteEntry(entryId: string): Promise<void> {
+  const { error } = await createClient().rpc("delete_roster_note_entry", {
+    p_entry_id: entryId,
+  });
+  throwQueryError("删除内部备注", error);
+}
+
+export async function listRosterStaffAuthors(cohortId: string): Promise<RosterStaffAuthor[]> {
+  const { data, error } = await createClient().rpc("list_roster_staff_authors", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("读取备注人信息", error);
+  return (data ?? []) as RosterStaffAuthor[];
+}
+
+// --- Mentor recommendations (0043) ----------------------------------------
+
+export async function listMentorRecommendations(
+  cohortId: string,
+): Promise<MentorRecommendation[]> {
+  const { data, error } = await createClient().rpc("list_mentor_recommendations", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("读取导师推荐", error);
+  return (data ?? []) as MentorRecommendation[];
+}
+
+export async function setMentorRecommendation(
+  cohortId: string,
+  mentorId: string,
+  reason: string | null,
+): Promise<void> {
+  const { error } = await createClient().rpc("set_mentor_recommendation", {
+    p_cohort_id: cohortId,
+    p_mentor_id: mentorId,
+    p_reason: reason,
+  });
+  throwQueryError("保存导师推荐", error);
+}
+
+export async function removeMentorRecommendation(
+  cohortId: string,
+  mentorId: string,
+): Promise<void> {
+  const { error } = await createClient().rpc("remove_mentor_recommendation", {
+    p_cohort_id: cohortId,
+    p_mentor_id: mentorId,
+  });
+  throwQueryError("取消导师推荐", error);
 }
 
 // --- Bulletin boards -------------------------------------------------------
