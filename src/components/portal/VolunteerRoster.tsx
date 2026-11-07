@@ -52,7 +52,6 @@ export default function VolunteerRoster() {
     <Box>
       <Typography variant="h4" fontWeight={800} gutterBottom>{copy.staffTitle}</Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>{copy.staffHint}</Typography>
-      <Alert severity="info" sx={{ mb: 3 }}>{copy.notesHint}</Alert>
       {cohorts.data?.length ? (
         <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap" sx={{ mb: 2 }}>
           <FilterSelect label={portalCopy.myMentorship.seasonLabel} value={cohortId}

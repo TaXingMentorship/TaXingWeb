@@ -403,7 +403,6 @@ function AdminRoster() {
         查看本期成员信息、交流场次与活动记录提交情况。名单内容自动汇总自提交的记录，
         仅「备注」可在网站上直接编辑。
       </Typography>
-      <Alert severity="info" sx={{ mb: 3 }}>{pairCopy.notesHint}</Alert>
 
       <NameChangeReviewCard />
       <MentorGroupChangeReviewCard />

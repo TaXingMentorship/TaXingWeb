@@ -929,7 +929,6 @@ export const portalCopy = {
   roster: {
     staffTitle: "成员名单",
     staffHint: "查看你参与志愿工作的季度成员，并编辑内部备注。",
-    notesHint: "备注仅负责人和相关季度的志愿者可见，不向普通导师或学员公开。同一成员的备注跨季度共用。",
     staffForbidden: "仅负责人或志愿者可访问成员名单。",
     staffNoCohorts: "你暂无已关联的志愿者季度，请联系负责人确认志愿者账号关联。",
     staffLoading: "正在加载成员名单与备注…",
