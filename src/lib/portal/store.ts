@@ -21,6 +21,7 @@ import type {
   ParticipantRole,
   Profile,
   RosterInvite,
+  RosterNote,
   SessionLog,
   SessionType,
   ResolvedVolunteer,
@@ -225,6 +226,7 @@ export async function updateProfile(
       | "cohort_ids"
       | "email"
       | "created_at"
+      | "admin_notes"
     >
   >,
 ): Promise<Profile> {
@@ -236,6 +238,44 @@ export async function updateProfile(
     .single();
   throwQueryError("更新用户资料", error);
   return data as Profile;
+}
+
+// --- Internal roster notes -------------------------------------------------
+
+export async function listRosterCohorts(): Promise<Cohort[]> {
+  const { data, error } = await createClient().rpc("list_roster_cohorts");
+  throwQueryError("读取成员名单季度", error);
+  return (data ?? []) as Cohort[];
+}
+
+export async function listStaffRoster(cohortId: string): Promise<Profile[]> {
+  const { data, error } = await createClient().rpc("list_staff_roster", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("读取成员名单", error);
+  return (data ?? []) as Profile[];
+}
+
+export async function listRosterNotes(cohortId: string): Promise<RosterNote[]> {
+  const { data, error } = await createClient().rpc("list_roster_notes", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("读取内部备注", error);
+  return (data ?? []) as RosterNote[];
+}
+
+export async function setRosterNote(
+  cohortId: string,
+  profileId: string,
+  notes: string | null,
+): Promise<RosterNote> {
+  const { data, error } = await createClient().rpc("set_roster_note", {
+    p_cohort_id: cohortId,
+    p_profile_id: profileId,
+    p_notes: notes,
+  });
+  throwQueryError("保存内部备注", error);
+  return data as RosterNote;
 }
 
 // --- Bulletin boards -------------------------------------------------------

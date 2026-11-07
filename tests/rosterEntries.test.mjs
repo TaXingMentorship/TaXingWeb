@@ -52,6 +52,20 @@ const all = {
   group: "all",
 };
 
+test("roster search reads private row notes, not the legacy profile column", () => {
+  const member = profile("member", "a@x.com", { admin_notes: "legacy-secret" });
+  const entry = { kind: "member", row: { ...row(member), notes: "staff-only" } };
+  assert.deepEqual(
+    filterEntries([entry], { ...all, search: "staff-only" }, new Map()),
+    [entry],
+  );
+  assert.deepEqual(
+    filterEntries([entry], { ...all, search: "legacy-secret" }, new Map()),
+    [],
+  );
+  assert.deepEqual(rosterNames(exportEntries([entry], "all")), ["member"]);
+});
+
 test("claimed with no profile is setup", () => {
   const rows = classifyInvites([invite("i", "b@x.com", { claimed_user_id: "ghost" })], []);
   assert.deepEqual(rows.map((r) => [r.invite.id, r.state]), [["i", "setup"]]);

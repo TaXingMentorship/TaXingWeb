@@ -74,10 +74,17 @@ export type Profile = {
   topics: string | null;
   // Mentee-only field
   help_needed: string | null;
-  // Admin roster note (only field editable directly on the website)
-  admin_notes: string | null;
+  /** Legacy column; always null after 0042. Internal notes live in roster_notes. */
+  admin_notes: null;
   created_at: string;
   updated_at: string;
+};
+
+export type RosterNote = {
+  profile_id: string;
+  notes: string | null;
+  updated_at: string;
+  updated_by: string | null;
 };
 
 /** A member's private bookmark of another member (migration 0036). */
