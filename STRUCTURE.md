@@ -211,7 +211,9 @@ Notes are now a **thread of authored entries** (`roster_note_entries`), still
 member-level and shared across seasons, so staff can tell who wrote what. 0043
 copies each non-empty `roster_notes` value into one entry attributed to its last
 editor (`updated_by`; null shows as 「早期备注」). `roster_notes` is kept as
-history and no longer written by the UI. Entries are add/delete only: the author
+history and no longer written by the UI. Apply `0046` right after the note-thread
+UI deploys: it copies any `roster_notes` value the old UI saved after 0043 (one
+with no matching entry text) and revokes `set_roster_note`. Entries are add/delete only: the author
 (while they still staff a season of that member) or an admin can delete one.
 
 `mentor_recommendations` holds one recommendation per recommender, mentor and

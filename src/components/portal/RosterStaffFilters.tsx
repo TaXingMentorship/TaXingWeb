@@ -102,8 +102,14 @@ function NoteAuthorSelect({
     return [...list.filter((a) => a.id === viewerId), ...list.filter((a) => a.id !== viewerId)];
   }, [entries, viewerId]);
   const labelOf = new Map(authors.map((a) => [a.id, a.label]));
-  // Drop selections that no longer exist (season change, entry deleted).
+  // Drop selections that no longer exist (season change, entry deleted). The
+  // parent's state is pruned too: it is what filters the table, so a stale id
+  // left there would hide every row while this select shows 全部.
   const selected = value.filter((id) => labelOf.has(id));
+  const stale = selected.length !== value.length;
+  React.useEffect(() => {
+    if (stale) onChange(selected);
+  }, [stale, selected, onChange]);
 
   return (
     <TextField

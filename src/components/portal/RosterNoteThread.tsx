@@ -113,7 +113,15 @@ export default function RosterNoteThread({
             busy={busy}
             onEdit={mine ? () => setEditingId(entry.id) : undefined}
             onDelete={
-              mine || isAdmin ? () => run(() => onDelete(entry.id), copy.noteDeleteError) : undefined
+              mine || isAdmin
+                ? () => {
+                    // A hard delete with no undo, so always ask first.
+                    if (!window.confirm(copy.noteDeleteConfirm(mine ? null : noteAuthorLabel(entry)))) {
+                      return;
+                    }
+                    void run(() => onDelete(entry.id), copy.noteDeleteError);
+                  }
+                : undefined
             }
           />
         );

@@ -950,6 +950,11 @@ export const portalCopy = {
     noteEdited: "已编辑",
     noteEditedAt: (date: string) => `编辑于 ${date}`,
     noteDeleteError: "删除失败，请重试。",
+    /** `author` is set when deleting someone else's entry (admins only). */
+    noteDeleteConfirm: (author: string | null) =>
+      author
+        ? `删除 ${author} 写的这条备注？删除后无法恢复。`
+        : "删除这条备注？删除后无法恢复。",
     noteLegacyAuthor: "早期备注",
     noteUnknownAuthor: "未知成员",
     noteShowAll: (n: number) => `展开全部 ${n} 条`,
