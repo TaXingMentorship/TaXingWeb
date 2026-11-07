@@ -518,6 +518,14 @@ Within a row, links come first, then sessions as one line each (time · 主题 �
 
 ---
 
+## Dashboard (数据看板)
+
+`/portal/admin/dashboard` (nav access `staff`) shows season-level counts for admins and that season's volunteers. Everything comes from one function, `season_dashboard_stats(cohort_id)` (migration `0047`, `security definer`, raises `FORBIDDEN` unless `is_admin()` or `is_season_volunteer`). Volunteers cannot read `roster_invites`, so the function returns **numbers only** — never a name, email or id. The season picker reads `list_roster_cohorts` (0042).
+
+Definitions: 预计参与 = `roster_invites` rows; 实际参与 = 预计 − `not_participating`; 已激活 = actual rows with `claimed_user_id`; 激活率 = 已激活 ÷ 实际参与. 圆桌 / Office Hour counts come from `activity_items` sessions by `parent_key` (`roundtable*`, `office_hour`), 已举办 = `starts_at <= now()`. 已配对 = distinct mentees / mentors in `matches`. 1v1 `sessions_log` is deliberately not shown: it is unused in practice, so it would read as every mentee being idle. The Mentor 答疑组 session total is not in the database — it is a hand-entered constant in `src/data/dashboardStatic.ts`. Mentee-side percentages use accounts in the season (`profiles.cohort_ids`), the funnel uses invites, so the two can differ slightly.
+
+---
+
 ## Tasks
 
 Admin-assigned to-dos that show up as reminders in the portal (migration

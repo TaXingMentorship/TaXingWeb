@@ -487,3 +487,36 @@ export type UnreadPostSummary = {
   unread_count: number;
   last_comment_at: string;
 };
+
+/** Aggregate numbers behind /portal/admin/dashboard (migration 0047). No member identities. */
+export type DashboardFunnel = {
+  /** Imported into roster_invites. */
+  expected: number;
+  /** Of those, marked 不参与 by an admin. */
+  excluded: number;
+  /** Not excluded and already claimed by an account. */
+  activated: number;
+};
+
+export type DashboardStats = {
+  funnel: Partial<Record<ParticipantRole, DashboardFunnel>>;
+  /** Invited, not yet activated, not 不参与 — by who they are. Absent before 0047 is re-run. */
+  pending?: { mentor: number; mentee: number; volunteer: number };
+  /** Accounts in the season per role, independent of invites. */
+  accounts: Partial<Record<ParticipantRole, number>>;
+  volunteers: {
+    total: number;
+    leads: number;
+    no_group: number;
+    groups: { name: string; count: number }[];
+  };
+  activities: {
+    roundtable_total: number;
+    office_hour_total: number;
+  };
+  mentoring: {
+    paired_mentees: number;
+    mentors_with_mentee: number;
+  };
+  board: { posts: number; comments: number };
+};
