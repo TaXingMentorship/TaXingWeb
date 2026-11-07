@@ -14,7 +14,7 @@ import AssignmentIcon from "@mui/icons-material/Assignment";
 import type { Profile } from "@/types/portal";
 import { portalCopy } from "./portalCopy";
 
-export type PortalNavAccess = "all" | "participant" | "admin";
+export type PortalNavAccess = "all" | "participant" | "admin" | "staff";
 
 export type PortalNavItem = {
   label: string;
@@ -110,8 +110,8 @@ export const portalNavItems: PortalNavItem[] = [
     label: portalCopy.nav.roster,
     path: "/portal/admin/roster",
     Icon: ListAltIcon,
-    access: "admin",
-    description: "查看成员信息、辅导场次与活动记录。",
+    access: "staff",
+    description: "查看成员名单与内部备注；负责人还可查看活动完成情况。",
   },
   {
     label: portalCopy.nav.adminImport,
@@ -133,5 +133,6 @@ export function canAccessPortalNav(
   if (!profile) return false;
   if (item.access === "all") return true;
   if (item.access === "admin") return profile.is_admin;
+  if (item.access === "staff") return profile.is_admin || profile.is_volunteer;
   return profile.is_admin || Boolean(profile.participant_role);
 }

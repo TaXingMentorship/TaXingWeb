@@ -51,7 +51,7 @@ const DYNAMIC_MODES: RecipientMode[] = [...DYNAMIC_MEMBER_MODES, "season", "grou
  * text as well, so deep links like /portal/volunteers?group=none keep working.
  */
 const LINK_OPTIONS = portalNavItems
-  .filter((item) => item.access !== "admin" && item.path !== "/portal")
+  .filter((item) => (item.access === "all" || item.access === "participant") && item.path !== "/portal")
   .map((item) => ({ label: item.label, path: item.path }));
 
 const CUSTOM = "custom";

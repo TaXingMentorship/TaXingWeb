@@ -5,6 +5,7 @@ import type { Profile, RosterInvite } from "../../types/portal";
 
 export type MemberRowData = {
   profile: Profile;
+  notes?: string | null;
   sessionCount: number;
   submitted: boolean | null;
   gaveGratitude: boolean | null;
@@ -143,7 +144,7 @@ function identityOf(entry: RosterEntry) {
       name: p.full_name,
       email: p.email,
       wechat: p.wechat_number,
-      notes: p.admin_notes,
+      notes: entry.row.notes,
       mentor: p.participant_role === "mentor",
       mentee: p.participant_role === "mentee",
       volunteer: p.is_volunteer,

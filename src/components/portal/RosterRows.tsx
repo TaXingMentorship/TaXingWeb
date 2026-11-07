@@ -63,7 +63,7 @@ export function MemberRow({
   onSelect: (checked: boolean) => void;
   assigning: boolean;
   onAssign: (groupId: string | null) => void;
-  onSaveNote: (value: string | null) => void;
+  onSaveNote: (value: string | null) => Promise<void>;
 }) {
   const { profile, sessionCount, submitted, gaveGratitude, completedAll } = row;
   const groupCopy = portalCopy.mentorGroups;
@@ -149,7 +149,7 @@ export function MemberRow({
         <TriState value={completedAll} yes="已完成" no="未完成" noColor="default" />
       </TableCell>
       <TableCell>
-        <NotesCell value={profile.admin_notes} onSave={onSaveNote} />
+        <NotesCell value={row.notes ?? null} onSave={onSaveNote} />
       </TableCell>
     </TableRow>
   );
@@ -216,32 +216,48 @@ export function InvitedRow({ invite, state }: { invite: RosterInvite; state: Inv
   );
 }
 
-function NotesCell({
+export function NotesCell({
   value,
   onSave,
 }: {
   value: string | null;
-  onSave: (value: string | null) => void;
+  onSave: (value: string | null) => Promise<void>;
 }) {
   const [text, setText] = React.useState(value ?? "");
+  const [saving, setSaving] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+  const copy = portalCopy.roster;
 
   React.useEffect(() => {
     setText(value ?? "");
   }, [value]);
 
-  const commit = () => {
+  const commit = async () => {
     const next = text.trim() || null;
-    if (next !== (value ?? null)) onSave(next);
+    if (next === (value ?? null) || saving) return;
+    setSaving(true);
+    setFailed(false);
+    try {
+      await onSave(next);
+    } catch {
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <TextField
       variant="standard"
       size="small"
-      placeholder="添加备注"
+      placeholder={copy.notePlaceholder}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
+      disabled={saving}
+      error={failed}
+      helperText={failed ? copy.noteSaveError : saving ? copy.noteSaving : undefined}
+      multiline
       sx={{ minWidth: 140 }}
     />
   );

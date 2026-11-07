@@ -34,7 +34,6 @@ import {
   listRosterInvites,
   listSessions,
   setMentorGroup,
-  updateProfile,
 } from "@/lib/portal/store";
 import {
   buildEntries,
@@ -60,8 +59,17 @@ import {
   usePagination,
 } from "@/components/portal/TableFilters";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
+import VolunteerRoster from "@/components/portal/VolunteerRoster";
+import { useRosterNotes } from "@/components/portal/useRosterNotes";
 
 export default function RosterPage() {
+  const { currentUser } = usePortalSession();
+  if (currentUser?.is_admin) return <AdminRoster />;
+  if (currentUser?.is_volunteer) return <VolunteerRoster />;
+  return <Alert severity="error">{portalCopy.roster.staffForbidden}</Alert>;
+}
+
+function AdminRoster() {
   const { currentUser, realUser } = usePortalSession();
   const queryClient = useQueryClient();
   const tableCopy = portalCopy.rosterTable;
@@ -140,15 +148,10 @@ export default function RosterPage() {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof updateProfile>[1] }) =>
-      updateProfile(id, patch),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["portal", "profiles"] });
-    },
-  });
+  const { query: notesQuery, save: saveNote } = useRosterNotes(cohortId);
 
   const rows = React.useMemo<MemberRowData[]>(() => {
+    const notes = new Map((notesQuery.data ?? []).map((n) => [n.profile_id, n.notes]));
     // Admin- or volunteer-only accounts belong here too: this table is where
     // an identity is edited, so an account with no mentor / mentee role must
     // stay reachable or its identity could never be changed again.
@@ -181,9 +184,9 @@ export default function RosterPage() {
           : p.participant_role === "mentor"
             ? sessionCount > 0
             : null;
-      return { profile: p, sessionCount, submitted, gaveGratitude, completedAll };
+      return { profile: p, notes: notes.get(p.id) ?? null, sessionCount, submitted, gaveGratitude, completedAll };
     });
-  }, [profiles, sessions, participation, cohortId]);
+  }, [profiles, sessions, participation, cohortId, notesQuery.data]);
 
   const mentorIds = React.useMemo(
     () => rows.filter((r) => r.profile.participant_role === "mentor").map((r) => r.profile.id),
@@ -380,6 +383,12 @@ export default function RosterPage() {
 
   if (!currentUser?.is_admin) {
     return <Alert severity="error">仅负责人可访问成员名单。</Alert>;
+  }
+  if (notesQuery.error) {
+    return <Alert severity="error">{pairCopy.notesLoadError} {notesQuery.error.message}</Alert>;
+  }
+  if (cohortId && notesQuery.isLoading) {
+    return <Alert severity="info">{pairCopy.staffLoading}</Alert>;
   }
 
   const toOptions = (labels: Record<string, string>) =>
@@ -664,7 +673,7 @@ export default function RosterPage() {
                       <InvitedRow key={entry.invite.id} invite={entry.invite} state={entry.state} />
                     ) : (
                       <MemberRow
-                        key={entry.row.profile.id}
+                        key={`${realUser?.id}:${cohortId}:${entry.row.profile.id}`}
                         row={entry.row}
                         groups={groups ?? []}
                         groupId={groupOfMentor.get(entry.row.profile.id)}
@@ -685,12 +694,12 @@ export default function RosterPage() {
                             groupId,
                           })
                         }
-                        onSaveNote={(value) =>
-                          updateMutation.mutate({
-                            id: entry.row.profile.id,
-                            patch: { admin_notes: value },
-                          })
-                        }
+                        onSaveNote={async (value) => {
+                          await saveNote.mutateAsync({
+                            profileId: entry.row.profile.id,
+                            notes: value,
+                          });
+                        }}
                       />
                     ),
                   )

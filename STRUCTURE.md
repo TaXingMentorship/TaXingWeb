@@ -166,6 +166,45 @@ matches sees an explicit empty state. Admin 成员名单 → 配对关系 search
 before paging, ten mentors per page; verify search/cohort reset and page clamping
 after results shrink. A build/type check does not validate remote migration/RLS.
 
+### Internal roster notes (0042)
+
+Apply `0042_private_roster_notes.sql` in production and preview **before deploying
+the new frontend**. Previously, `profiles.admin_notes` was hidden in the UI but
+returned by profile reads: ordinary members could request it directly. The
+migration copies every existing non-null value into `roster_notes`, then clears
+only the successfully copied profile values within the same transaction. No notes
+are discarded. The legacy profile column remains null; a trigger rejects future
+non-null writes, including admin writes. The old roster frontend can no longer
+save notes after the migration, so deploy the frontend promptly afterwards.
+
+Notes remain **member-level, shared across seasons**, matching the existing model.
+Admins can read them all. Volunteers can read/write a member's note only when they
+are linked on the volunteer roster of a season that member belongs to
+(`is_season_volunteer`, not the global flag alone). Thus someone who is both a
+mentor/mentee and an authorized season volunteer has staff access; ordinary
+participants cannot read even their own notes. Raw table SELECT uses the same RLS
+boundary; direct INSERT/UPDATE/DELETE are not granted to clients. Authenticated-only
+RPCs with fixed search paths check the real account, chosen season and target
+membership on every read/write. Profile views, auth and public directory reads
+never include the private table.
+
+`/portal/admin/roster` has a dedicated volunteer view: their staffed seasons,
+member contact/identity fields and notes, with search/paging. Hidden profiles are
+available to that season's staff through `list_staff_roster`, not through a widened
+public profile policy. Admin-only imports, identity edits, group assignment,
+reviews, pending invitations and private activity records remain admin-only.
+Notes use separate user/season-keyed React Query caches and `useRosterNotes`; do
+not merge them into the shared profile cache. A failed save keeps the text and
+shows an error on the cell.
+
+Manual verification with distinct real accounts (not persona previews): preserve
+an existing note through migration; admin and a linked season volunteer can read,
+edit and clear it; ordinary mentor and mentee profile SELECTs return null notes,
+private-table SELECT returns no rows, and notes/roster RPCs refuse access. A
+volunteer from another season cannot open the chosen season or write for a member
+outside it. Confirm mixed participant/staff behavior, season changes, save errors
+and that existing admin actions remain available only to admins.
+
 ### Nicknames
 
 `profiles.full_name` (shown as 「昵称」) is the imported roster name and is locked for everyone but admins (migration `0021`): the `protect_profile_privileges` trigger raises `PROFILE_NAME_LOCKED`, and `claim_roster_invite` takes the name from the invite rather than the form. A member asks for a change from 我的资料 (`request_name_change`, reason required); an admin approves or rejects it from the card at the top of 成员名单 (`review_name_change`; a rejection needs a note). `name_change_requests` has no write policies — every write is one of those functions, plus `withdraw_name_change` and `mark_name_changes_seen`. The sidebar shows a count on 成员名单 for admins and a dot on 我的资料 for a requester with an unseen decision. `NameChangeField` follows the persona (a display lens), while the lock itself follows the real account.
