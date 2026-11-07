@@ -23,6 +23,7 @@ import { listActivityItems } from "@/lib/portal/store";
 import { useIsSeasonStaff } from "@/components/portal/useSeasonStaff";
 import LinkifiedText from "@/components/portal/board/LinkifiedText";
 import { portalCopy } from "@/data/portalCopy";
+import { sessionMinutesFor } from "@/data/activityTimeline";
 
 export const activityItemsKey = (cohortId: string | undefined) =>
   ["portal", "activityItems", cohortId] as const;
@@ -50,15 +51,19 @@ export function useActivityItems(cohortId: string | undefined) {
   return { items: items ?? [], canEdit, now };
 }
 
-/** A session counts as 进行中 for this long after it starts — there is no end time. */
-const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
-
 type SessionStatus = "upcoming" | "live" | "past";
 
-export function sessionStatus(startsAt: string, now: number): SessionStatus {
-  const start = new Date(startsAt).getTime();
+/**
+ * Sessions have no end time: one counts as 进行中 for its row's session length
+ * after it starts (Office Hour one hour, others DEFAULT_SESSION_MINUTES).
+ */
+export function sessionStatus(
+  item: Pick<ActivityItem, "starts_at" | "parent_key">,
+  now: number,
+): SessionStatus {
+  const start = new Date(item.starts_at!).getTime();
   if (now < start) return "upcoming";
-  if (now < start + LIVE_WINDOW_MS) return "live";
+  if (now < start + sessionMinutesFor(item.parent_key) * 60 * 1000) return "live";
   return "past";
 }
 
@@ -224,7 +229,7 @@ function SessionRow({
 }) {
   const copy = portalCopy.activities;
   const [open, setOpen] = React.useState(false);
-  const status = sessionStatus(item.starts_at!, now);
+  const status = sessionStatus(item, now);
   const past = status === "past";
   const summaryId = `activity-summary-${item.id}`;
 
@@ -380,8 +385,8 @@ export default function ActivitySubItems({
   const links = items.filter((i) => i.kind === "link");
   const sheetUrl = rowSheetUrl(items);
   const sessions = items.filter((i) => i.kind === "session");
-  const past = sessions.filter((i) => sessionStatus(i.starts_at!, now) === "past");
-  const active = sessions.filter((i) => sessionStatus(i.starts_at!, now) !== "past");
+  const past = sessions.filter((i) => sessionStatus(i, now) === "past");
+  const active = sessions.filter((i) => sessionStatus(i, now) !== "past");
   const collapsible = active.length > VISIBLE_UPCOMING + COLLAPSE_SLACK;
   const visibleActive = collapsible && !showAll ? active.slice(0, VISIBLE_UPCOMING) : active;
 

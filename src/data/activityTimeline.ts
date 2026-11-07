@@ -47,6 +47,12 @@ export type TimelineRow = {
    * 日历 / 列表 switch), for rows with many short entries like Office Hour.
    */
   calendar?: boolean;
+  /**
+   * How long one of this row's sessions runs. Sessions have no end time, so
+   * this is how long the 进行中 chip shows after the start. Defaults to
+   * DEFAULT_SESSION_MINUTES.
+   */
+  sessionMinutes?: number;
   week: string;
   /** Inclusive, `YYYY-MM-DD`, in PROGRAM_TIME_ZONE. */
   from: string;
@@ -55,6 +61,9 @@ export type TimelineRow = {
   track: "main" | "side";
 };
 
+/** Session length for rows that do not set `sessionMinutes`. */
+export const DEFAULT_SESSION_MINUTES = 180;
+
 export const timelineRows: TimelineRow[] = [
   { key: "icebreak", defaultKind: "session", week: "Week 0–1", from: "2026-10-10", to: "2026-10-18", title: "成员破冰", track: "main" },
   { key: "training", defaultKind: "link", week: "Week 0–1", from: "2026-10-10", to: "2026-10-18", title: "自主培训", track: "main" },
@@ -62,7 +71,7 @@ export const timelineRows: TimelineRow[] = [
   { key: "pairing", defaultKind: "link", week: "Week 4", from: "2026-11-02", to: "2026-11-08", title: "Mentor–Mentee 1v1 配对", track: "main" },
   { key: "roundtable_w4", series: "roundtable", defaultKind: "session", week: "Week 4", from: "2026-11-02", to: "2026-11-08", title: "圆桌分享会", track: "side" },
   { key: "one_on_one", defaultKind: "link", week: "Week 5–7", from: "2026-11-09", to: "2026-11-29", title: "Mentor–Mentee 1v1 交流", track: "main" },
-  { key: "office_hour", defaultKind: "session", calendar: true, week: "Week 5–8", from: "2026-11-09", to: "2026-12-06", title: "Office Hour 活动", track: "side" },
+  { key: "office_hour", defaultKind: "session", calendar: true, sessionMinutes: 60, week: "Week 5–8", from: "2026-11-09", to: "2026-12-06", title: "Office Hour 活动", track: "side" },
   { key: "roundtable_w5_7", series: "roundtable", defaultKind: "session", week: "Week 5–7", from: "2026-11-09", to: "2026-11-29", title: "圆桌分享会", track: "side" },
   { key: "graduation", defaultKind: "session", week: "Week 8", from: "2026-11-30", to: "2026-12-06", title: "毕业活动", track: "side" },
 ];
@@ -141,4 +150,13 @@ export function placeSession(
   const covers = (r: TimelineRow) => r.from <= day && day <= r.to;
   if (covers(row)) return row;
   return seriesRows(rows, row).find(covers) ?? null;
+}
+
+const sessionMinutesByKey = new Map(
+  timelineRows.flatMap((row) => (row.sessionMinutes ? [[row.key, row.sessionMinutes] as const] : [])),
+);
+
+/** How long a session under this row runs (Office Hour: one hour). */
+export function sessionMinutesFor(parentKey: string): number {
+  return sessionMinutesByKey.get(parentKey) ?? DEFAULT_SESSION_MINUTES;
 }
