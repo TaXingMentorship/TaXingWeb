@@ -11,6 +11,7 @@ import type {
   BulletinPost,
   BulletinReaction,
   Cohort,
+  DashboardStats,
   BoardNotice,
   BoardNoticeKind,
   Match,
@@ -248,6 +249,15 @@ export async function listRosterCohorts(): Promise<Cohort[]> {
   const { data, error } = await createClient().rpc("list_roster_cohorts");
   throwQueryError("读取成员名单季度", error);
   return (data ?? []) as Cohort[];
+}
+
+/** Season-level counts for the volunteer dashboard; the function (0047) enforces admin / season volunteer. */
+export async function getDashboardStats(cohortId: string): Promise<DashboardStats> {
+  const { data, error } = await createClient().rpc("season_dashboard_stats", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("读取数据看板", error);
+  return data as DashboardStats;
 }
 
 export async function listStaffRoster(cohortId: string): Promise<Profile[]> {

@@ -11,6 +11,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import VolunteerActivismIcon from "@mui/icons-material/VolunteerActivism";
 import ChecklistIcon from "@mui/icons-material/Checklist";
 import AssignmentIcon from "@mui/icons-material/Assignment";
+import DashboardIcon from "@mui/icons-material/Dashboard";
 import type { Profile } from "@/types/portal";
 import { portalCopy } from "./portalCopy";
 
@@ -112,6 +113,13 @@ export const portalNavItems: PortalNavItem[] = [
     Icon: ListAltIcon,
     access: "staff",
     description: "查看成员名单与内部备注；负责人还可查看活动完成情况。",
+  },
+  {
+    label: portalCopy.nav.dashboard,
+    path: "/portal/admin/dashboard",
+    Icon: DashboardIcon,
+    access: "staff",
+    description: "查看本季参与人数、激活率、志愿者分组与活动场次。",
   },
   {
     label: portalCopy.nav.adminImport,
