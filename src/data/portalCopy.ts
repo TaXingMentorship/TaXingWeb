@@ -440,6 +440,12 @@ export const portalCopy = {
     chip: (n: number) => `${n} 条新评论`,
     collapse: "收起",
   },
+  /** 成员目录 → 志愿者: a group shows two rows of five, then 「+N」. */
+  volunteerDirectory: {
+    hiddenCount: (n: number) => `还有 ${n} 位成员未显示`,
+    showAll: "展开全部",
+    showLess: "收起",
+  },
   mentorGroups: {
     columnLabel: "答疑组",
     unassigned: "未分组",
