@@ -14,6 +14,23 @@ import type { InviteState, MemberRowData } from "@/lib/portal/rosterEntries";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
 import IdentityCell from "@/components/portal/IdentityCell";
 
+// 昵称 / 微信号 / 邮箱 size to their longest value on the page and never wrap:
+// `width: 1%` asks the table for the narrowest column, `nowrap` stops it going
+// below the longest line. So the width follows the data, with no magic numbers.
+const fitCellSx = { width: "1%", whiteSpace: "nowrap" } as const;
+
+export const nameCellSx = fitCellSx;
+export const wechatCellSx = fitCellSx;
+/** 身份: all chips on one line. */
+export const identityCellSx = fitCellSx;
+/** 推荐: the 👍 and 往期 chips on one line. */
+export const recommendCellSx = fitCellSx;
+/** 邮箱 keeps two extra characters of room after the longest address. */
+export const emailCellSx = { ...fitCellSx, pr: "calc(16px + 2ch)" } as const;
+
+/** 备注 takes all the width the fitted columns leave (never under 300px). */
+export const notesCellSx = { minWidth: 300, width: "100%" } as const;
+
 /** Rows dimmed for people who will not take part. A TableCell sets its own
  *  colour, so it has to be set on the cells: colour on the row alone is ignored. */
 export const dimmedRowSx = {
@@ -54,7 +71,8 @@ export function MemberRow({
   onSelect,
   assigning,
   onAssign,
-  onSaveNote,
+  recommendCell,
+  notesCell,
 }: {
   row: MemberRowData;
   groups: MentorGroup[];
@@ -63,7 +81,9 @@ export function MemberRow({
   onSelect: (checked: boolean) => void;
   assigning: boolean;
   onAssign: (groupId: string | null) => void;
-  onSaveNote: (value: string | null) => Promise<void>;
+  /** 推荐 (mentors only; anything else shows a dash). */
+  recommendCell: React.ReactNode;
+  notesCell: React.ReactNode;
 }) {
   const { profile, sessionCount, submitted, gaveGratitude, completedAll } = row;
   const groupCopy = portalCopy.mentorGroups;
@@ -93,10 +113,10 @@ export function MemberRow({
           {profile.id}
         </Typography>
       </TableCell>
-      <TableCell>{profile.full_name ?? "—"}</TableCell>
-      <TableCell>{profile.email ?? "—"}</TableCell>
-      <TableCell>{profile.wechat_number ?? "—"}</TableCell>
-      <TableCell>
+      <TableCell sx={nameCellSx}>{profile.full_name ?? "—"}</TableCell>
+      <TableCell sx={emailCellSx}>{profile.email ?? "—"}</TableCell>
+      <TableCell sx={wechatCellSx}>{profile.wechat_number ?? "—"}</TableCell>
+      <TableCell sx={identityCellSx}>
         <IdentityCell profile={profile} />
       </TableCell>
       <TableCell>
@@ -148,9 +168,8 @@ export function MemberRow({
       <TableCell align="center">
         <TriState value={completedAll} yes="已完成" no="未完成" noColor="default" />
       </TableCell>
-      <TableCell>
-        <NotesCell value={row.notes ?? null} onSave={onSaveNote} />
-      </TableCell>
+      <TableCell sx={recommendCellSx}>{isMentor ? recommendCell : <Dash />}</TableCell>
+      <TableCell sx={notesCellSx}>{notesCell}</TableCell>
     </TableRow>
   );
 }
@@ -179,13 +198,13 @@ export function InvitedRow({ invite, state }: { invite: RosterInvite; state: Inv
       <TableCell>
         <Dash />
       </TableCell>
-      <TableCell>{invite.full_name ?? "—"}</TableCell>
-      <TableCell>{invite.email}</TableCell>
+      <TableCell sx={nameCellSx}>{invite.full_name ?? "—"}</TableCell>
+      <TableCell sx={emailCellSx}>{invite.email}</TableCell>
       <TableCell>
         <Dash />
       </TableCell>
-      <TableCell>
-        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+      <TableCell sx={identityCellSx}>
+        <Stack direction="row" spacing={0.5} flexWrap="nowrap" useFlexGap>
           {profileLabels(invite).map((label) => (
             <Chip key={label} size="small" variant="outlined" label={label} />
           ))}
@@ -212,53 +231,9 @@ export function InvitedRow({ invite, state }: { invite: RosterInvite; state: Inv
       <TableCell>
         <Dash />
       </TableCell>
+      <TableCell>
+        <Dash />
+      </TableCell>
     </TableRow>
-  );
-}
-
-export function NotesCell({
-  value,
-  onSave,
-}: {
-  value: string | null;
-  onSave: (value: string | null) => Promise<void>;
-}) {
-  const [text, setText] = React.useState(value ?? "");
-  const [saving, setSaving] = React.useState(false);
-  const [failed, setFailed] = React.useState(false);
-  const copy = portalCopy.roster;
-
-  React.useEffect(() => {
-    setText(value ?? "");
-  }, [value]);
-
-  const commit = async () => {
-    const next = text.trim() || null;
-    if (next === (value ?? null) || saving) return;
-    setSaving(true);
-    setFailed(false);
-    try {
-      await onSave(next);
-    } catch {
-      setFailed(true);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <TextField
-      variant="standard"
-      size="small"
-      placeholder={copy.notePlaceholder}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      disabled={saving}
-      error={failed}
-      helperText={failed ? copy.noteSaveError : saving ? copy.noteSaving : undefined}
-      multiline
-      sx={{ minWidth: 140 }}
-    />
   );
 }

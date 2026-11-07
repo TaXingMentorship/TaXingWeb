@@ -71,7 +71,7 @@ function UpNext({
 }) {
   const copy = portalCopy.activities.upNext;
   const upcoming = items.filter(
-    (i) => i.kind === "session" && sessionStatus(i.starts_at!, now) !== "past",
+    (i) => i.kind === "session" && sessionStatus(i, now) !== "past",
   );
   if (upcoming.length === 0) return null;
   const rowTitle = new Map(rows.map((r) => [r.key, r.title]));
@@ -99,7 +99,7 @@ function UpNext({
       <Divider sx={{ my: 2 }} />
       <Stack spacing={1.25}>
         {shown.map((item) => {
-          const live = sessionStatus(item.starts_at!, now) === "live";
+          const live = sessionStatus(item, now) === "live";
           return (
             <Stack
               key={item.id}

@@ -1,11 +1,20 @@
 // Pure logic behind the admin roster table and the 待激活 list: which rows
 // exist, how they are filtered, and who a bulk action may touch. No React and
 // no runtime imports, so it can be unit-tested directly (tests/).
-import type { Profile, RosterInvite } from "../../types/portal";
+import type {
+  MentorRecommendation,
+  Profile,
+  RosterInvite,
+  RosterNoteEntry,
+} from "../../types/portal";
 
 export type MemberRowData = {
   profile: Profile;
+  /** Searchable text of the note thread (bodies and author names). */
   notes?: string | null;
+  noteEntries?: RosterNoteEntry[];
+  /** Every recommendation of this mentor, all seasons. */
+  recommendations?: MentorRecommendation[];
   sessionCount: number;
   submitted: boolean | null;
   gaveGratitude: boolean | null;
@@ -135,7 +144,88 @@ export type RosterFilters = {
   gratitude: "all" | "done" | "todo";
   /** "all", "none" (unassigned) or a group id. */
   group: string;
+} & Partial<NoteFilters>;
+
+/** Filters over the staff-only columns, shared by the admin and volunteer views. */
+export type NoteFilters = {
+  note: "all" | "has" | "none";
+  /** Author ids (LEGACY_AUTHOR for carried-over notes); any of them matches. Empty = all. */
+  noteAuthor: string[];
+  recommend: "all" | "current" | "past" | "mine";
+  /** The real account viewing: "mine" means recommended by them. */
+  viewerId: string | null;
+  /** The season shown: "current" means recommended in it. */
+  cohortId: string;
 };
+
+export const LEGACY_AUTHOR = "__legacy";
+
+export function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const list = out.get(k);
+    if (list) list.push(item);
+    else out.set(k, [item]);
+  }
+  return out;
+}
+
+/** Searchable text of a note thread. */
+export function noteSearchText(entries: RosterNoteEntry[]): string {
+  return entries.flatMap((e) => [e.body, e.author_name ?? ""]).join(" ");
+}
+
+/** Does a member pass the note / recommendation filters? Unset means "all". */
+export function matchesNoteFilters(
+  row: Pick<MemberRowData, "profile" | "noteEntries" | "recommendations">,
+  filters: Partial<NoteFilters>,
+): boolean {
+  const entries = row.noteEntries ?? [];
+  const note = filters.note ?? "all";
+  if (note === "has" && entries.length === 0) return false;
+  if (note === "none" && entries.length > 0) return false;
+
+  const authors = filters.noteAuthor ?? [];
+  if (authors.length > 0) {
+    const want = new Set(authors);
+    if (!entries.some((e) => want.has(e.author_id ?? LEGACY_AUTHOR))) return false;
+  }
+
+  const recommend = filters.recommend ?? "all";
+  if (recommend !== "all") {
+    // Only mentors can be recommended.
+    if (row.profile.participant_role !== "mentor") return false;
+    const recs = row.recommendations ?? [];
+    const ok =
+      recommend === "current"
+        ? recs.some((r) => r.cohort_id === filters.cohortId)
+        : recommend === "past"
+          ? recs.some((r) => r.cohort_id !== filters.cohortId)
+          : recs.some((r) => r.recommender_id === filters.viewerId);
+    if (!ok) return false;
+  }
+  return true;
+}
+
+const noteFiltersActive = (f: Partial<NoteFilters>) =>
+  (f.note ?? "all") !== "all" ||
+  (f.noteAuthor ?? []).length > 0 ||
+  (f.recommend ?? "all") !== "all";
+
+/** Note authors seen in a season's threads with their entry counts, most first. */
+export function noteAuthors(
+  entries: RosterNoteEntry[],
+): { id: string; name: string | null; count: number }[] {
+  const seen = new Map<string, { id: string; name: string | null; count: number }>();
+  for (const e of entries) {
+    const id = e.author_id ?? LEGACY_AUTHOR;
+    const item = seen.get(id) ?? { id, name: e.author_name, count: 0 };
+    item.count += 1;
+    seen.set(id, item);
+  }
+  return [...seen.values()].sort((a, b) => b.count - a.count);
+}
 
 function identityOf(entry: RosterEntry) {
   if (entry.kind === "member") {
@@ -180,6 +270,11 @@ export function filterEntries(
       if (!haystack.includes(q)) return false;
     }
     if (filters.role !== "all" && !id[filters.role]) return false;
+
+    // Notes and recommendations only exist for activated members.
+    if (noteFiltersActive(filters)) {
+      if (entry.kind !== "member" || !matchesNoteFilters(entry.row, filters)) return false;
+    }
 
     // Answer groups only exist for activated mentors.
     if (filters.group !== "all") {

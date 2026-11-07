@@ -157,7 +157,8 @@ export default function MascotFeedback() {
     const onResize = () => {
       const node = containerRef.current;
       const current = offsetRef.current;
-      if (!node || (isHome(current) && (collapsed || !(open || greeting)))) return;
+      // Collapsed she is drawn at HOME whatever the stored offset (see below).
+      if (!node || collapsed || (isHome(current) && !(open || greeting))) return;
       const next = clampOffset(current, current, node.getBoundingClientRect());
       if (next.x === current.x && next.y === current.y) return;
       applyOffset(next);
@@ -185,6 +186,8 @@ export default function MascotFeedback() {
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    // Collapsed she is a tab tucked into the corner: a click brings her back.
+    if (collapsed) return;
     if (event.button !== 0 || !event.isPrimary || dragRef.current) return;
     suppressClickRef.current = false;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -250,7 +253,7 @@ export default function MascotFeedback() {
   };
 
   const handleDoubleClick = () => {
-    if (isHome(offsetRef.current)) return;
+    if (collapsed || isHome(offsetRef.current)) return;
     applyOffset(HOME);
     writeStorage(OFFSET_KEY, null);
     setDragging(false);
@@ -258,7 +261,11 @@ export default function MascotFeedback() {
     setOpen(false);
   };
 
-  const home = isHome(offset);
+  // Collapsing tucks her into the bottom-right edge from wherever she was
+  // dragged (the tuck needs an edge, so she goes HOME). The dragged spot stays
+  // in `offset` and storage, so expanding puts her back there.
+  const shown = collapsed ? HOME : offset;
+  const home = isHome(shown);
   const size = { xs: 84, sm: 112 };
 
   return (
@@ -276,7 +283,7 @@ export default function MascotFeedback() {
         pointerEvents: "none",
         "& > *": { pointerEvents: "auto" },
         // The bubble rides along so its tail keeps pointing at her.
-        transform: home ? "none" : `translate3d(${offset.x}px, ${offset.y}px, 0)`,
+        transform: home ? "none" : `translate3d(${shown.x}px, ${shown.y}px, 0)`,
       }}
     >
       {!collapsed && (open || greeting) && (
@@ -377,7 +384,7 @@ export default function MascotFeedback() {
           aspectRatio: "830 / 887",
           position: "relative",
           borderRadius: 4,
-          cursor: dragging ? "grabbing" : "grab",
+          cursor: collapsed ? "pointer" : dragging ? "grabbing" : "grab",
           // Pointer drags must not also scroll the page on touch.
           touchAction: "none",
           // Collapsed: tuck most of her off the screen edge, leaving a peek.

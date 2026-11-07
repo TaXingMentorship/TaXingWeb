@@ -102,7 +102,7 @@ export default function ActivitySessionCalendar({
   const hint = sheetUrl && !sessions.some((s) => s.meeting_url) ? copy.hintWithSheet : copy.hint;
 
   const selected = open?.item;
-  const selectedPast = selected ? sessionStatus(selected.starts_at!, now) === "past" : false;
+  const selectedPast = selected ? sessionStatus(selected, now) === "past" : false;
 
   return (
     <Box sx={{ mt: 1.5 }}>
@@ -185,7 +185,7 @@ export default function ActivitySessionCalendar({
               </Stack>
               <Stack spacing={0.5}>
                 {items.map((item) => {
-                  const status = sessionStatus(item.starts_at!, now);
+                  const status = sessionStatus(item, now);
                   const past = status === "past";
                   return (
                     <ButtonBase
@@ -241,11 +241,11 @@ export default function ActivitySessionCalendar({
               <Typography variant="body2" fontWeight={700} color="primary.dark">
                 {formatSessionTime(selected.starts_at!)}
               </Typography>
-              {sessionStatus(selected.starts_at!, now) !== "upcoming" && (
+              {sessionStatus(selected, now) !== "upcoming" && (
                 <Chip
                   size="small"
                   color={selectedPast ? "default" : "primary"}
-                  label={portalCopy.activities.subItems.status[sessionStatus(selected.starts_at!, now)]}
+                  label={portalCopy.activities.subItems.status[sessionStatus(selected, now)]}
                 />
               )}
             </Stack>

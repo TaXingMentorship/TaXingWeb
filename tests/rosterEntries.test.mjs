@@ -5,6 +5,9 @@ import {
   classifyInvites,
   exportEntries,
   filterEntries,
+  LEGACY_AUTHOR,
+  matchesNoteFilters,
+  noteAuthors,
   rosterNames,
   inviteRows,
   pendingInvites,
@@ -274,4 +277,48 @@ test("exportEntries leaves out 不参与 invites unless the status filter asks f
   ];
   assert.deepEqual(rosterNames(exportEntries(entries, "all")), ["m", "w"]);
   assert.deepEqual(rosterNames(exportEntries(entries, "out")), ["m", "w", "o"]);
+});
+
+const noteEntry = (id, author_id, body = id) => ({
+  id, profile_id: "m", author_id, author_name: author_id, body, created_at: "2026-11-01",
+});
+const rec = (cohort_id, recommender_id) => ({
+  id: `${cohort_id}-${recommender_id}`, mentor_id: "m", cohort_id, cohort_name: cohort_id,
+  recommender_id, recommender_name: recommender_id, reason: null,
+  created_at: "2026-11-01", updated_at: "2026-11-01",
+});
+
+test("note filters: has / none / author / legacy", () => {
+  const p = profile("m", "m@x.com");
+  const withNotes = { profile: p, noteEntries: [noteEntry("a", "vol1"), noteEntry("b", null)] };
+  const empty = { profile: p, noteEntries: [] };
+  assert.equal(matchesNoteFilters(withNotes, { note: "has" }), true);
+  assert.equal(matchesNoteFilters(empty, { note: "has" }), false);
+  assert.equal(matchesNoteFilters(empty, { note: "none" }), true);
+  assert.equal(matchesNoteFilters(withNotes, { noteAuthor: ["vol1"] }), true);
+  assert.equal(matchesNoteFilters(withNotes, { noteAuthor: ["vol2"] }), false);
+  assert.equal(matchesNoteFilters(withNotes, { noteAuthor: [LEGACY_AUTHOR] }), true);
+  assert.equal(matchesNoteFilters(withNotes, { noteAuthor: ["vol2", "vol1"] }), true);
+  assert.equal(matchesNoteFilters(withNotes, { noteAuthor: [] }), true);
+  const counted = noteAuthors([...withNotes.noteEntries, noteEntry("c", null)]);
+  assert.deepEqual(counted.map((a) => [a.id, a.count]), [[LEGACY_AUTHOR, 2], ["vol1", 1]]);
+});
+
+test("recommend filters: current / past / mine, mentors only", () => {
+  const mentor = { profile: profile("m", "m@x.com"), recommendations: [rec("fall", "vol1"), rec("spring", "vol2")] };
+  const mentee = { profile: profile("e", "e@x.com", { participant_role: "mentee" }), recommendations: [] };
+  const base = { viewerId: "vol1", cohortId: "fall" };
+  assert.equal(matchesNoteFilters(mentor, { ...base, recommend: "current" }), true);
+  assert.equal(matchesNoteFilters(mentor, { ...base, recommend: "past" }), true);
+  assert.equal(matchesNoteFilters(mentor, { ...base, recommend: "mine" }), true);
+  assert.equal(matchesNoteFilters(mentor, { ...base, viewerId: "vol3", recommend: "mine" }), false);
+  assert.equal(matchesNoteFilters({ ...mentor, recommendations: [rec("spring", "vol2")] }, { ...base, recommend: "current" }), false);
+  assert.equal(matchesNoteFilters(mentee, { ...base, recommend: "all" }), true);
+  assert.equal(matchesNoteFilters(mentee, { ...base, recommend: "current" }), false);
+});
+
+test("note filters drop invites", () => {
+  const entries = [{ kind: "invited", invite: invite("i", "i@x.com"), state: "waiting" }];
+  assert.deepEqual(filterEntries(entries, { ...all, note: "none" }, new Map()), []);
+  assert.equal(filterEntries(entries, { ...all, note: "all" }, new Map()).length, 1);
 });

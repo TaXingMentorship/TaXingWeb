@@ -358,8 +358,11 @@ export default function DirectoryPage() {
         </Alert>
       ) : (
         tab === "volunteer" ? (
+          // Every volunteer, not one page of 12: the tab groups them, and a
+          // page cut would shrink each group's count. Each group collapses to
+          // two rows of five with its own 「+N」 instead (VolunteerDirectory).
           <VolunteerDirectory
-            profiles={displayed}
+            profiles={filtered}
             volunteers={volunteers ?? []}
             groups={groups ?? []}
             cohortId={volunteerCohortId}
@@ -379,7 +382,7 @@ export default function DirectoryPage() {
           </Grid>
         )
       )}
-      {displayed.length < filtered.length && (
+      {tab !== "volunteer" && displayed.length < filtered.length && (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
           <Button
             variant="outlined"

@@ -87,6 +87,45 @@ export type RosterNote = {
   updated_by: string | null;
 };
 
+/** One authored entry in a member's internal note thread (migration 0043). */
+export type RosterNoteEntry = {
+  id: string;
+  profile_id: string;
+  /** null for notes carried over from roster_notes with no recorded editor. */
+  author_id: string | null;
+  author_name: string | null;
+  body: string;
+  created_at: string;
+  /** Set when the author edited the entry (0045). */
+  edited_at?: string | null;
+};
+
+/** Someone who wrote a roster note or recommendation, for the author card (0044). */
+export type RosterStaffAuthor = Pick<
+  Profile,
+  | "id"
+  | "full_name"
+  | "avatar_url"
+  | "email"
+  | "wechat_number"
+  | "participant_role"
+  | "is_admin"
+  | "is_volunteer"
+>;
+
+/** A season staff member's recommendation of a mentor (migration 0043). */
+export type MentorRecommendation = {
+  id: string;
+  mentor_id: string;
+  cohort_id: string;
+  cohort_name: string;
+  recommender_id: string;
+  recommender_name: string | null;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /** A member's private bookmark of another member (migration 0036). */
 export type ProfileFavorite = {
   user_id: string;
