@@ -53,7 +53,7 @@ const actual = (f: DashboardFunnel) => Math.max(0, f.expected - f.excluded);
 
 export default function DashboardPage() {
   const copy = portalCopy.dashboard;
-  const { currentUser } = usePortalSession();
+  const { currentUser, loading: sessionLoading } = usePortalSession();
   const allowed = Boolean(currentUser?.is_admin || currentUser?.is_volunteer);
 
   const { data: cohorts, isLoading: cohortsLoading, error: cohortsError } = useQuery({
@@ -75,6 +75,7 @@ export default function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  if (sessionLoading) return <LinearProgress aria-label={copy.loading} />;
   if (!allowed) return <Alert severity="error">{copy.forbidden}</Alert>;
 
   return (
@@ -158,22 +159,30 @@ export default function DashboardPage() {
       ) : null}
       {cohortsLoading || isLoading ? <LinearProgress aria-label={copy.loading} /> : null}
       {cohorts && cohorts.length === 0 ? <Alert severity="info">{copy.noCohorts}</Alert> : null}
-      {stats ? <DashboardBody stats={stats} /> : null}
+      {stats ? <DashboardBody stats={stats} showQaGroup={cohortId === cohorts?.[0]?.id} /> : null}
     </Stack>
   );
 }
 
-/** Invited-but-not-activated people. Before 0047 is re-run `pending` is absent; fall back to the funnel (no volunteers). */
-function pendingOf(stats: DashboardStats) {
+/** Numbers shared by the attention chips and the body, computed once per stats object. */
+function deriveCounts(stats: DashboardStats) {
   const mentor = stats.funnel.mentor ?? EMPTY_FUNNEL;
   const mentee = stats.funnel.mentee ?? EMPTY_FUNNEL;
-  return (
-    stats.pending ?? {
-      mentor: Math.max(0, actual(mentor) - mentor.activated),
-      mentee: Math.max(0, actual(mentee) - mentee.activated),
-      volunteer: 0,
-    }
-  );
+  const menteeAccounts = stats.accounts.mentee ?? 0;
+  const mentorAccounts = stats.accounts.mentor ?? 0;
+  const pending = {
+    mentor: Math.max(0, actual(mentor) - mentor.activated),
+    mentee: Math.max(0, actual(mentee) - mentee.activated),
+  };
+  return {
+    mentor,
+    mentee,
+    menteeAccounts,
+    pending,
+    pendingTotal: pending.mentor + pending.mentee,
+    unpaired: Math.max(0, menteeAccounts - stats.mentoring.paired_mentees),
+    mentorIdle: Math.max(0, mentorAccounts - stats.mentoring.mentors_with_mentee),
+  };
 }
 
 type Attention = { key: string; level: "warning" | "info"; text: string; dot?: string };
@@ -181,10 +190,7 @@ type Attention = { key: string; level: "warning" | "info"; text: string; dot?: s
 /** What needs a human, as chips next to the update time at the top of the page. */
 function AttentionChips({ stats }: { stats: DashboardStats }) {
   const copy = portalCopy.dashboard;
-  const p = pendingOf(stats);
-  const pendingTotal = p.mentor + p.mentee + p.volunteer;
-  const unpaired = Math.max(0, (stats.accounts.mentee ?? 0) - stats.mentoring.paired_mentees);
-  const mentorIdle = Math.max(0, (stats.accounts.mentor ?? 0) - stats.mentoring.mentors_with_mentee);
+  const { pendingTotal, unpaired, mentorIdle } = deriveCounts(stats);
 
   const attention: Attention[] = [];
   if (pendingTotal > 0)
@@ -231,27 +237,19 @@ function AttentionChips({ stats }: { stats: DashboardStats }) {
   );
 }
 
-function DashboardBody({ stats }: { stats: DashboardStats }) {
+function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGroup: boolean }) {
   const copy = portalCopy.dashboard;
-  const mentor = stats.funnel.mentor ?? EMPTY_FUNNEL;
-  const mentee = stats.funnel.mentee ?? EMPTY_FUNNEL;
+  const { mentor, mentee, menteeAccounts, pending, pendingTotal, unpaired, mentorIdle } = deriveCounts(stats);
   const actualMentors = actual(mentor);
   const actualMentees = actual(mentee);
   const actualTotal = actualMentors + actualMentees;
   const activatedTotal = mentor.activated + mentee.activated;
   const m = stats.mentoring;
   const a = stats.activities;
-  const menteeAccounts = stats.accounts.mentee ?? 0;
-  const mentorAccounts = stats.accounts.mentor ?? 0;
-  const unpaired = Math.max(0, menteeAccounts - m.paired_mentees);
-  const mentorIdle = Math.max(0, mentorAccounts - m.mentors_with_mentee);
 
-  const pending = pendingOf(stats);
-  const pendingTotal = pending.mentor + pending.mentee + pending.volunteer;
   const pendingSlices: DonutSlice[] = [
     { label: copy.pendingBreakdown.mentee, value: pending.mentee, color: MENTEE_COLOR },
     { label: copy.pendingBreakdown.mentor, value: pending.mentor, color: MENTOR_COLOR },
-    { label: copy.pendingBreakdown.volunteer, value: pending.volunteer, color: VOLUNTEER_COLOR },
   ];
 
   const groups = stats.volunteers.groups.filter((g) => g.count > 0).sort((x, y) => y.count - x.count);
@@ -262,7 +260,7 @@ function DashboardBody({ stats }: { stats: DashboardStats }) {
 
   // One-sentence takeaways shown under each card title.
   const pairingInsight = unpaired > 0 ? copy.insight.paired(unpaired) : copy.insight.pairedDone;
-  const sessionsTotal = a.roundtable_total + a.office_hour_total + QA_GROUP_SESSIONS_TOTAL;
+  const sessionsTotal = a.roundtable_total + a.office_hour_total + (showQaGroup ? QA_GROUP_SESSIONS_TOTAL : 0);
   const grid = (cols: object) => ({ display: "grid", gap: 1.5, gridTemplateColumns: cols });
 
   return (
@@ -283,6 +281,7 @@ function DashboardBody({ stats }: { stats: DashboardStats }) {
             size={130}
             thickness={13}
             ariaLabel={`${copy.hero.title} ${percent(activatedTotal, actualTotal)}`}
+            max={actualTotal}
             slices={[{ label: copy.funnel.activated, value: activatedTotal, color: TOTAL_COLOR }]}
           >
             <Typography sx={{ fontSize: 36, fontWeight: 800, lineHeight: 1 }}>
@@ -389,6 +388,7 @@ function DashboardBody({ stats }: { stats: DashboardStats }) {
                       size={104}
                       thickness={12}
                       ariaLabel={`${label} ${copy.funnel.activated} ${percent(f.activated, actual(f))}`}
+                      max={actual(f)}
                       slices={[{ label: `${label} ${copy.funnel.activated}`, value: f.activated, color }]}
                     >
                       <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
@@ -426,8 +426,8 @@ function DashboardBody({ stats }: { stats: DashboardStats }) {
                 </Typography>
               </Donut>
               <Box>
-                {volSlices.map((sl) => (
-                  <LegendRow key={sl.label} color={sl.color} label={sl.label} value={`${sl.value} ${copy.people}`} />
+                {volSlices.map((sl, i) => (
+                  <LegendRow key={i} color={sl.color} label={sl.label} value={`${sl.value} ${copy.people}`} />
                 ))}
               </Box>
             </Box>
@@ -441,7 +441,8 @@ function DashboardBody({ stats }: { stats: DashboardStats }) {
               size={104}
               thickness={12}
               ariaLabel={copy.mentoring.paired}
-              slices={[{ label: copy.mentoring.paired, value: m.paired_mentees, color: MENTEE_COLOR }]}
+              max={menteeAccounts}
+              slices={[{ label: copy.mentoring.paired, value: Math.min(m.paired_mentees, menteeAccounts), color: MENTEE_COLOR }]}
             >
               <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
                 {percent(m.paired_mentees, menteeAccounts)}
@@ -487,14 +488,16 @@ function DashboardBody({ stats }: { stats: DashboardStats }) {
               icon={<SupportAgentIcon />}
               color={ACTIVITY_COLOR}
             />
-            <CountTile
-              label={copy.activities.qaGroup}
-              value={QA_GROUP_SESSIONS_TOTAL}
-              unit={copy.sessionsUnit}
-              icon={<QuestionAnswerIcon />}
-              color={ACTIVITY_COLOR}
-              note={copy.activities.qaGroupNote}
-            />
+            {showQaGroup ? (
+              <CountTile
+                label={copy.activities.qaGroup}
+                value={QA_GROUP_SESSIONS_TOTAL}
+                unit={copy.sessionsUnit}
+                icon={<QuestionAnswerIcon />}
+                color={ACTIVITY_COLOR}
+                note={copy.activities.qaGroupNote}
+              />
+            ) : null}
             <CountTile
               label={copy.board.title}
               value={stats.board.posts}

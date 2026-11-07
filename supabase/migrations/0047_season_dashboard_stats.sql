@@ -52,22 +52,6 @@ begin
       ) r
     ),
 
-    -- Invited people who have not activated yet (and are not marked 不参与),
-    -- split by who they are: Mentor, Mentee, or volunteer-only (no participant
-    -- role). Someone who is both a mentor and a volunteer counts as a Mentor.
-    'pending', (
-      select jsonb_build_object(
-        'mentor', count(*) filter (where ri.participant_role = 'mentor'),
-        'mentee', count(*) filter (where ri.participant_role = 'mentee'),
-        'volunteer', count(*) filter (
-          where ri.participant_role is null and ri.is_volunteer)
-      )
-      from public.roster_invites ri
-      where ri.cohort_id = p_cohort_id
-        and not ri.not_participating
-        and ri.claimed_user_id is null
-    ),
-
     -- Accounts in the season, per role (independent of invites).
     'accounts', (
       select coalesce(jsonb_object_agg(a.role, a.n), '{}'::jsonb)
@@ -80,8 +64,10 @@ begin
       ) a
     ),
 
-    -- Volunteers: people, leads, unplaced, and headcount per group. A group
-    -- with includes_leads also counts every lead of the season (0013).
+    -- Volunteers: people, leads, unplaced, and headcount per group. Each
+    -- volunteer sits in exactly one bucket (their own group, or no_group), so
+    -- the group counts add up to `total`. `includes_leads` (0013) is about
+    -- visibility, not headcount, and is deliberately ignored here.
     'volunteers', jsonb_build_object(
       'total', (select count(*) from public.volunteer_seasons vs
                 where vs.cohort_id = p_cohort_id),
@@ -94,8 +80,7 @@ begin
           'name', g.name,
           'count', (
             select count(*) from public.volunteer_seasons vs
-            where vs.cohort_id = p_cohort_id
-              and (vs.group_id = g.id or (g.includes_leads and vs.is_lead))
+            where vs.cohort_id = p_cohort_id and vs.group_id = g.id
           )
         ) order by g.sort_order, g.name), '[]'::jsonb)
         from public.volunteer_groups g
@@ -113,13 +98,20 @@ begin
                               and ai.parent_key = 'office_hour')
     ),
 
-    -- Pairing progress. (1v1 session logs are not tallied: sessions_log is not
+    -- Pairing progress, limited to people who have an account in the season so
+    -- it is comparable with the `accounts` counts above. (1v1 session logs are not tallied: sessions_log is not
     -- used in practice, so "no sessions" would read as every mentee being idle.)
     'mentoring', jsonb_build_object(
       'paired_mentees', (select count(distinct m.mentee_id)
-                         from public.matches m where m.cohort_id = p_cohort_id),
+                         from public.matches m
+                         join public.profiles pm on pm.id = m.mentee_id
+                         where m.cohort_id = p_cohort_id
+                           and pm.cohort_ids @> array[p_cohort_id]),
       'mentors_with_mentee', (select count(distinct m.mentor_id)
-                              from public.matches m where m.cohort_id = p_cohort_id)
+                              from public.matches m
+                              join public.profiles pm on pm.id = m.mentor_id
+                              where m.cohort_id = p_cohort_id
+                                and pm.cohort_ids @> array[p_cohort_id])
     ),
 
     -- Bulletin board activity (visible content only).

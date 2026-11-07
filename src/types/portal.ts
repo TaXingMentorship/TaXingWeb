@@ -500,8 +500,6 @@ export type DashboardFunnel = {
 
 export type DashboardStats = {
   funnel: Partial<Record<ParticipantRole, DashboardFunnel>>;
-  /** Invited, not yet activated, not 不参与 — by who they are. Absent before 0047 is re-run. */
-  pending?: { mentor: number; mentee: number; volunteer: number };
   /** Accounts in the season per role, independent of invites. */
   accounts: Partial<Record<ParticipantRole, number>>;
   volunteers: {

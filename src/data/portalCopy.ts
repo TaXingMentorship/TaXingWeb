@@ -941,7 +941,6 @@ export const portalCopy = {
       title: "账号激活率",
       detail: (activated: number, actual: number) => `${activated} / ${actual} 人已激活`,
       scope: "Mentor + Mentee",
-      allDone: "全员已激活 🎉",
     },
     colorLegend: {
       label: "颜色",
@@ -957,7 +956,6 @@ export const portalCopy = {
       unit: "人待激活",
       mentee: "Mentee",
       mentor: "Mentor",
-      volunteer: "志愿者",
       none: "没有待激活的人 🎉",
     },
     headline: {

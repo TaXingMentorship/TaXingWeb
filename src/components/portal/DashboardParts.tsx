@@ -73,6 +73,7 @@ export function Donut({
   size = 160,
   thickness = 16,
   showValues = false,
+  max,
   children,
   ariaLabel,
 }: {
@@ -81,12 +82,14 @@ export function Donut({
   thickness?: number;
   /** Print each slice's value on its arc (skipped for slivers under 6%). */
   showValues?: boolean;
+  /** The value a full ring stands for. Omit for a part-to-whole ring; set it for a single progress slice. */
+  max?: number;
   children?: React.ReactNode;
   ariaLabel: string;
 }) {
   const r = 50 - thickness / 2;
   const c = 2 * Math.PI * r;
-  const total = slices.reduce((sum, s) => sum + s.value, 0);
+  const total = Math.max(max ?? 0, slices.reduce((sum, s) => sum + s.value, 0));
   const visible = slices.filter((s) => s.value > 0);
   const gap = visible.length > 1 ? 1.2 : 0;
   let offset = 0;
@@ -100,12 +103,12 @@ export function Donut({
       <svg viewBox="0 0 100 100" width={size} height={size}>
         <circle cx="50" cy="50" r={r} fill="none" stroke={VIZ.track} strokeWidth={thickness} />
         {total > 0 &&
-          visible.map((s) => {
+          visible.map((s, i) => {
             const len = (s.value / total) * c;
             const dash = Math.max(0, len - gap);
             const el = (
               <Tooltip
-                key={s.label}
+                key={i}
                 title={`${s.label}：${s.value}（${percent(s.value, total)}）`}
                 arrow
                 placement="top"
@@ -127,7 +130,7 @@ export function Donut({
             if (showValues && len / c >= 0.06) {
               const mid = ((offset + len / 2) / c) * 2 * Math.PI - Math.PI / 2;
               labels.push({
-                key: s.label,
+                key: String(i),
                 x: 50 + r * Math.cos(mid),
                 y: 50 + r * Math.sin(mid),
                 text: String(s.value),
