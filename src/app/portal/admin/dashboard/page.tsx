@@ -237,6 +237,50 @@ function AttentionChips({ stats }: { stats: DashboardStats }) {
   );
 }
 
+/**
+ * A ring with its four figures: side by side on narrow screens, stacked (ring
+ * on top) once four cards share a row.
+ */
+function DonutFigureCard({
+  title,
+  hint,
+  icon,
+  ariaLabel,
+  max,
+  slice,
+  centre,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  icon: React.ReactNode;
+  ariaLabel: string;
+  max: number;
+  slice: DonutSlice;
+  centre: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <DashCard title={title} hint={hint} icon={icon}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "104px minmax(0, 1fr)", lg: "minmax(0, 1fr)" },
+          justifyItems: { lg: "center" },
+          alignItems: "center",
+          gap: 2,
+          "& > :last-child": { width: "100%" },
+        }}
+      >
+        <Donut size={104} thickness={12} ariaLabel={ariaLabel} max={max} slices={[slice]}>
+          <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>{centre}</Typography>
+        </Donut>
+        <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "1fr 1fr" }}>{children}</Box>
+      </Box>
+    </DashCard>
+  );
+}
+
 function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGroup: boolean }) {
   const copy = portalCopy.dashboard;
   const { mentor, mentee, menteeAccounts, pending, pendingTotal, unpaired, mentorIdle } = deriveCounts(stats);
@@ -261,15 +305,6 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
   // One-sentence takeaways shown under each card title.
   const pairingInsight = unpaired > 0 ? copy.insight.paired(unpaired) : copy.insight.pairedDone;
   const sessionsTotal = a.roundtable_total + a.office_hour_total + (showQaGroup ? QA_GROUP_SESSIONS_TOTAL : 0);
-  // Donut beside its figures; stacked (donut on top) once four cards share a row.
-  const stackedBody = {
-    display: "grid",
-    gridTemplateColumns: { xs: "104px minmax(0, 1fr)", lg: "minmax(0, 1fr)" },
-    justifyItems: { lg: "center" },
-    alignItems: "center",
-    gap: 2,
-    "& > :last-child": { width: "100%" },
-  };
   const grid = (cols: object) => ({ display: "grid", gap: 1.5, gridTemplateColumns: cols });
 
   return (
@@ -372,31 +407,20 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
 
       {/* 3. Row one sits under the headline tiles: pairing under 实际参与, then Mentor, Mentee, volunteers. */}
       <Box sx={{ ...grid({ xs: "1fr", md: "1fr 1fr", lg: "repeat(4, 1fr)" }), alignItems: "stretch" }}>
-        <DashCard
+        <DonutFigureCard
           title={copy.mentoring.title}
           hint={pairingInsight}
           icon={<HandshakeIcon color="action" />}
+          ariaLabel={copy.mentoring.paired}
+          max={menteeAccounts}
+          slice={{ label: copy.mentoring.paired, value: Math.min(m.paired_mentees, menteeAccounts), color: MENTEE_COLOR }}
+          centre={percent(m.paired_mentees, menteeAccounts)}
         >
-          <Box sx={stackedBody}>
-            <Donut
-              size={104}
-              thickness={12}
-              ariaLabel={copy.mentoring.paired}
-              max={menteeAccounts}
-              slices={[{ label: copy.mentoring.paired, value: Math.min(m.paired_mentees, menteeAccounts), color: MENTEE_COLOR }]}
-            >
-              <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
-                {percent(m.paired_mentees, menteeAccounts)}
-              </Typography>
-            </Donut>
-            <Box sx={{ ...grid({ xs: "1fr 1fr" }), gap: 1 }}>
-              <FigureCell label={copy.mentoring.paired} value={`${m.paired_mentees}/${menteeAccounts}`} accent={MENTEE_COLOR} />
-              <FigureCell label={copy.mentoring.mentorActive} value={m.mentors_with_mentee} />
-              <FigureCell label={copy.mentoring.unpaired} value={unpaired} />
-              <FigureCell label={copy.mentoring.mentorIdle} value={mentorIdle} />
-            </Box>
-          </Box>
-        </DashCard>
+          <FigureCell label={copy.mentoring.paired} value={`${m.paired_mentees}/${menteeAccounts}`} accent={MENTEE_COLOR} />
+          <FigureCell label={copy.mentoring.mentorActive} value={m.mentors_with_mentee} />
+          <FigureCell label={copy.mentoring.unpaired} value={unpaired} />
+          <FigureCell label={copy.mentoring.mentorIdle} value={mentorIdle} />
+        </DonutFigureCard>
 
         {mentor.expected + mentee.expected === 0 ? (
           <DashCard title={copy.funnel.title} icon={<GroupsIcon color="action" />}>
@@ -409,32 +433,21 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
               [copy.headline.mentees, mentee, MENTEE_COLOR, <SchoolIcon key="i" color="action" />],
             ] as const
           ).map(([label, f, color, icon]) => (
-            <DashCard
+            <DonutFigureCard
               key={label}
               title={`${label} · ${copy.funnel.title}`}
               hint={copy.funnel.hint}
               icon={icon}
+              ariaLabel={`${label} ${copy.funnel.activated} ${percent(f.activated, actual(f))}`}
+              max={actual(f)}
+              slice={{ label: `${label} ${copy.funnel.activated}`, value: f.activated, color }}
+              centre={percent(f.activated, actual(f))}
             >
-              <Box sx={stackedBody}>
-                <Donut
-                  size={104}
-                  thickness={12}
-                  ariaLabel={`${label} ${copy.funnel.activated} ${percent(f.activated, actual(f))}`}
-                  max={actual(f)}
-                  slices={[{ label: `${label} ${copy.funnel.activated}`, value: f.activated, color }]}
-                >
-                  <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
-                    {percent(f.activated, actual(f))}
-                  </Typography>
-                </Donut>
-                <Box sx={{ ...grid({ xs: "1fr 1fr" }), gap: 1 }}>
-                  <FigureCell label={copy.funnel.expected} value={f.expected} />
-                  <FigureCell label={copy.funnel.excluded} value={f.excluded} />
-                  <FigureCell label={copy.funnel.actual} value={actual(f)} />
-                  <FigureCell label={copy.funnel.activated} value={f.activated} accent={color} />
-                </Box>
-              </Box>
-            </DashCard>
+              <FigureCell label={copy.funnel.expected} value={f.expected} />
+              <FigureCell label={copy.funnel.excluded} value={f.excluded} />
+              <FigureCell label={copy.funnel.actual} value={actual(f)} />
+              <FigureCell label={copy.funnel.activated} value={f.activated} accent={color} />
+            </DonutFigureCard>
           ))
         )}
 
