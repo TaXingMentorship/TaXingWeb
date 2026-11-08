@@ -91,7 +91,8 @@ export default function MyMentorshipGroups() {
             <DirectoryCard profile={profile} onSelect={(p) => setSelectedId(p.id)} />
           ) : invite ? (
             <Alert severity="info" sx={{ width: "100%" }}>
-              {invite.full_name ?? invite.email} · 未激活
+              {invite.full_name ?? invite.email} ·{" "}
+              {invite.claimed_user_id ? "账号已关联" : "未激活"}
             </Alert>
           ) : (
             <Alert severity="info">{copy.unavailable}</Alert>

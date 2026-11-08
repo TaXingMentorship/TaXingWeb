@@ -158,7 +158,7 @@ export type RosterInvite = {
 
 export type SessionRosterInvite = Pick<
   RosterInvite,
-  "id" | "cohort_id" | "full_name" | "email" | "participant_role"
+  "id" | "cohort_id" | "full_name" | "email" | "participant_role" | "claimed_user_id"
 >;
 
 export type BulletinPost = {

@@ -40,7 +40,6 @@ import {
   exportEntries,
   filterEntries,
   groupBy,
-  inviteRows,
   noteSearchText,
   rosterNames,
   selectableMentorIds,
@@ -325,10 +324,27 @@ function AdminRoster() {
 
   // Nested view: each mentor with their matched mentees (from uploaded matches).
   const pairGroups = React.useMemo(() => {
-    const pendingInvitePeople = inviteRows(invites ?? [], profiles).filter(
-      ({ invite, state }) =>
-        state === "waiting" &&
-        (invite.participant_role === "mentor" || invite.participant_role === "mentee"),
+    const cohortMatches = (matches ?? []).filter((m) => m.cohort_id === cohortId);
+    const matchedInviteIds = new Set(
+      cohortMatches.flatMap((match) =>
+        [match.mentor_invite_id, match.mentee_invite_id].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    );
+    const waitingInviteIds = new Set(
+      (invites ?? [])
+        .filter((invite) => !invite.claimed_user_id && !invite.not_participating)
+        .filter((invite) => !profiles?.some(
+          (profile) =>
+            profile.email?.trim().toLowerCase() === invite.email.trim().toLowerCase(),
+        ))
+        .map((invite) => invite.id),
+    );
+    const pairedInviteAccountIds = new Set(
+      (invites ?? [])
+        .filter((invite) => matchedInviteIds.has(invite.id) && invite.claimed_user_id)
+        .map((invite) => invite.claimed_user_id!),
     );
     type PairPerson = {
       id: string;
@@ -336,14 +352,15 @@ function AdminRoster() {
       email: string | null;
       avatar_url: string | null;
       participant_role: "mentor" | "mentee";
-      pending: boolean;
+      statusLabel: string | null;
     };
     const profilePeople: PairPerson[] = (profiles ?? [])
       .filter(
         (profile) =>
           (profile.participant_role === "mentor" ||
             profile.participant_role === "mentee") &&
-          profile.cohort_ids.includes(cohortId),
+          profile.cohort_ids.includes(cohortId) &&
+          !pairedInviteAccountIds.has(profile.id),
       )
       .map((profile) => ({
         id: profile.id,
@@ -351,20 +368,26 @@ function AdminRoster() {
         email: profile.email,
         avatar_url: profile.avatar_url,
         participant_role: profile.participant_role!,
-        pending: false,
+        statusLabel: null,
       }));
-    const invitePeople: PairPerson[] = pendingInvitePeople.map(({ invite }) => ({
-      id: invite.id,
-      full_name: invite.full_name,
-      email: invite.email,
-      avatar_url: null,
-      participant_role: invite.participant_role as "mentor" | "mentee",
-      pending: true,
-    }));
+    const invitePeople: PairPerson[] = (invites ?? [])
+      .filter(
+        (invite) =>
+          (invite.participant_role === "mentor" || invite.participant_role === "mentee") &&
+          !invite.not_participating &&
+          (matchedInviteIds.has(invite.id) || waitingInviteIds.has(invite.id)),
+      )
+      .map((invite) => ({
+        id: invite.id,
+        full_name: invite.full_name,
+        email: invite.email,
+        avatar_url: null,
+        participant_role: invite.participant_role as "mentor" | "mentee",
+        statusLabel: invite.claimed_user_id ? "账号已关联" : "未激活",
+      }));
     const personById = new Map(
       [...profilePeople, ...invitePeople].map((person) => [person.id, person]),
     );
-    const cohortMatches = (matches ?? []).filter((m) => m.cohort_id === cohortId);
     const mentorIds = new Set([
       ...profilePeople.filter((person) => person.participant_role === "mentor").map((person) => person.id),
       ...cohortMatches.flatMap((m) =>
@@ -891,7 +914,7 @@ function AdminRoster() {
                   <Typography fontWeight={700}>{mentor?.full_name ?? pairCopy.pairUnavailableMentor}</Typography>
                   <Typography variant="caption" color="text.secondary">
                     导师 · {mentorId}
-                    {mentor?.pending ? " · 未激活" : ""}
+                    {mentor?.statusLabel ? ` · ${mentor.statusLabel}` : ""}
                   </Typography>
                 </Box>
                 <Chip size="small" label={`${mentees.length} 名学员`} color="primary" variant="outlined" />
@@ -917,7 +940,7 @@ function AdminRoster() {
                           <Typography component="span" variant="caption" color="text.secondary">
                             {" "}
                             · {id}
-                            {mentee?.pending ? " · 未激活" : ""}
+                            {mentee?.statusLabel ? ` · ${mentee.statusLabel}` : ""}
                           </Typography>
                         </Typography>
                         {!r || r.profile.participant_role !== "mentee" ? (
@@ -965,7 +988,7 @@ function AdminRoster() {
                   <Chip
                     key={mentee.id}
                     avatar={<MemberAvatar src={mentee.avatar_url ?? undefined} />}
-                    label={`${mentee.full_name ?? mentee.id}${mentee.pending ? " · 未激活" : ""}`}
+                    label={`${mentee.full_name ?? mentee.id}${mentee.statusLabel ? ` · ${mentee.statusLabel}` : ""}`}
                     variant="outlined"
                   />
                 ))}

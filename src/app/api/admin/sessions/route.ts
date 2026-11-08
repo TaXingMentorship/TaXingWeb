@@ -96,8 +96,8 @@ async function validateParticipants(
   const menteeProfile = profiles?.find((person) => person.id === menteeSelectionId);
   const mentorInvite = invites?.find((invite) => invite.id === mentorSelectionId);
   const menteeInvite = invites?.find((invite) => invite.id === menteeSelectionId);
-  const pendingInviteEmails = [mentorInvite?.email, menteeInvite?.email].filter(
-    (email): email is string => Boolean(email),
+  const pendingInviteEmails = [mentorInvite, menteeInvite].flatMap((invite) =>
+    invite && !invite.claimed_user_id ? [invite.email] : [],
   );
   const { data: accounts, error: accountError } = pendingInviteEmails.length
     ? await service
@@ -120,24 +120,40 @@ async function validateParticipants(
     (menteeProfile && !menteeProfile.cohort_ids.includes(session.cohort_id)) ||
     (mentorInvite &&
       (mentorInvite.cohort_id !== session.cohort_id ||
-        mentorInvite.claimed_user_id ||
         mentorInvite.not_participating ||
-        accounts?.some(
-          (account) =>
-            account.email?.trim().toLowerCase() ===
-            mentorInvite.email.trim().toLowerCase(),
-        ))) ||
+        (!mentorInvite.claimed_user_id &&
+          accounts?.some(
+            (account) =>
+              account.email?.trim().toLowerCase() ===
+              mentorInvite.email.trim().toLowerCase(),
+          )))) ||
     (menteeInvite &&
       (menteeInvite.cohort_id !== session.cohort_id ||
-        menteeInvite.claimed_user_id ||
         menteeInvite.not_participating ||
-        accounts?.some(
-          (account) =>
-            account.email?.trim().toLowerCase() ===
-            menteeInvite.email.trim().toLowerCase(),
-        )))
+        (!menteeInvite.claimed_user_id &&
+          accounts?.some(
+            (account) =>
+              account.email?.trim().toLowerCase() ===
+              menteeInvite.email.trim().toLowerCase(),
+          ))))
   ) {
-    return "导师和学员必须属于所选项目且仍处于待激活状态。";
+    return "导师和学员必须属于所选项目且邀请状态有效。";
+  }
+
+  if (mentorInvite || menteeInvite) {
+    let matchQuery = service
+      .from("matches")
+      .select("id")
+      .eq("cohort_id", session.cohort_id);
+    matchQuery = mentorInvite
+      ? matchQuery.eq("mentor_invite_id", mentorInvite.id)
+      : matchQuery.eq("mentor_id", mentorProfile!.id);
+    matchQuery = menteeInvite
+      ? matchQuery.eq("mentee_invite_id", menteeInvite.id)
+      : matchQuery.eq("mentee_id", menteeProfile!.id);
+    const { data: match, error: matchError } = await matchQuery.maybeSingle();
+    if (matchError) return "验证导师与学员配对失败。";
+    if (!match) return "只能为已配对的学员记录交流。";
   }
 
   if (

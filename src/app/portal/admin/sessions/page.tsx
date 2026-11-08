@@ -66,7 +66,9 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 const today = () => new Date().toISOString().slice(0, 10);
 
 const sessionTypes: SessionType[] = ["mentorship", "gratitude"];
-type SessionPerson = Pick<Profile, "id" | "full_name" | "email" | "wechat_number">;
+type SessionPerson = Pick<Profile, "id" | "full_name" | "email" | "wechat_number"> & {
+  statusLabel?: string;
+};
 
 export default function ProgressPage() {
   const { currentUser } = usePortalSession();
@@ -491,32 +493,45 @@ function StaffView({
       ),
     [matches, isMentor, currentUser.id],
   );
-  const pendingInvites = React.useMemo(
+  const eligibleInvites = React.useMemo(
     () =>
       (rosterInvites ?? []).filter(
         (invite: RosterInvite | SessionRosterInvite) =>
-          (!("claimed_user_id" in invite) || !invite.claimed_user_id) &&
           (!("not_participating" in invite) || !invite.not_participating) &&
-          !(profiles ?? []).some(
-            (profile) =>
-              profile.email?.trim().toLowerCase() === invite.email.trim().toLowerCase(),
-          ),
+          (Boolean(invite.claimed_user_id) ||
+            !(profiles ?? []).some(
+              (profile) =>
+                profile.email?.trim().toLowerCase() === invite.email.trim().toLowerCase(),
+            )),
       ),
     [rosterInvites, profiles],
   );
-  const inviteOptions: SessionPerson[] = pendingInvites.map((invite) => ({
+  const inviteOptions: SessionPerson[] = eligibleInvites.map((invite) => ({
     id: invite.id,
     full_name: invite.full_name,
     email: invite.email,
     wechat_number: null,
+    statusLabel: invite.claimed_user_id ? "账号已关联" : "待激活",
   }));
+  const pairedInviteAccountIds = new Set(
+    eligibleInvites
+      .filter(
+        (invite) =>
+          invite.claimed_user_id &&
+          (matchedMentorIds.has(invite.id) || matchedMenteeIds.has(invite.id)),
+      )
+      .map((invite) => invite.claimed_user_id!),
+  );
+  const profileOptions = (profiles ?? []).filter(
+    (profile) => !pairedInviteAccountIds.has(profile.id),
+  );
   const mentors: SessionPerson[] = [
-    ...(profiles ?? []).filter(
+    ...profileOptions.filter(
     (p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId),
     ),
     ...inviteOptions.filter(
       (invite) =>
-        pendingInvites.some(
+        eligibleInvites.some(
           (pending) => pending.id === invite.id && pending.participant_role === "mentor",
         ) &&
         (role === "admin" || role === "volunteer"
@@ -525,12 +540,12 @@ function StaffView({
     ),
   ];
   const allMentees: SessionPerson[] = [
-    ...(profiles ?? []).filter(
+    ...profileOptions.filter(
     (p) => p.participant_role === "mentee" && p.cohort_ids.includes(cohortId),
     ),
     ...inviteOptions.filter(
       (invite) =>
-        pendingInvites.some(
+        eligibleInvites.some(
           (pending) => pending.id === invite.id && pending.participant_role === "mentee",
         ) &&
         (role === "admin" || role === "volunteer"
@@ -545,7 +560,7 @@ function StaffView({
   const mentorBlocked = isMentor && mentees.length === 0;
   const nameOf = (id: string | null) =>
     (profiles ?? []).find((profile) => profile.id === id)?.full_name ??
-    pendingInvites.find((invite) => invite.id === id)?.full_name ??
+    eligibleInvites.find((invite) => invite.id === id)?.full_name ??
     "未知";
 
   const invalidate = () =>
