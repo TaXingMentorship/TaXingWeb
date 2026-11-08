@@ -28,7 +28,14 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
-import type { ParticipationRecord, Profile, SessionLog, SessionType } from "@/types/portal";
+import type {
+  ParticipationRecord,
+  Profile,
+  RosterInvite,
+  SessionLog,
+  SessionRosterInvite,
+  SessionType,
+} from "@/types/portal";
 import {
   createParticipation,
   deleteParticipation,
@@ -37,6 +44,10 @@ import {
   listMatches,
   listParticipation,
   listProfiles,
+  listRosterCohorts,
+  listRosterInvites,
+  listSessionRosterInvites,
+  listStaffRoster,
   listSessions,
   logSession,
   updateSession,
@@ -55,19 +66,27 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 const today = () => new Date().toISOString().slice(0, 10);
 
 const sessionTypes: SessionType[] = ["mentorship", "gratitude"];
+type SessionPerson = Pick<Profile, "id" | "full_name" | "email" | "wechat_number"> & {
+  statusLabel?: string;
+};
 
 export default function ProgressPage() {
   const { currentUser } = usePortalSession();
   const role = currentUser?.is_admin
     ? "admin"
-    : currentUser?.participant_role;
+    : currentUser?.is_volunteer
+      ? "volunteer"
+      : currentUser?.participant_role;
 
-  const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
+  const { data: cohorts } = useQuery({
+    queryKey: ["portal", "cohorts", role],
+    queryFn: () => (role === "volunteer" ? listRosterCohorts() : listCohorts()),
+  });
 
   // Non-admins are limited to their own cohorts.
   const availableCohorts = React.useMemo(() => {
     const all = cohorts ?? [];
-    if (role === "admin") return all;
+    if (role === "admin" || role === "volunteer") return all;
     return all.filter((c) => currentUser?.cohort_ids.includes(c.id));
   }, [cohorts, role, currentUser]);
 
@@ -144,7 +163,15 @@ function MenteeView({
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
   });
-  const nameOf = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? "未知";
+  const { data: rosterInvites } = useQuery({
+    queryKey: ["portal", "sessionRosterInvites", cohortId, "mentee"],
+    queryFn: () => listSessionRosterInvites(cohortId),
+    enabled: Boolean(cohortId),
+  });
+  const nameOf = (id: string | null) =>
+    profiles?.find((p) => p.id === id)?.full_name ??
+    rosterInvites?.find((invite) => invite.id === id)?.full_name ??
+    "未知";
 
   const { data: records } = useQuery({
     queryKey: ["portal", "participation", cohortId, currentUser.id],
@@ -228,7 +255,7 @@ function MenteeView({
                 {sessions.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell>{s.session_date}</TableCell>
-                    <TableCell>{nameOf(s.mentor_id)}</TableCell>
+                    <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
                     <TableCell>
                       <Chip
                         size="small"
@@ -394,7 +421,7 @@ function ParticipationRow({
 }
 
 // ---------------------------------------------------------------------------
-// Admin / mentor view: log sessions + stats + recent sessions table.
+// Staff / mentor view: log sessions + stats + recent sessions table.
 // ---------------------------------------------------------------------------
 
 function StaffView({
@@ -403,7 +430,7 @@ function StaffView({
   currentUser,
 }: {
   cohortId: string;
-  role: "admin" | "mentor";
+  role: "admin" | "mentor" | "volunteer";
   currentUser: Profile;
 }) {
   const queryClient = useQueryClient();
@@ -421,8 +448,18 @@ function StaffView({
   }, [isMentor, currentUser]);
 
   const { data: profiles } = useQuery({
-    queryKey: ["portal", "profiles"],
-    queryFn: () => listProfiles(),
+    queryKey: ["portal", "profiles", role === "volunteer" ? cohortId : "all"],
+    queryFn: () =>
+      role === "volunteer" ? listStaffRoster(cohortId) : listProfiles(),
+  });
+
+  const { data: rosterInvites } = useQuery({
+    queryKey: ["portal", "sessionRosterInvites", cohortId, role],
+    queryFn: () =>
+      role === "admin"
+        ? listRosterInvites(cohortId)
+        : listSessionRosterInvites(cohortId),
+    enabled: Boolean(cohortId),
   });
 
   const { data: sessions } = useQuery({
@@ -438,28 +475,93 @@ function StaffView({
     enabled: Boolean(cohortId),
   });
 
-  const mentors = (profiles ?? []).filter(
-    (p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId),
+  const matchedMentorIds = React.useMemo(
+    () =>
+      new Set(
+        (matches ?? []).map((match) =>
+          match.mentor_id ?? match.mentor_invite_id,
+        ),
+      ),
+    [matches],
   );
-  const allMentees = (profiles ?? []).filter(
-    (p) => p.participant_role === "mentee" && p.cohort_ids.includes(cohortId),
-  );
-  // Mentors may only log records for their matched mentees; admins see everyone.
   const matchedMenteeIds = React.useMemo(
     () =>
       new Set(
         (matches ?? [])
-          .filter((m) => (isMentor ? m.mentor_id === currentUser.id : true))
-          .map((m) => m.mentee_id),
+          .filter((match) => (isMentor ? match.mentor_id === currentUser.id : true))
+          .map((match) => match.mentee_id ?? match.mentee_invite_id),
       ),
     [matches, isMentor, currentUser.id],
   );
+  const eligibleInvites = React.useMemo(
+    () =>
+      (rosterInvites ?? []).filter(
+        (invite: RosterInvite | SessionRosterInvite) =>
+          (!("not_participating" in invite) || !invite.not_participating) &&
+          (Boolean(invite.claimed_user_id) ||
+            !(profiles ?? []).some(
+              (profile) =>
+                profile.email?.trim().toLowerCase() === invite.email.trim().toLowerCase(),
+            )),
+      ),
+    [rosterInvites, profiles],
+  );
+  const inviteOptions: SessionPerson[] = eligibleInvites.map((invite) => ({
+    id: invite.id,
+    full_name: invite.full_name,
+    email: invite.email,
+    wechat_number: null,
+    statusLabel: invite.claimed_user_id ? "账号已关联" : "待激活",
+  }));
+  const pairedInviteAccountIds = new Set(
+    eligibleInvites
+      .filter(
+        (invite) =>
+          invite.claimed_user_id &&
+          (matchedMentorIds.has(invite.id) || matchedMenteeIds.has(invite.id)),
+      )
+      .map((invite) => invite.claimed_user_id!),
+  );
+  const profileOptions = (profiles ?? []).filter(
+    (profile) => !pairedInviteAccountIds.has(profile.id),
+  );
+  const mentors: SessionPerson[] = [
+    ...profileOptions.filter(
+    (p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId),
+    ),
+    ...inviteOptions.filter(
+      (invite) =>
+        eligibleInvites.some(
+          (pending) => pending.id === invite.id && pending.participant_role === "mentor",
+        ) &&
+        (role === "admin" || role === "volunteer"
+          ? matchedMentorIds.has(invite.id)
+          : false),
+    ),
+  ];
+  const allMentees: SessionPerson[] = [
+    ...profileOptions.filter(
+    (p) => p.participant_role === "mentee" && p.cohort_ids.includes(cohortId),
+    ),
+    ...inviteOptions.filter(
+      (invite) =>
+        eligibleInvites.some(
+          (pending) => pending.id === invite.id && pending.participant_role === "mentee",
+        ) &&
+        (role === "admin" || role === "volunteer"
+          ? matchedMenteeIds.has(invite.id)
+          : matchedMenteeIds.has(invite.id)),
+    ),
+  ];
   const mentees = isMentor
-    ? allMentees.filter((m) => matchedMenteeIds.has(m.id))
+    ? allMentees.filter((mentee) => matchedMenteeIds.has(mentee.id))
     : allMentees;
   // A mentor with no uploaded matches cannot submit any records yet.
   const mentorBlocked = isMentor && mentees.length === 0;
-  const nameOf = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? "未知";
+  const nameOf = (id: string | null) =>
+    (profiles ?? []).find((profile) => profile.id === id)?.full_name ??
+    eligibleInvites.find((invite) => invite.id === id)?.full_name ??
+    "未知";
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["portal", "sessions"] }).then(() =>
@@ -493,14 +595,18 @@ function StaffView({
   });
 
   const editMutation = useMutation({
-    mutationFn: (s: SessionLog) =>
-      updateSession(s.id, {
-        mentor_id: s.mentor_id,
-        mentee_id: s.mentee_id,
+    mutationFn: (s: SessionLog) => {
+      const mentorId = s.mentor_id ?? s.mentor_invite_id;
+      const menteeId = s.mentee_id ?? s.mentee_invite_id;
+      if (!mentorId || !menteeId) throw new Error("导师和学员信息不完整。");
+      return updateSession(s.id, {
+        mentor_id: mentorId,
+        mentee_id: menteeId,
         session_type: s.session_type,
         session_date: s.session_date,
         notes: s.notes,
-      }),
+      });
+    },
     onSuccess: () => {
       setEditing(null);
       invalidate();
@@ -595,15 +701,17 @@ function StaffView({
                     <TableCell>学员</TableCell>
                     <TableCell>类型</TableCell>
                     <TableCell>备注</TableCell>
-                    <TableCell align="right">操作</TableCell>
+                    {role !== "volunteer" && (
+                      <TableCell align="right">操作</TableCell>
+                    )}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {sessions.map((s) => (
                     <TableRow key={s.id}>
                       <TableCell>{s.session_date}</TableCell>
-                      <TableCell>{nameOf(s.mentor_id)}</TableCell>
-                      <TableCell>{nameOf(s.mentee_id)}</TableCell>
+                      <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
+                      <TableCell>{nameOf(s.mentee_id ?? s.mentee_invite_id)}</TableCell>
                       <TableCell>
                         <Chip
                           size="small"
@@ -617,21 +725,23 @@ function StaffView({
                           {s.notes ?? "—"}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="编辑">
-                          <IconButton size="small" onClick={() => setEditing(s)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="删除">
-                          <IconButton
-                            size="small"
-                            onClick={() => deleteMutation.mutate(s.id)}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+                      {role !== "volunteer" && (
+                        <TableCell align="right">
+                          <Tooltip title="编辑">
+                            <IconButton size="small" onClick={() => setEditing(s)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="删除">
+                            <IconButton
+                              size="small"
+                              onClick={() => deleteMutation.mutate(s.id)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -643,14 +753,16 @@ function StaffView({
         </Grid>
       </Grid>
 
-      <EditSessionDialog
-        session={editing}
-        mentors={mentors}
-        mentees={mentees}
-        onClose={() => setEditing(null)}
-        onSave={(s) => editMutation.mutate(s)}
-        saving={editMutation.isPending}
-      />
+      {role !== "volunteer" && (
+        <EditSessionDialog
+          session={editing}
+          mentors={mentors}
+          mentees={mentees}
+          onClose={() => setEditing(null)}
+          onSave={(s) => editMutation.mutate(s)}
+          saving={editMutation.isPending}
+        />
+      )}
     </>
   );
 }
@@ -664,8 +776,8 @@ function EditSessionDialog({
   saving,
 }: {
   session: SessionLog | null;
-  mentors: Profile[];
-  mentees: Profile[];
+  mentors: SessionPerson[];
+  mentees: SessionPerson[];
   onClose: () => void;
   onSave: (s: SessionLog) => void;
   saving: boolean;
@@ -682,14 +794,18 @@ function EditSessionDialog({
             <PersonAutocomplete
               label="导师"
               options={mentors}
-              value={draft.mentor_id}
-              onChange={(id) => setDraft({ ...draft, mentor_id: id })}
+              value={draft.mentor_id ?? draft.mentor_invite_id ?? ""}
+              onChange={(id) =>
+                setDraft({ ...draft, mentor_id: id, mentor_invite_id: null })
+              }
             />
             <PersonAutocomplete
               label="学员"
               options={mentees}
-              value={draft.mentee_id}
-              onChange={(id) => setDraft({ ...draft, mentee_id: id })}
+              value={draft.mentee_id ?? draft.mentee_invite_id ?? ""}
+              onChange={(id) =>
+                setDraft({ ...draft, mentee_id: id, mentee_invite_id: null })
+              }
             />
             <TextField
               select

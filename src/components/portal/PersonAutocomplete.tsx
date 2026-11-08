@@ -8,7 +8,9 @@ import Typography from "@mui/material/Typography";
 import type { Profile } from "@/types/portal";
 import { portalCopy } from "@/data/portalCopy";
 
-type Person = Pick<Profile, "id" | "full_name" | "email" | "wechat_number">;
+type Person = Pick<Profile, "id" | "full_name" | "email" | "wechat_number"> & {
+  statusLabel?: string;
+};
 
 const filter = createFilterOptions<Person>({
   stringify: (p) => [p.full_name, p.email, p.wechat_number].filter(Boolean).join(" "),
@@ -65,9 +67,9 @@ export default function PersonAutocomplete({
               <Typography variant="body2" noWrap>
                 {p.full_name}
               </Typography>
-              {p.email && (
+              {(p.email || p.statusLabel) && (
                 <Typography variant="caption" color="text.secondary" noWrap display="block">
-                  {p.email}
+                  {[p.email, p.statusLabel].filter(Boolean).join(" · ")}
                 </Typography>
               )}
             </Box>

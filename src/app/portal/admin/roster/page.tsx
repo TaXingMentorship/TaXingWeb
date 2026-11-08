@@ -324,39 +324,112 @@ function AdminRoster() {
 
   // Nested view: each mentor with their matched mentees (from uploaded matches).
   const pairGroups = React.useMemo(() => {
-    const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
     const cohortMatches = (matches ?? []).filter((m) => m.cohort_id === cohortId);
-    // A match survives a profile's role/season change or an unavailable profile.
+    const matchedInviteIds = new Set(
+      cohortMatches.flatMap((match) =>
+        [match.mentor_invite_id, match.mentee_invite_id].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    );
+    const waitingInviteIds = new Set(
+      (invites ?? [])
+        .filter((invite) => !invite.claimed_user_id && !invite.not_participating)
+        .filter((invite) => !profiles?.some(
+          (profile) =>
+            profile.email?.trim().toLowerCase() === invite.email.trim().toLowerCase(),
+        ))
+        .map((invite) => invite.id),
+    );
+    const pairedInviteAccountIds = new Set(
+      (invites ?? [])
+        .filter((invite) => matchedInviteIds.has(invite.id) && invite.claimed_user_id)
+        .map((invite) => invite.claimed_user_id!),
+    );
+    type PairPerson = {
+      id: string;
+      full_name: string | null;
+      email: string | null;
+      avatar_url: string | null;
+      participant_role: "mentor" | "mentee";
+      statusLabel: string | null;
+    };
+    const profilePeople: PairPerson[] = (profiles ?? [])
+      .filter(
+        (profile) =>
+          (profile.participant_role === "mentor" ||
+            profile.participant_role === "mentee") &&
+          profile.cohort_ids.includes(cohortId) &&
+          !pairedInviteAccountIds.has(profile.id),
+      )
+      .map((profile) => ({
+        id: profile.id,
+        full_name: profile.full_name,
+        email: profile.email,
+        avatar_url: profile.avatar_url,
+        participant_role: profile.participant_role!,
+        statusLabel: null,
+      }));
+    const invitePeople: PairPerson[] = (invites ?? [])
+      .filter(
+        (invite) =>
+          (invite.participant_role === "mentor" || invite.participant_role === "mentee") &&
+          !invite.not_participating &&
+          (matchedInviteIds.has(invite.id) || waitingInviteIds.has(invite.id)),
+      )
+      .map((invite) => ({
+        id: invite.id,
+        full_name: invite.full_name,
+        email: invite.email,
+        avatar_url: null,
+        participant_role: invite.participant_role as "mentor" | "mentee",
+        statusLabel: invite.claimed_user_id ? "账号已关联" : "未激活",
+      }));
+    const personById = new Map(
+      [...profilePeople, ...invitePeople].map((person) => [person.id, person]),
+    );
     const mentorIds = new Set([
-      ...(profiles ?? [])
-        .filter((p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId))
-        .map((p) => p.id),
-      ...cohortMatches.map((m) => m.mentor_id),
+      ...profilePeople.filter((person) => person.participant_role === "mentor").map((person) => person.id),
+      ...cohortMatches.flatMap((m) =>
+        m.mentor_id ? [m.mentor_id] : m.mentor_invite_id ? [m.mentor_invite_id] : [],
+      ),
     ]);
-    const matchedMenteeIds = new Set(cohortMatches.map((m) => m.mentee_id));
+    const matchedMenteeIds = new Set(
+      cohortMatches.flatMap((m) =>
+        m.mentee_id ? [m.mentee_id] : m.mentee_invite_id ? [m.mentee_invite_id] : [],
+      ),
+    );
     const groups = Array.from(mentorIds)
       .map((mentorId) => {
-        const mentor = profileById.get(mentorId);
-        const menteeIds = cohortMatches
-          .filter((m) => m.mentor_id === mentorId)
-          .map((m) => m.mentee_id);
-        const mentees = menteeIds.map((id) => ({ id, profile: profileById.get(id) }));
+        const mentor = personById.get(mentorId);
+        const mentees = cohortMatches
+          .filter((m) => (m.mentor_id ?? m.mentor_invite_id) === mentorId)
+          .map((m) => {
+            const id = m.mentee_id ?? m.mentee_invite_id!;
+            return { id, person: personById.get(id) };
+          });
         return { mentorId, mentor, mentees };
       })
       .sort((a, b) =>
-        (a.mentor?.full_name ?? a.mentorId).localeCompare(b.mentor?.full_name ?? b.mentorId),
+        (a.mentor?.full_name ?? a.mentorId).localeCompare(
+          b.mentor?.full_name ?? b.mentorId,
+        ),
       );
-    const unmatched = (profiles ?? []).filter(
-      (p) =>
-        p.participant_role === "mentee" &&
-        p.cohort_ids.includes(cohortId) &&
-        !matchedMenteeIds.has(p.id),
-    );
+    const unmatched = [
+      ...profilePeople.filter(
+        (person) =>
+          person.participant_role === "mentee" && !matchedMenteeIds.has(person.id),
+      ),
+      ...invitePeople.filter(
+        (person) =>
+          person.participant_role === "mentee" && !matchedMenteeIds.has(person.id),
+      ),
+    ];
     const hasUnavailableProfiles = groups.some(
-      (g) => !g.mentor || g.mentees.some((m) => !m.profile),
+      (g) => !g.mentor || g.mentees.some((m) => !m.person),
     );
     return { groups, unmatched, hasMatches: cohortMatches.length > 0, hasUnavailableProfiles };
-  }, [profiles, matches, cohortId]);
+  }, [profiles, invites, matches, cohortId]);
 
   const [pairSearch, setPairSearch] = React.useState("");
   const filteredPairGroups = React.useMemo(() => {
@@ -841,6 +914,7 @@ function AdminRoster() {
                   <Typography fontWeight={700}>{mentor?.full_name ?? pairCopy.pairUnavailableMentor}</Typography>
                   <Typography variant="caption" color="text.secondary">
                     导师 · {mentorId}
+                    {mentor?.statusLabel ? ` · ${mentor.statusLabel}` : ""}
                   </Typography>
                 </Box>
                 <Chip size="small" label={`${mentees.length} 名学员`} color="primary" variant="outlined" />
@@ -851,7 +925,7 @@ function AdminRoster() {
                 </Typography>
               ) : (
                 <Stack spacing={1} sx={{ pl: 6.5 }}>
-                  {mentees.map(({ id, profile: mentee }) => {
+                  {mentees.map(({ id, person: mentee }) => {
                     const r = rowByProfileId.get(id);
                     return (
                       <Stack
@@ -860,15 +934,13 @@ function AdminRoster() {
                         spacing={1.5}
                         alignItems="center"
                       >
-                        <MemberAvatar
-                          src={mentee?.avatar_url ?? undefined}
-                          sx={{ width: 28, height: 28 }}
-                        />
+                        <MemberAvatar src={mentee?.avatar_url ?? undefined} sx={{ width: 28, height: 28 }} />
                         <Typography variant="body2" sx={{ flexGrow: 1 }}>
                           {mentee?.full_name ?? pairCopy.pairUnavailableMentee}
                           <Typography component="span" variant="caption" color="text.secondary">
                             {" "}
                             · {id}
+                            {mentee?.statusLabel ? ` · ${mentee.statusLabel}` : ""}
                           </Typography>
                         </Typography>
                         {!r || r.profile.participant_role !== "mentee" ? (
@@ -916,7 +988,7 @@ function AdminRoster() {
                   <Chip
                     key={mentee.id}
                     avatar={<MemberAvatar src={mentee.avatar_url ?? undefined} />}
-                    label={mentee.full_name ?? mentee.id}
+                    label={`${mentee.full_name ?? mentee.id}${mentee.statusLabel ? ` · ${mentee.statusLabel}` : ""}`}
                     variant="outlined"
                   />
                 ))}

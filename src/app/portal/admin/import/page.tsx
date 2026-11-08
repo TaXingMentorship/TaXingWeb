@@ -204,8 +204,8 @@ export default function AdminImportPage() {
             <TableBody>
               {matchResult.added.map((m) => (
                 <TableRow key={`ma-${m.id}`}>
-                  <TableCell>{m.mentor_id}</TableCell>
-                  <TableCell>{m.mentee_id}</TableCell>
+                  <TableCell>{m.mentor_id ?? m.mentor_invite_id ?? "—"}</TableCell>
+                  <TableCell>{m.mentee_id ?? m.mentee_invite_id ?? "—"}</TableCell>
                   <TableCell>
                     <Chip size="small" color="success" label="已导入" />
                   </TableCell>
