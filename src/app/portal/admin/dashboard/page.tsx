@@ -376,7 +376,7 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
           title={copy.mentoring.title}
           hint={pairingInsight}
           icon={<HandshakeIcon color="action" />}
-          >
+        >
           <Box sx={stackedBody}>
             <Donut
               size={104}
@@ -399,11 +399,7 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
         </DashCard>
 
         {mentor.expected + mentee.expected === 0 ? (
-          <DashCard
-            title={copy.funnel.title}
-            icon={<GroupsIcon color="action" />}
-            sx={{ gridColumn: "1 / -1" }}
-          >
+          <DashCard title={copy.funnel.title} icon={<GroupsIcon color="action" />}>
             <Typography color="text.secondary">{copy.funnel.noData}</Typography>
           </DashCard>
         ) : (
@@ -441,7 +437,6 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
             </DashCard>
           ))
         )}
-
 
         <DashCard title={copy.volunteers.title} icon={<VolunteerActivismIcon color="action" />}>
           {stats.volunteers.total === 0 ? (

@@ -123,7 +123,7 @@ export default function ActivityItemDialog({
         summary: blank(summary),
         url: session ? null : blank(url),
         meeting_url: session ? blank(meetingUrl) : null,
-        recording_url: session ? blank(recordingUrl) : null,
+        recording_url: session && isRecorded(target!.key) ? blank(recordingUrl) : null,
       };
       return item
         ? updateActivityItem(item.id, payload)

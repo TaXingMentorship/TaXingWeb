@@ -57,16 +57,16 @@ type SessionStatus = "upcoming" | "live" | "past";
 /**
  * Sessions have no end time: one counts as 进行中 for its row's session length
  * after it starts (Office Hour one hour, others DEFAULT_SESSION_MINUTES).
- * A session with a recording link is over by definition, so it is 已结束
- * as soon as the link is saved, whatever the clock says.
+ * Once it has started, a session with a recording link is over by definition,
+ * so it is 已结束 as soon as the link is saved. A future session stays 未开始.
  */
 export function sessionStatus(
   item: Pick<ActivityItem, "starts_at" | "parent_key" | "recording_url">,
   now: number,
 ): SessionStatus {
-  if (item.recording_url) return "past";
   const start = new Date(item.starts_at!).getTime();
   if (now < start) return "upcoming";
+  if (item.recording_url?.trim()) return "past";
   if (now < start + sessionMinutesFor(item.parent_key) * 60 * 1000) return "live";
   return "past";
 }

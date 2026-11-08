@@ -21,8 +21,8 @@ import { shortDate } from "./RosterNoteThread";
 
 /**
  * The 推荐 chip warms up with this season's recommendation count: grey at 0,
- * then amber → orange → red, with a halo and slightly larger size from 3 up, so a mentor many people vouched for stands
- * out in a long list. Index = min(count, 5); text is dark until the fill is
+ * then amber → orange → red, with a halo and slightly larger size from 3 up, so a mentor many people
+ * vouched for stands out in a long list. Index = min(count, 5); text is dark until the fill is
  * strong enough for white.
  */
 const HEAT: { bg: string; border: string; fg: string; shadow?: string }[] = [
@@ -108,9 +108,9 @@ export default function MentorRecommendCell({
                   color: heat.fg,
                   fontWeight: 800,
                   boxShadow: heat.shadow,
-                  transform: `scale(${1 + (level - 1) * 0.04})`,
+                  transform: `scale(${level >= 3 ? 1 + (level - 2) * 0.04 : 1})`,
                   transformOrigin: "left center",
-                  mr: level >= 3 ? 0.5 : 0,
+                  mr: level >= 3 ? 1 : 0,
                   "& .MuiChip-icon": { color: "inherit" },
                   "&:hover": { bgcolor: heat.bg, filter: "brightness(0.96)" },
                 }
