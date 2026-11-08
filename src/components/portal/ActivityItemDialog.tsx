@@ -24,6 +24,7 @@ import {
 import { portalCopy } from "@/data/portalCopy";
 import {
   formatRange,
+  isRecorded,
   placeSession,
   programDay,
   seriesRows,
@@ -226,12 +227,14 @@ export default function ActivityItemDialog({
                 onChange={(e) => setMeetingUrl(e.target.value)}
                 fullWidth
               />
-              <TextField
-                label={copy.recordingUrlLabel}
-                value={recordingUrl}
-                onChange={(e) => setRecordingUrl(e.target.value)}
-                fullWidth
-              />
+              {isRecorded((target ?? parent).key) ? (
+                <TextField
+                  label={copy.recordingUrlLabel}
+                  value={recordingUrl}
+                  onChange={(e) => setRecordingUrl(e.target.value)}
+                  fullWidth
+                />
+              ) : null}
             </>
           ) : (
             <>

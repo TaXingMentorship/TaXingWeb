@@ -228,6 +228,7 @@ export function DashCard({
   title,
   insight,
   hint,
+  aside,
   icon,
   children,
   sx,
@@ -236,6 +237,8 @@ export function DashCard({
   /** The takeaway of the card, in one sentence. */
   insight?: string;
   hint?: string;
+  /** Sits on the title line, pushed to the right. */
+  aside?: string;
   icon?: React.ReactNode;
   children: React.ReactNode;
   sx?: object;
@@ -243,13 +246,25 @@ export function DashCard({
   return (
     <Paper
       variant="outlined"
-      sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 4, height: "100%", ...sx }}
+      sx={{
+        p: { xs: 1.5, sm: 2 },
+        borderRadius: 4,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        ...sx,
+      }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         {icon}
         <Typography variant="subtitle1" fontWeight={700}>
           {title}
         </Typography>
+        {aside ? (
+          <Typography variant="body2" color="text.secondary" sx={{ ml: "auto" }}>
+            {aside}
+          </Typography>
+        ) : null}
       </Box>
       {insight ? (
         <Typography variant="body2" fontWeight={700} sx={{ mt: 0.25 }}>
@@ -261,7 +276,9 @@ export function DashCard({
           {hint}
         </Typography>
       ) : null}
-      <Box sx={{ mt: 1 }}>{children}</Box>
+      <Box sx={{ mt: 1.5, flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        {children}
+      </Box>
     </Paper>
   );
 }
@@ -339,8 +356,9 @@ export function CountTile({
         borderRadius: 3,
         bgcolor: "action.hover",
         display: "flex",
-        flexDirection: "column",
-        gap: 0.5,
+        alignItems: "center",
+        gap: 1.5,
+        minWidth: 0,
       }}
     >
       <Box
@@ -352,24 +370,27 @@ export function CountTile({
           color: "#fff",
           display: "grid",
           placeItems: "center",
+          flexShrink: 0,
         }}
       >
         {icon}
       </Box>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-      <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-        <Typography sx={{ fontSize: 36, fontWeight: 800, lineHeight: 1 }}>{value}</Typography>
-        <Typography variant="body1" color="text.secondary">
-          {unit}
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="body2" color="text.secondary">
+          {label}
         </Typography>
+        <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
+          <Typography sx={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1 }}>{value}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {unit}
+          </Typography>
+        </Box>
+        {note ? (
+          <Typography variant="caption" color="text.secondary">
+            {note}
+          </Typography>
+        ) : null}
       </Box>
-      {note ? (
-        <Typography variant="caption" color="text.secondary">
-          {note}
-        </Typography>
-      ) : null}
     </Box>
   );
 }

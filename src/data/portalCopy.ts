@@ -1005,7 +1005,7 @@ export const portalCopy = {
     mentoring: {
       title: "配对进展",
       paired: "已配对 Mentee",
-      pairedHint: (n: number) => `${n} 位 Mentor 已有 Mentee`,
+      mentorActive: "已有 Mentee 的 Mentor",
       unpaired: "未配对 Mentee",
       mentorIdle: "还没有 Mentee 的 Mentor",
     },

@@ -20,6 +20,21 @@ import { RosterAuthorName } from "./RosterAuthorCard";
 import { shortDate } from "./RosterNoteThread";
 
 /**
+ * The 推荐 chip warms up with this season's recommendation count: grey at 0,
+ * then amber → orange → red, with a halo and slightly larger size from 3 up, so a mentor many people vouched for stands
+ * out in a long list. Index = min(count, 5); text is dark until the fill is
+ * strong enough for white.
+ */
+const HEAT: { bg: string; border: string; fg: string; shadow?: string }[] = [
+  { bg: "transparent", border: "", fg: "" }, // 0: MUI default outlined chip
+  { bg: "#ffd54f", border: "#ffb300", fg: "#4e3200" },
+  { bg: "#ffa726", border: "#f57c00", fg: "#3e1f00" },
+  { bg: "#f4511e", border: "#d84315", fg: "#ffffff", shadow: "0 0 0 3px rgba(244, 81, 30, 0.22)" },
+  { bg: "#d32f2f", border: "#b71c1c", fg: "#ffffff", shadow: "0 0 0 4px rgba(211, 47, 47, 0.28)" },
+  { bg: "#b71c1c", border: "#7f0000", fg: "#ffffff", shadow: "0 0 0 5px rgba(183, 28, 28, 0.35)" },
+];
+
+/**
  * 推荐 for one mentor: this season's count (filled when the viewer has
  * recommended), past seasons' count, and a dialog with every recommendation
  * and the viewer's own (recommend / update reason / withdraw).
@@ -43,6 +58,8 @@ export default function MentorRecommendCell({
   const current = recommendations.filter((r) => r.cohort_id === cohortId);
   const past = recommendations.filter((r) => r.cohort_id !== cohortId);
   const mine = current.find((r) => r.recommender_id === viewerId);
+  const level = Math.min(current.length, HEAT.length - 1);
+  const heat = HEAT[level];
 
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState("");
@@ -80,10 +97,25 @@ export default function MentorRecommendCell({
           size="small"
           clickable
           onClick={openDialog}
-          color={mine ? "primary" : "default"}
-          variant={mine ? "filled" : "outlined"}
+          variant="outlined"
           icon={mine ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
           label={copy.recommendButton(current.length)}
+          sx={
+            heat.fg
+              ? {
+                  bgcolor: heat.bg,
+                  borderColor: heat.border,
+                  color: heat.fg,
+                  fontWeight: 800,
+                  boxShadow: heat.shadow,
+                  transform: `scale(${1 + (level - 1) * 0.04})`,
+                  transformOrigin: "left center",
+                  mr: level >= 3 ? 0.5 : 0,
+                  "& .MuiChip-icon": { color: "inherit" },
+                  "&:hover": { bgcolor: heat.bg, filter: "brightness(0.96)" },
+                }
+              : undefined
+          }
         />
         {past.length > 0 && (
           <Chip

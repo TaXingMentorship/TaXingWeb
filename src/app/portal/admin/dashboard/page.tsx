@@ -261,6 +261,15 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
   // One-sentence takeaways shown under each card title.
   const pairingInsight = unpaired > 0 ? copy.insight.paired(unpaired) : copy.insight.pairedDone;
   const sessionsTotal = a.roundtable_total + a.office_hour_total + (showQaGroup ? QA_GROUP_SESSIONS_TOTAL : 0);
+  // Donut beside its figures; stacked (donut on top) once four cards share a row.
+  const stackedBody = {
+    display: "grid",
+    gridTemplateColumns: { xs: "104px minmax(0, 1fr)", lg: "minmax(0, 1fr)" },
+    justifyItems: { lg: "center" },
+    alignItems: "center",
+    gap: 2,
+    "& > :last-child": { width: "100%" },
+  };
   const grid = (cols: object) => ({ display: "grid", gap: 1.5, gridTemplateColumns: cols });
 
   return (
@@ -361,62 +370,84 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
         />
       </Box>
 
-      <Box sx={grid({ xs: "1fr", md: "repeat(2, 1fr)" })}>
-        {/* 4. Funnel: a ring and four clear figures per role. */}
+      {/* 3. Row one sits under the headline tiles: pairing under 实际参与, then Mentor, Mentee, volunteers. */}
+      <Box sx={{ ...grid({ xs: "1fr", md: "1fr 1fr", lg: "repeat(4, 1fr)" }), alignItems: "stretch" }}>
         <DashCard
-          title={copy.funnel.title}
-          hint={copy.funnel.hint}
-          icon={<GroupsIcon color="action" />}
-          sx={{ gridColumn: { md: "1 / -1" } }}
-        >
-          {mentor.expected + mentee.expected === 0 ? (
-            <Typography color="text.secondary">{copy.funnel.noData}</Typography>
-          ) : (
-            <Box sx={grid({ xs: "1fr", md: "1fr 1fr" })}>
-              {(
-                [
-                  [copy.headline.mentors, mentor, MENTOR_COLOR],
-                  [copy.headline.mentees, mentee, MENTEE_COLOR],
-                ] as const
-              ).map(([label, f, color]) => (
-                <Box
-                  key={label}
-                  sx={{ display: "flex", alignItems: "center", gap: 2.5, flexWrap: "wrap" }}
-                >
-                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
-                    <Donut
-                      size={104}
-                      thickness={12}
-                      ariaLabel={`${label} ${copy.funnel.activated} ${percent(f.activated, actual(f))}`}
-                      max={actual(f)}
-                      slices={[{ label: `${label} ${copy.funnel.activated}`, value: f.activated, color }]}
-                    >
-                      <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
-                        {percent(f.activated, actual(f))}
-                      </Typography>
-                    </Donut>
-                    <Typography variant="subtitle1" fontWeight={800}>
-                      {label}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ ...grid({ xs: "1fr 1fr" }), gap: 1, flexGrow: 1, minWidth: 220 }}>
-                    <FigureCell label={copy.funnel.expected} value={f.expected} />
-                    <FigureCell label={copy.funnel.excluded} value={f.excluded} />
-                    <FigureCell label={copy.funnel.actual} value={actual(f)} />
-                    <FigureCell label={copy.funnel.activated} value={f.activated} accent={color} />
-                  </Box>
-                </Box>
-              ))}
+          title={copy.mentoring.title}
+          hint={pairingInsight}
+          icon={<HandshakeIcon color="action" />}
+          >
+          <Box sx={stackedBody}>
+            <Donut
+              size={104}
+              thickness={12}
+              ariaLabel={copy.mentoring.paired}
+              max={menteeAccounts}
+              slices={[{ label: copy.mentoring.paired, value: Math.min(m.paired_mentees, menteeAccounts), color: MENTEE_COLOR }]}
+            >
+              <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
+                {percent(m.paired_mentees, menteeAccounts)}
+              </Typography>
+            </Donut>
+            <Box sx={{ ...grid({ xs: "1fr 1fr" }), gap: 1 }}>
+              <FigureCell label={copy.mentoring.paired} value={`${m.paired_mentees}/${menteeAccounts}`} accent={MENTEE_COLOR} />
+              <FigureCell label={copy.mentoring.mentorActive} value={m.mentors_with_mentee} />
+              <FigureCell label={copy.mentoring.unpaired} value={unpaired} />
+              <FigureCell label={copy.mentoring.mentorIdle} value={mentorIdle} />
             </Box>
-          )}
+          </Box>
         </DashCard>
 
-        {/* 5. Volunteers by group: the count sits on its own arc and in the legend. */}
+        {mentor.expected + mentee.expected === 0 ? (
+          <DashCard
+            title={copy.funnel.title}
+            icon={<GroupsIcon color="action" />}
+            sx={{ gridColumn: "1 / -1" }}
+          >
+            <Typography color="text.secondary">{copy.funnel.noData}</Typography>
+          </DashCard>
+        ) : (
+          (
+            [
+              [copy.headline.mentors, mentor, MENTOR_COLOR, <PsychologyIcon key="i" color="action" />],
+              [copy.headline.mentees, mentee, MENTEE_COLOR, <SchoolIcon key="i" color="action" />],
+            ] as const
+          ).map(([label, f, color, icon]) => (
+            <DashCard
+              key={label}
+              title={`${label} · ${copy.funnel.title}`}
+              hint={copy.funnel.hint}
+              icon={icon}
+            >
+              <Box sx={stackedBody}>
+                <Donut
+                  size={104}
+                  thickness={12}
+                  ariaLabel={`${label} ${copy.funnel.activated} ${percent(f.activated, actual(f))}`}
+                  max={actual(f)}
+                  slices={[{ label: `${label} ${copy.funnel.activated}`, value: f.activated, color }]}
+                >
+                  <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
+                    {percent(f.activated, actual(f))}
+                  </Typography>
+                </Donut>
+                <Box sx={{ ...grid({ xs: "1fr 1fr" }), gap: 1 }}>
+                  <FigureCell label={copy.funnel.expected} value={f.expected} />
+                  <FigureCell label={copy.funnel.excluded} value={f.excluded} />
+                  <FigureCell label={copy.funnel.actual} value={actual(f)} />
+                  <FigureCell label={copy.funnel.activated} value={f.activated} accent={color} />
+                </Box>
+              </Box>
+            </DashCard>
+          ))
+        )}
+
+
         <DashCard title={copy.volunteers.title} icon={<VolunteerActivismIcon color="action" />}>
           {stats.volunteers.total === 0 ? (
             <Typography color="text.secondary">{copy.volunteers.empty}</Typography>
           ) : (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2.5, flexWrap: "wrap" }}>
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
               <Donut size={150} thickness={26} slices={volSlices} showValues ariaLabel={copy.volunteers.title}>
                 <Typography sx={{ fontSize: 30, fontWeight: 800, lineHeight: 1 }}>
                   {stats.volunteers.total}
@@ -433,45 +464,15 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
             </Box>
           )}
         </DashCard>
+      </Box>
 
-        {/* 6. Pairing. */}
-        <DashCard title={copy.mentoring.title} insight={pairingInsight} icon={<HandshakeIcon color="action" />}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2.5, flexWrap: "wrap" }}>
-            <Donut
-              size={104}
-              thickness={12}
-              ariaLabel={copy.mentoring.paired}
-              max={menteeAccounts}
-              slices={[{ label: copy.mentoring.paired, value: Math.min(m.paired_mentees, menteeAccounts), color: MENTEE_COLOR }]}
-            >
-              <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
-                {percent(m.paired_mentees, menteeAccounts)}
-              </Typography>
-            </Donut>
-            <Box sx={{ flexGrow: 1, minWidth: 160 }}>
-              <Typography variant="body2" color="text.secondary">
-                {copy.mentoring.paired}
-              </Typography>
-              <Typography sx={{ fontSize: 28, fontWeight: 800, lineHeight: 1.2 }}>
-                {m.paired_mentees} / {menteeAccounts}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {copy.mentoring.pairedHint(m.mentors_with_mentee)}
-              </Typography>
-            </Box>
-          </Box>
-          <Box sx={{ ...grid({ xs: "1fr 1fr" }), gap: 1, mt: 2 }}>
-            <FigureCell label={copy.mentoring.unpaired} value={unpaired} />
-            <FigureCell label={copy.mentoring.mentorIdle} value={mentorIdle} />
-          </Box>
-        </DashCard>
-
-        {/* 7. Session totals only — no progress, these are end-of-season tallies. */}
+      {/* 4. Row two: activities & interaction, full width. */}
+      <Box>
+        {/* Session totals only — no progress, these are end-of-season tallies. */}
         <DashCard
           title={copy.activities.title}
-          hint={copy.activities.sessionsTotal(sessionsTotal)}
+          aside={copy.activities.sessionsTotal(sessionsTotal)}
           icon={<EventIcon color="action" />}
-          sx={{ gridColumn: { md: "1 / -1" } }}
         >
           <Box sx={grid({ xs: "1fr 1fr", md: "repeat(4, 1fr)" })}>
             <CountTile

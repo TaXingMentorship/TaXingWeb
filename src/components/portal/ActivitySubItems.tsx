@@ -11,6 +11,7 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -23,7 +24,7 @@ import { listActivityItems } from "@/lib/portal/store";
 import { useIsSeasonStaff } from "@/components/portal/useSeasonStaff";
 import LinkifiedText from "@/components/portal/board/LinkifiedText";
 import { portalCopy } from "@/data/portalCopy";
-import { sessionMinutesFor } from "@/data/activityTimeline";
+import { isRecorded, sessionMinutesFor } from "@/data/activityTimeline";
 
 export const activityItemsKey = (cohortId: string | undefined) =>
   ["portal", "activityItems", cohortId] as const;
@@ -56,11 +57,14 @@ type SessionStatus = "upcoming" | "live" | "past";
 /**
  * Sessions have no end time: one counts as 进行中 for its row's session length
  * after it starts (Office Hour one hour, others DEFAULT_SESSION_MINUTES).
+ * A session with a recording link is over by definition, so it is 已结束
+ * as soon as the link is saved, whatever the clock says.
  */
 export function sessionStatus(
-  item: Pick<ActivityItem, "starts_at" | "parent_key">,
+  item: Pick<ActivityItem, "starts_at" | "parent_key" | "recording_url">,
   now: number,
 ): SessionStatus {
+  if (item.recording_url) return "past";
   const start = new Date(item.starts_at!).getTime();
   if (now < start) return "upcoming";
   if (now < start + sessionMinutesFor(item.parent_key) * 60 * 1000) return "live";
@@ -202,10 +206,10 @@ export function SessionLinks({
           {copy.recording}
         </Button>
       )}
-      {past && !item.recording_url && (
-        <Stack direction="row" spacing={0.5} alignItems="center" color="text.secondary">
+      {past && !item.recording_url && isRecorded(item.parent_key) && (
+        <Stack direction="row" spacing={0.5} alignItems="center" color="warning.dark">
           <ScheduleIcon fontSize="small" />
-          <Typography variant="body2">{copy.recordingPending}</Typography>
+          <Typography variant="body2" fontWeight={600}>{copy.recordingPending}</Typography>
         </Stack>
       )}
     </>
@@ -426,14 +430,27 @@ export default function ActivitySubItems({
       {past.length > 0 && (
         <Box>
           <Button
-            size="small"
-            color="inherit"
+            fullWidth
             onClick={() => setShowPast((v) => !v)}
             aria-expanded={showPast}
+            startIcon={<TaskAltIcon color="success" />}
             endIcon={
               <ExpandMoreIcon sx={{ transition: "transform 150ms", transform: showPast ? "rotate(180deg)" : "none" }} />
             }
-            sx={{ color: "text.secondary" }}
+            sx={{
+              justifyContent: "flex-start",
+              gap: 0.5,
+              px: 1.5,
+              py: 1,
+              borderRadius: 3,
+              fontWeight: 700,
+              color: "text.primary",
+              bgcolor: "action.selected",
+              border: "1px solid",
+              borderColor: "divider",
+              "& .MuiButton-endIcon": { ml: "auto" },
+              "&:hover": { bgcolor: "action.focus" },
+            }}
           >
             {showPast ? copy.browse.hidePast : copy.browse.showPast(past.length)}
           </Button>
