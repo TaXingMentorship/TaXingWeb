@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import type { Profile, SessionLog } from "@/types/portal";
 import { databaseError, invalidBody, requireApiRole } from "../_lib";
 
@@ -30,11 +31,42 @@ const updateSchema = z.object({
 const deleteSchema = z.object({ id: z.uuid() });
 
 type ServiceClient = ReturnType<typeof createServiceRoleClient>;
-type Actor = Awaited<ReturnType<typeof requireApiRole>>;
+type SessionActor = { id: string; profile: Profile };
+
+async function requireSessionActor(): Promise<SessionActor | NextResponse> {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "请先登录。" }, { status: 401 });
+  if (
+    !user.profile ||
+    (!user.profile.is_admin &&
+      !user.profile.is_volunteer &&
+      user.profile.participant_role !== "mentor")
+  ) {
+    return NextResponse.json({ error: "没有权限执行此操作。" }, { status: 403 });
+  }
+  return { id: user.id, profile: user.profile };
+}
+
+async function authorizeCohort(
+  actor: SessionActor,
+  cohortId: string,
+): Promise<NextResponse | null> {
+  if (actor.profile.is_admin || !actor.profile.is_volunteer) return null;
+
+  const client = await createClient();
+  const { data, error } = await client.rpc("is_season_volunteer", {
+    p_cohort_id: cohortId,
+  });
+  if (error) return databaseError("验证志愿者项目", error.message);
+  if (!data) {
+    return NextResponse.json({ error: "没有权限管理此项目的交流记录。" }, { status: 403 });
+  }
+  return null;
+}
 
 async function validateParticipants(
   service: ServiceClient,
-  actor: Exclude<Actor, NextResponse>,
+  actor: SessionActor,
   session: Omit<SessionLog, "id" | "created_at">,
 ) {
   const [{ data: cohort }, { data: people, error }] = await Promise.all([
@@ -66,7 +98,11 @@ async function validateParticipants(
     return "导师和学员必须属于所选项目。";
   }
 
-  if (!actor.profile.is_admin && actor.profile.participant_role === "mentor") {
+  if (
+    !actor.profile.is_admin &&
+    !actor.profile.is_volunteer &&
+    actor.profile.participant_role === "mentor"
+  ) {
     if (session.mentor_id !== actor.id) return "导师只能管理自己的交流记录。";
     const { data: match } = await service
       .from("matches")
@@ -81,17 +117,22 @@ async function validateParticipants(
 }
 
 export async function POST(request: Request) {
-  const actor = await requireApiRole(["admin", "mentor"]);
+  const actor = await requireSessionActor();
   if (actor instanceof NextResponse) return actor;
 
   const parsed = fieldsSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return invalidBody("请检查项目、成员、日期、类型和备注。");
 
+  const authorizationError = await authorizeCohort(actor, parsed.data.cohort_id);
+  if (authorizationError) return authorizationError;
+
   const service = createServiceRoleClient();
   const input = {
     ...parsed.data,
     mentor_id:
-      !actor.profile.is_admin && actor.profile.participant_role === "mentor"
+      !actor.profile.is_admin &&
+      !actor.profile.is_volunteer &&
+      actor.profile.participant_role === "mentor"
         ? actor.id
         : parsed.data.mentor_id,
     created_by: actor.id,
@@ -168,7 +209,7 @@ export async function DELETE(request: Request) {
   const service = createServiceRoleClient();
   const { data: current, error: readError } = await service
     .from("sessions_log")
-    .select("mentor_id")
+    .select("cohort_id, mentor_id")
     .eq("id", parsed.data.id)
     .maybeSingle();
   if (readError) return databaseError("读取交流记录", readError.message);

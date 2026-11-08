@@ -37,6 +37,8 @@ import {
   listMatches,
   listParticipation,
   listProfiles,
+  listRosterCohorts,
+  listStaffRoster,
   listSessions,
   logSession,
   updateSession,
@@ -60,14 +62,19 @@ export default function ProgressPage() {
   const { currentUser } = usePortalSession();
   const role = currentUser?.is_admin
     ? "admin"
-    : currentUser?.participant_role;
+    : currentUser?.is_volunteer
+      ? "volunteer"
+      : currentUser?.participant_role;
 
-  const { data: cohorts } = useQuery({ queryKey: ["portal", "cohorts"], queryFn: listCohorts });
+  const { data: cohorts } = useQuery({
+    queryKey: ["portal", "cohorts", role],
+    queryFn: () => (role === "volunteer" ? listRosterCohorts() : listCohorts()),
+  });
 
   // Non-admins are limited to their own cohorts.
   const availableCohorts = React.useMemo(() => {
     const all = cohorts ?? [];
-    if (role === "admin") return all;
+    if (role === "admin" || role === "volunteer") return all;
     return all.filter((c) => currentUser?.cohort_ids.includes(c.id));
   }, [cohorts, role, currentUser]);
 
@@ -394,7 +401,7 @@ function ParticipationRow({
 }
 
 // ---------------------------------------------------------------------------
-// Admin / mentor view: log sessions + stats + recent sessions table.
+// Staff / mentor view: log sessions + stats + recent sessions table.
 // ---------------------------------------------------------------------------
 
 function StaffView({
@@ -403,7 +410,7 @@ function StaffView({
   currentUser,
 }: {
   cohortId: string;
-  role: "admin" | "mentor";
+  role: "admin" | "mentor" | "volunteer";
   currentUser: Profile;
 }) {
   const queryClient = useQueryClient();
@@ -421,8 +428,9 @@ function StaffView({
   }, [isMentor, currentUser]);
 
   const { data: profiles } = useQuery({
-    queryKey: ["portal", "profiles"],
-    queryFn: () => listProfiles(),
+    queryKey: ["portal", "profiles", role === "volunteer" ? cohortId : "all"],
+    queryFn: () =>
+      role === "volunteer" ? listStaffRoster(cohortId) : listProfiles(),
   });
 
   const { data: sessions } = useQuery({
@@ -595,7 +603,9 @@ function StaffView({
                     <TableCell>学员</TableCell>
                     <TableCell>类型</TableCell>
                     <TableCell>备注</TableCell>
-                    <TableCell align="right">操作</TableCell>
+                    {role !== "volunteer" && (
+                      <TableCell align="right">操作</TableCell>
+                    )}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -617,21 +627,23 @@ function StaffView({
                           {s.notes ?? "—"}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="编辑">
-                          <IconButton size="small" onClick={() => setEditing(s)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="删除">
-                          <IconButton
-                            size="small"
-                            onClick={() => deleteMutation.mutate(s.id)}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+                      {role !== "volunteer" && (
+                        <TableCell align="right">
+                          <Tooltip title="编辑">
+                            <IconButton size="small" onClick={() => setEditing(s)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="删除">
+                            <IconButton
+                              size="small"
+                              onClick={() => deleteMutation.mutate(s.id)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -643,14 +655,16 @@ function StaffView({
         </Grid>
       </Grid>
 
-      <EditSessionDialog
-        session={editing}
-        mentors={mentors}
-        mentees={mentees}
-        onClose={() => setEditing(null)}
-        onSave={(s) => editMutation.mutate(s)}
-        saving={editMutation.isPending}
-      />
+      {role !== "volunteer" && (
+        <EditSessionDialog
+          session={editing}
+          mentors={mentors}
+          mentees={mentees}
+          onClose={() => setEditing(null)}
+          onSave={(s) => editMutation.mutate(s)}
+          saving={editMutation.isPending}
+        />
+      )}
     </>
   );
 }
