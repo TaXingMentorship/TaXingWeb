@@ -196,7 +196,15 @@ export function InvitedRow({ invite, state }: { invite: RosterInvite; state: Inv
     <TableRow hover sx={state === "out" ? dimmedRowSx : undefined}>
       <TableCell padding="checkbox" />
       <TableCell>
-        <Dash />
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          title={invite.id}
+          noWrap
+          sx={{ display: "block", maxWidth: 88 }}
+        >
+          {invite.id}
+        </Typography>
       </TableCell>
       <TableCell sx={nameCellSx}>{invite.full_name ?? "—"}</TableCell>
       <TableCell sx={emailCellSx}>{invite.email}</TableCell>

@@ -22,6 +22,7 @@ import type {
   ParticipantRole,
   Profile,
   RosterInvite,
+  SessionRosterInvite,
   RosterNoteEntry,
   RosterStaffAuthor,
   MentorRecommendation,
@@ -266,6 +267,16 @@ export async function listStaffRoster(cohortId: string): Promise<Profile[]> {
   });
   throwQueryError("读取成员名单", error);
   return (data ?? []) as Profile[];
+}
+
+export async function listSessionRosterInvites(
+  cohortId: string,
+): Promise<SessionRosterInvite[]> {
+  const { data, error } = await createClient().rpc("list_session_roster_invites", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("读取未激活配对成员", error);
+  return (data ?? []) as SessionRosterInvite[];
 }
 
 export async function listRosterNoteEntries(cohortId: string): Promise<RosterNoteEntry[]> {
@@ -887,7 +898,9 @@ export async function listMyMentorshipMatches(
     listMatches({ cohortId, mentorId: userId }),
     listMatches({ cohortId, menteeId: userId }),
   ]);
-  const ids = (mentorIds ?? []) as string[];
+  const ids: string[] = Array.isArray(mentorIds)
+    ? mentorIds.filter((id: unknown): id is string => typeof id === "string")
+    : [];
   let siblings: Match[] = [];
   if (ids.length) {
     const { data, error } = await client

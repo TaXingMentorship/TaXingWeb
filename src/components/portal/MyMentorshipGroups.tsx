@@ -13,7 +13,12 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { portalCopy } from "@/data/portalCopy";
 import { visibleToMember } from "@/lib/portal/directoryFilters";
-import { listCohorts, listMyMentorshipMatches, listProfiles } from "@/lib/portal/store";
+import {
+  listCohorts,
+  listMyMentorshipMatches,
+  listProfiles,
+  listSessionRosterInvites,
+} from "@/lib/portal/store";
 import type { Profile } from "@/types/portal";
 import DirectoryCard from "./DirectoryCard";
 import ProfileDialog from "./ProfileDialog";
@@ -35,9 +40,18 @@ export default function MyMentorshipGroups() {
     queryKey: ["portal", "myMentorship", realUser?.id, cohortId, realUser?.cohort_ids],
     queryFn: async () => {
       const matches = await listMyMentorshipMatches(cohortId, realUser!.id);
-      const ids = Array.from(new Set(matches.flatMap((m) => [m.mentor_id, m.mentee_id])));
-      const profiles = await listProfiles({ ids });
-      return { matches, profiles };
+      const ids = Array.from(
+        new Set(
+          matches
+            .flatMap((match) => [match.mentor_id, match.mentee_id])
+            .filter((id): id is string => typeof id === "string"),
+        ),
+      );
+      const [profiles, invites] = await Promise.all([
+        listProfiles({ ids }),
+        listSessionRosterInvites(cohortId),
+      ]);
+      return { matches, profiles, invites };
     },
     enabled: Boolean(realUser && cohortId),
   });
@@ -52,22 +66,34 @@ export default function MyMentorshipGroups() {
       .filter((p) => currentUser?.is_admin || visibleToMember(p, realUser?.cohort_ids ?? []))
       .map((p) => [p.id, p]),
   );
+  const invites = new Map(
+    (groupsQuery.data?.invites ?? []).map((invite) => [invite.id, invite]),
+  );
   const groups = new Map<string, Set<string>>();
   for (const match of groupsQuery.data?.matches ?? []) {
-    const mentees = groups.get(match.mentor_id) ?? new Set<string>();
-    mentees.add(match.mentee_id);
-    groups.set(match.mentor_id, mentees);
+    const mentorId = match.mentor_id ?? match.mentor_invite_id;
+    const menteeId = match.mentee_id ?? match.mentee_invite_id;
+    if (!mentorId || !menteeId) continue;
+    const mentees = groups.get(mentorId) ?? new Set<string>();
+    mentees.add(menteeId);
+    groups.set(mentorId, mentees);
   }
   const error = cohortsQuery.error ?? groupsQuery.error;
   const loading = cohortsQuery.isLoading || (Boolean(cohortId) && groupsQuery.isLoading);
   const selected = !error && !loading && selectedId ? profiles.get(selectedId) ?? null : null;
   const member = (id: string) => {
     const profile: Profile | undefined = profiles.get(id);
+    const invite = invites.get(id);
     return (
       <Grid key={id} size={{ xs: 12, sm: 6, md: 4 }} sx={{ minWidth: 0, display: "flex" }}>
         <Box sx={{ width: "100%", minWidth: 0 }}>
           {profile ? (
             <DirectoryCard profile={profile} onSelect={(p) => setSelectedId(p.id)} />
+          ) : invite ? (
+            <Alert severity="info" sx={{ width: "100%" }}>
+              {invite.full_name ?? invite.email} ·{" "}
+              {invite.claimed_user_id ? "账号已关联" : "未激活"}
+            </Alert>
           ) : (
             <Alert severity="info">{copy.unavailable}</Alert>
           )}

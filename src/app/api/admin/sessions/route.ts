@@ -67,35 +67,93 @@ async function authorizeCohort(
 async function validateParticipants(
   service: ServiceClient,
   actor: SessionActor,
-  session: Omit<SessionLog, "id" | "created_at">,
+  session: Pick<
+    SessionLog,
+    "cohort_id" | "mentor_id" | "mentee_id" | "mentor_invite_id" | "mentee_invite_id"
+  >,
 ) {
-  const [{ data: cohort }, { data: people, error }] = await Promise.all([
-    service.from("cohorts").select("id").eq("id", session.cohort_id).maybeSingle(),
-    service
-      .from("profiles")
-      .select("id, participant_role, cohort_ids")
-      .in("id", [session.mentor_id, session.mentee_id]),
-  ]);
+  const mentorSelectionId = session.mentor_id ?? session.mentor_invite_id;
+  const menteeSelectionId = session.mentee_id ?? session.mentee_invite_id;
+  const selectionIds = [mentorSelectionId, menteeSelectionId].filter(
+    (id): id is string => Boolean(id),
+  );
+  const [{ data: cohort }, { data: profiles, error: profileError }, { data: invites, error: inviteError }] =
+    await Promise.all([
+      service.from("cohorts").select("id").eq("id", session.cohort_id).maybeSingle(),
+      service
+        .from("profiles")
+        .select("id, participant_role, cohort_ids")
+        .in("id", selectionIds),
+      service
+        .from("roster_invites")
+        .select("id, cohort_id, participant_role, claimed_user_id, not_participating, email")
+        .in("id", selectionIds),
+    ]);
   if (!cohort) return "所选项目不存在。";
-  if (error || people?.length !== 2) return "导师或学员不存在。";
+  if (profileError || inviteError) return "读取导师或学员失败。";
 
-  const mentor = people.find((person) => person.id === session.mentor_id) as
-    | Pick<Profile, "id" | "participant_role" | "cohort_ids">
-    | undefined;
-  const mentee = people.find((person) => person.id === session.mentee_id) as
-    | Pick<Profile, "id" | "participant_role" | "cohort_ids">
-    | undefined;
+  const mentorProfile = profiles?.find((person) => person.id === mentorSelectionId);
+  const menteeProfile = profiles?.find((person) => person.id === menteeSelectionId);
+  const mentorInvite = invites?.find((invite) => invite.id === mentorSelectionId);
+  const menteeInvite = invites?.find((invite) => invite.id === menteeSelectionId);
+  const pendingInviteEmails = [mentorInvite, menteeInvite].flatMap((invite) =>
+    invite && !invite.claimed_user_id ? [invite.email] : [],
+  );
+  const { data: accounts, error: accountError } = pendingInviteEmails.length
+    ? await service
+        .from("profiles")
+        .select("id, email")
+        .in("email", pendingInviteEmails)
+    : { data: [], error: null };
+  if (accountError) return "验证邀请状态失败。";
+
   if (
-    mentor?.participant_role !== "mentor" ||
-    mentee?.participant_role !== "mentee"
+    (mentorProfile?.participant_role !== "mentor" &&
+      mentorInvite?.participant_role !== "mentor") ||
+    (menteeProfile?.participant_role !== "mentee" &&
+      menteeInvite?.participant_role !== "mentee")
   ) {
     return "配对成员身份不正确。";
   }
   if (
-    !mentor.cohort_ids.includes(session.cohort_id) ||
-    !mentee.cohort_ids.includes(session.cohort_id)
+    (mentorProfile && !mentorProfile.cohort_ids.includes(session.cohort_id)) ||
+    (menteeProfile && !menteeProfile.cohort_ids.includes(session.cohort_id)) ||
+    (mentorInvite &&
+      (mentorInvite.cohort_id !== session.cohort_id ||
+        mentorInvite.not_participating ||
+        (!mentorInvite.claimed_user_id &&
+          accounts?.some(
+            (account) =>
+              account.email?.trim().toLowerCase() ===
+              mentorInvite.email.trim().toLowerCase(),
+          )))) ||
+    (menteeInvite &&
+      (menteeInvite.cohort_id !== session.cohort_id ||
+        menteeInvite.not_participating ||
+        (!menteeInvite.claimed_user_id &&
+          accounts?.some(
+            (account) =>
+              account.email?.trim().toLowerCase() ===
+              menteeInvite.email.trim().toLowerCase(),
+          ))))
   ) {
-    return "导师和学员必须属于所选项目。";
+    return "导师和学员必须属于所选项目且邀请状态有效。";
+  }
+
+  if (mentorInvite || menteeInvite) {
+    let matchQuery = service
+      .from("matches")
+      .select("id")
+      .eq("cohort_id", session.cohort_id);
+    matchQuery = mentorInvite
+      ? matchQuery.eq("mentor_invite_id", mentorInvite.id)
+      : matchQuery.eq("mentor_id", mentorProfile!.id);
+    matchQuery = menteeInvite
+      ? matchQuery.eq("mentee_invite_id", menteeInvite.id)
+      : matchQuery.eq("mentee_id", menteeProfile!.id);
+    const { data: match, error: matchError } = await matchQuery.maybeSingle();
+    if (matchError) return "验证导师与学员配对失败。";
+    if (!match) return "只能为已配对的学员记录交流。";
   }
 
   if (
@@ -103,17 +161,27 @@ async function validateParticipants(
     !actor.profile.is_volunteer &&
     actor.profile.participant_role === "mentor"
   ) {
-    if (session.mentor_id !== actor.id) return "导师只能管理自己的交流记录。";
-    const { data: match } = await service
+    if (mentorProfile?.id !== actor.id || mentorInvite) {
+      return "导师只能管理自己的交流记录。";
+    }
+    let matchQuery = service
       .from("matches")
       .select("id")
       .eq("cohort_id", session.cohort_id)
-      .eq("mentor_id", actor.id)
-      .eq("mentee_id", session.mentee_id)
-      .maybeSingle();
+      .eq("mentor_id", actor.id);
+    matchQuery = menteeProfile
+      ? matchQuery.eq("mentee_id", menteeProfile.id)
+      : matchQuery.eq("mentee_invite_id", menteeInvite!.id);
+    const { data: match } = await matchQuery.maybeSingle();
     if (!match) return "只能为已配对的学员记录交流。";
   }
-  return null;
+
+  return {
+    mentor_id: mentorProfile?.id ?? null,
+    mentor_invite_id: mentorInvite?.id ?? null,
+    mentee_id: menteeProfile?.id ?? null,
+    mentee_invite_id: menteeInvite?.id ?? null,
+  };
 }
 
 export async function POST(request: Request) {
@@ -137,12 +205,18 @@ export async function POST(request: Request) {
         : parsed.data.mentor_id,
     created_by: actor.id,
   };
-  const validationError = await validateParticipants(service, actor, input);
-  if (validationError) return invalidBody(validationError);
+  const participants = await validateParticipants(service, actor, {
+    cohort_id: input.cohort_id,
+    mentor_id: input.mentor_id,
+    mentee_id: input.mentee_id,
+    mentor_invite_id: null,
+    mentee_invite_id: null,
+  });
+  if (typeof participants === "string") return invalidBody(participants);
 
   const { data, error } = await service
     .from("sessions_log")
-    .insert(input)
+    .insert({ ...input, ...participants })
     .select("*")
     .single();
   if (error) return databaseError("新增交流记录", error.message);
@@ -181,14 +255,26 @@ export async function PATCH(request: Request) {
       !actor.profile.is_admin && actor.profile.participant_role === "mentor"
         ? actor.id
         : parsed.data.patch.mentor_id ?? current.mentor_id,
-  } as SessionLog;
-  const validationError = await validateParticipants(service, actor, next);
-  if (validationError) return invalidBody(validationError);
+    mentor_invite_id: parsed.data.patch.mentor_id
+      ? null
+      : current.mentor_invite_id,
+    mentee_invite_id: parsed.data.patch.mentee_id
+      ? null
+      : current.mentee_invite_id,
+  };
+  const participants = await validateParticipants(service, actor, {
+    cohort_id: current.cohort_id,
+    mentor_id: next.mentor_id,
+    mentee_id: next.mentee_id,
+    mentor_invite_id: next.mentor_invite_id,
+    mentee_invite_id: next.mentee_invite_id,
+  });
+  if (typeof participants === "string") return invalidBody(participants);
 
   const update =
     !actor.profile.is_admin && actor.profile.participant_role === "mentor"
-      ? { ...parsed.data.patch, mentor_id: actor.id }
-      : parsed.data.patch;
+      ? { ...parsed.data.patch, ...participants, mentor_id: actor.id }
+      : { ...parsed.data.patch, ...participants };
   const { data, error } = await service
     .from("sessions_log")
     .update(update)
