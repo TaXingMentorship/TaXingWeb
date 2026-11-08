@@ -136,8 +136,10 @@ export type ProfileFavorite = {
 export type Match = {
   id: string;
   cohort_id: string;
-  mentor_id: string;
-  mentee_id: string;
+  mentor_id: string | null;
+  mentee_id: string | null;
+  mentor_invite_id: string | null;
+  mentee_invite_id: string | null;
   created_at: string;
 };
 
@@ -153,6 +155,11 @@ export type RosterInvite = {
   claimed_user_id: string | null;
   not_participating: boolean;
 };
+
+export type SessionRosterInvite = Pick<
+  RosterInvite,
+  "id" | "cohort_id" | "full_name" | "email" | "participant_role"
+>;
 
 export type BulletinPost = {
   id: string;
@@ -210,8 +217,10 @@ export type BulletinReaction = {
 export type SessionLog = {
   id: string;
   cohort_id: string;
-  mentor_id: string;
-  mentee_id: string;
+  mentor_id: string | null;
+  mentee_id: string | null;
+  mentor_invite_id: string | null;
+  mentee_invite_id: string | null;
   session_type: SessionType;
   session_date: string;
   notes: string | null;

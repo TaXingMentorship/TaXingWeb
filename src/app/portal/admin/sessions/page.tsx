@@ -28,7 +28,14 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
-import type { ParticipationRecord, Profile, SessionLog, SessionType } from "@/types/portal";
+import type {
+  ParticipationRecord,
+  Profile,
+  RosterInvite,
+  SessionLog,
+  SessionRosterInvite,
+  SessionType,
+} from "@/types/portal";
 import {
   createParticipation,
   deleteParticipation,
@@ -38,6 +45,8 @@ import {
   listParticipation,
   listProfiles,
   listRosterCohorts,
+  listRosterInvites,
+  listSessionRosterInvites,
   listStaffRoster,
   listSessions,
   logSession,
@@ -57,6 +66,7 @@ import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 const today = () => new Date().toISOString().slice(0, 10);
 
 const sessionTypes: SessionType[] = ["mentorship", "gratitude"];
+type SessionPerson = Pick<Profile, "id" | "full_name" | "email" | "wechat_number">;
 
 export default function ProgressPage() {
   const { currentUser } = usePortalSession();
@@ -151,7 +161,15 @@ function MenteeView({
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
   });
-  const nameOf = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? "未知";
+  const { data: rosterInvites } = useQuery({
+    queryKey: ["portal", "sessionRosterInvites", cohortId, "mentee"],
+    queryFn: () => listSessionRosterInvites(cohortId),
+    enabled: Boolean(cohortId),
+  });
+  const nameOf = (id: string | null) =>
+    profiles?.find((p) => p.id === id)?.full_name ??
+    rosterInvites?.find((invite) => invite.id === id)?.full_name ??
+    "未知";
 
   const { data: records } = useQuery({
     queryKey: ["portal", "participation", cohortId, currentUser.id],
@@ -235,7 +253,7 @@ function MenteeView({
                 {sessions.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell>{s.session_date}</TableCell>
-                    <TableCell>{nameOf(s.mentor_id)}</TableCell>
+                    <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
                     <TableCell>
                       <Chip
                         size="small"
@@ -433,6 +451,15 @@ function StaffView({
       role === "volunteer" ? listStaffRoster(cohortId) : listProfiles(),
   });
 
+  const { data: rosterInvites } = useQuery({
+    queryKey: ["portal", "sessionRosterInvites", cohortId, role],
+    queryFn: () =>
+      role === "admin"
+        ? listRosterInvites(cohortId)
+        : listSessionRosterInvites(cohortId),
+    enabled: Boolean(cohortId),
+  });
+
   const { data: sessions } = useQuery({
     queryKey: ["portal", "sessions", cohortId, isMentor ? currentUser.id : "all"],
     queryFn: () =>
@@ -446,28 +473,80 @@ function StaffView({
     enabled: Boolean(cohortId),
   });
 
-  const mentors = (profiles ?? []).filter(
-    (p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId),
+  const matchedMentorIds = React.useMemo(
+    () =>
+      new Set(
+        (matches ?? []).map((match) =>
+          match.mentor_id ?? match.mentor_invite_id,
+        ),
+      ),
+    [matches],
   );
-  const allMentees = (profiles ?? []).filter(
-    (p) => p.participant_role === "mentee" && p.cohort_ids.includes(cohortId),
-  );
-  // Mentors may only log records for their matched mentees; admins see everyone.
   const matchedMenteeIds = React.useMemo(
     () =>
       new Set(
         (matches ?? [])
-          .filter((m) => (isMentor ? m.mentor_id === currentUser.id : true))
-          .map((m) => m.mentee_id),
+          .filter((match) => (isMentor ? match.mentor_id === currentUser.id : true))
+          .map((match) => match.mentee_id ?? match.mentee_invite_id),
       ),
     [matches, isMentor, currentUser.id],
   );
+  const pendingInvites = React.useMemo(
+    () =>
+      (rosterInvites ?? []).filter(
+        (invite: RosterInvite | SessionRosterInvite) =>
+          (!("claimed_user_id" in invite) || !invite.claimed_user_id) &&
+          (!("not_participating" in invite) || !invite.not_participating) &&
+          !(profiles ?? []).some(
+            (profile) =>
+              profile.email?.trim().toLowerCase() === invite.email.trim().toLowerCase(),
+          ),
+      ),
+    [rosterInvites, profiles],
+  );
+  const inviteOptions: SessionPerson[] = pendingInvites.map((invite) => ({
+    id: invite.id,
+    full_name: invite.full_name,
+    email: invite.email,
+    wechat_number: null,
+  }));
+  const mentors: SessionPerson[] = [
+    ...(profiles ?? []).filter(
+    (p) => p.participant_role === "mentor" && p.cohort_ids.includes(cohortId),
+    ),
+    ...inviteOptions.filter(
+      (invite) =>
+        pendingInvites.some(
+          (pending) => pending.id === invite.id && pending.participant_role === "mentor",
+        ) &&
+        (role === "admin" || role === "volunteer"
+          ? matchedMentorIds.has(invite.id)
+          : false),
+    ),
+  ];
+  const allMentees: SessionPerson[] = [
+    ...(profiles ?? []).filter(
+    (p) => p.participant_role === "mentee" && p.cohort_ids.includes(cohortId),
+    ),
+    ...inviteOptions.filter(
+      (invite) =>
+        pendingInvites.some(
+          (pending) => pending.id === invite.id && pending.participant_role === "mentee",
+        ) &&
+        (role === "admin" || role === "volunteer"
+          ? matchedMenteeIds.has(invite.id)
+          : matchedMenteeIds.has(invite.id)),
+    ),
+  ];
   const mentees = isMentor
-    ? allMentees.filter((m) => matchedMenteeIds.has(m.id))
+    ? allMentees.filter((mentee) => matchedMenteeIds.has(mentee.id))
     : allMentees;
   // A mentor with no uploaded matches cannot submit any records yet.
   const mentorBlocked = isMentor && mentees.length === 0;
-  const nameOf = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? "未知";
+  const nameOf = (id: string | null) =>
+    (profiles ?? []).find((profile) => profile.id === id)?.full_name ??
+    pendingInvites.find((invite) => invite.id === id)?.full_name ??
+    "未知";
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["portal", "sessions"] }).then(() =>
@@ -501,14 +580,18 @@ function StaffView({
   });
 
   const editMutation = useMutation({
-    mutationFn: (s: SessionLog) =>
-      updateSession(s.id, {
-        mentor_id: s.mentor_id,
-        mentee_id: s.mentee_id,
+    mutationFn: (s: SessionLog) => {
+      const mentorId = s.mentor_id ?? s.mentor_invite_id;
+      const menteeId = s.mentee_id ?? s.mentee_invite_id;
+      if (!mentorId || !menteeId) throw new Error("导师和学员信息不完整。");
+      return updateSession(s.id, {
+        mentor_id: mentorId,
+        mentee_id: menteeId,
         session_type: s.session_type,
         session_date: s.session_date,
         notes: s.notes,
-      }),
+      });
+    },
     onSuccess: () => {
       setEditing(null);
       invalidate();
@@ -612,8 +695,8 @@ function StaffView({
                   {sessions.map((s) => (
                     <TableRow key={s.id}>
                       <TableCell>{s.session_date}</TableCell>
-                      <TableCell>{nameOf(s.mentor_id)}</TableCell>
-                      <TableCell>{nameOf(s.mentee_id)}</TableCell>
+                      <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
+                      <TableCell>{nameOf(s.mentee_id ?? s.mentee_invite_id)}</TableCell>
                       <TableCell>
                         <Chip
                           size="small"
@@ -678,8 +761,8 @@ function EditSessionDialog({
   saving,
 }: {
   session: SessionLog | null;
-  mentors: Profile[];
-  mentees: Profile[];
+  mentors: SessionPerson[];
+  mentees: SessionPerson[];
   onClose: () => void;
   onSave: (s: SessionLog) => void;
   saving: boolean;
@@ -696,14 +779,18 @@ function EditSessionDialog({
             <PersonAutocomplete
               label="导师"
               options={mentors}
-              value={draft.mentor_id}
-              onChange={(id) => setDraft({ ...draft, mentor_id: id })}
+              value={draft.mentor_id ?? draft.mentor_invite_id ?? ""}
+              onChange={(id) =>
+                setDraft({ ...draft, mentor_id: id, mentor_invite_id: null })
+              }
             />
             <PersonAutocomplete
               label="学员"
               options={mentees}
-              value={draft.mentee_id}
-              onChange={(id) => setDraft({ ...draft, mentee_id: id })}
+              value={draft.mentee_id ?? draft.mentee_invite_id ?? ""}
+              onChange={(id) =>
+                setDraft({ ...draft, mentee_id: id, mentee_invite_id: null })
+              }
             />
             <TextField
               select
