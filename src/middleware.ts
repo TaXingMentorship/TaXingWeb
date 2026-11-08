@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isBannedUser } from "@/lib/supabase/banned";
 
 const PUBLIC_PORTAL_PATHS = [
   "/portal/login",
@@ -45,8 +46,14 @@ export async function middleware(request: NextRequest) {
   );
 
   const {
-    data: { user },
+    data: { user: authUser },
   } = await supabase.auth.getUser();
+
+  // A banned account keeps a valid session until its token expires, and a
+  // password-reset link may still mint a new one: end it here, every request.
+  const banned = Boolean(authUser && isBannedUser(authUser));
+  if (banned) await supabase.auth.signOut();
+  const user = banned ? null : authUser;
 
   const isPublicPortalPath = PUBLIC_PORTAL_PATHS.includes(
     request.nextUrl.pathname,

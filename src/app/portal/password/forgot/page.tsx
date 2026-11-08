@@ -24,6 +24,20 @@ export default function ForgotPasswordPage() {
     setSubmitting(true);
     setError(null);
 
+    // Removed (banned) members get the same "sent" screen but no email.
+    const gate = await fetch("/api/auth/reset-allowed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim() }),
+    })
+      .then((res) => (res.ok ? res.json() : { allowed: true }))
+      .catch(() => ({ allowed: true }));
+    if (gate.allowed === false) {
+      setSent(true);
+      setSubmitting(false);
+      return;
+    }
+
     const callbackUrl = new URL("/portal/auth/callback", window.location.origin);
     callbackUrl.searchParams.set("next", "/portal/password/update");
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
