@@ -15,7 +15,12 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import type { Profile } from "@/types/portal";
 import { portalCopy } from "./portalCopy";
 
-export type PortalNavAccess = "all" | "participant" | "admin" | "staff";
+export type PortalNavAccess =
+  | "all"
+  | "participant"
+  | "participant_or_staff"
+  | "admin"
+  | "staff";
 
 export type PortalNavItem = {
   label: string;
@@ -76,7 +81,7 @@ export const portalNavItems: PortalNavItem[] = [
     label: portalCopy.nav.progress,
     path: "/portal/admin/sessions",
     Icon: InsightsIcon,
-    access: "participant",
+    access: "participant_or_staff",
     description: "记录辅导场次，学员可提交活动记录。",
   },
   {
@@ -142,5 +147,8 @@ export function canAccessPortalNav(
   if (item.access === "all") return true;
   if (item.access === "admin") return profile.is_admin;
   if (item.access === "staff") return profile.is_admin || profile.is_volunteer;
+  if (item.access === "participant_or_staff") {
+    return profile.is_admin || Boolean(profile.participant_role) || profile.is_volunteer;
+  }
   return profile.is_admin || Boolean(profile.participant_role);
 }
