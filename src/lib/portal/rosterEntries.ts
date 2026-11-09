@@ -135,16 +135,21 @@ export function pendingInvites(
 
 export type RosterFilters = {
   search: string;
-  role: "all" | "mentor" | "mentee" | "volunteer" | "admin";
-  status: "all" | "active" | "setup" | "account" | "waiting" | "out";
+  /** Any of these identities matches. Empty = all. */
+  role: RosterRole[];
+  /** Any of these states matches. Empty = all. */
+  status: RosterStatus[];
   done: "all" | "done" | "todo";
   /** 活动记录 submitted? Mentees only; everyone else drops out once it is set. */
   activity: "all" | "done" | "todo";
   /** 感谢赠言 given? Mentees only; everyone else drops out once it is set. */
   gratitude: "all" | "done" | "todo";
-  /** "all", "none" (unassigned) or a group id. */
-  group: string;
+  /** "none" (unassigned) and/or group ids; any of them matches. Empty = all. */
+  group: string[];
 } & Partial<NoteFilters>;
+
+export type RosterRole = "mentor" | "mentee" | "volunteer" | "admin";
+export type RosterStatus = "active" | "setup" | "account" | "waiting" | "out";
 
 /** Filters over the staff-only columns, shared by the admin and volunteer views. */
 export type NoteFilters = {
@@ -269,7 +274,7 @@ export function filterEntries(
         .toLowerCase();
       if (!haystack.includes(q)) return false;
     }
-    if (filters.role !== "all" && !id[filters.role]) return false;
+    if (filters.role.length > 0 && !filters.role.some((r) => id[r])) return false;
 
     // Notes and recommendations only exist for activated members.
     if (noteFiltersActive(filters)) {
@@ -277,20 +282,17 @@ export function filterEntries(
     }
 
     // Answer groups only exist for activated mentors.
-    if (filters.group !== "all") {
+    if (filters.group.length > 0) {
       if (entry.kind !== "member" || entry.row.profile.participant_role !== "mentor") {
         return false;
       }
       const groupId = groupOfMentor.get(entry.row.profile.id);
-      if (filters.group === "none" ? Boolean(groupId) : groupId !== filters.group) {
-        return false;
-      }
+      const hit = groupId ? filters.group.includes(groupId) : filters.group.includes("none");
+      if (!hit) return false;
     }
 
     const state = entry.kind === "invited" ? entry.state : null;
-    // 已激活 covers both finished and unfinished onboarding.
-    if (filters.status === "active" && entry.kind !== "member" && state !== "setup") return false;
-    if (filters.status !== "all" && filters.status !== "active" && state !== filters.status) {
+    if (filters.status.length > 0 && !filters.status.some((s) => matchesStatus(entry, state, s))) {
       return false;
     }
 
@@ -308,6 +310,12 @@ export function filterEntries(
     if (!matchesFlag(entry, "gaveGratitude", filters.gratitude)) return false;
     return true;
   });
+}
+
+// 已激活 covers both finished and unfinished onboarding.
+function matchesStatus(entry: RosterEntry, state: string | null, status: RosterStatus): boolean {
+  if (status === "active") return entry.kind === "member" || state === "setup";
+  return state === status;
 }
 
 // A per-item completion filter. The flag is null when it does not apply
@@ -332,7 +340,7 @@ export function exportEntries(
   entries: RosterEntry[],
   status: RosterFilters["status"],
 ): RosterEntry[] {
-  if (status === "out") return entries;
+  if (status.includes("out")) return entries;
   return entries.filter((e) => !(e.kind === "invited" && e.state === "out"));
 }
 

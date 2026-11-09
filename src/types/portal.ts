@@ -72,6 +72,11 @@ export type Profile = {
   mentee_capacity: string | null;
   mentee_expectations: string | null;
   topics: string | null;
+  /** 答疑组 sharing: topic outline and self-introduction (migration 0052). Carried across seasons. */
+  qa_topic?: string | null;
+  qa_intro?: string | null;
+  /** 我能帮上什么 — required mentor field (migration 0053). */
+  can_help?: string | null;
   // Mentee-only field
   help_needed: string | null;
   /** Legacy column; always null after 0042. Internal notes live in roster_notes. */
@@ -555,6 +560,8 @@ export type DashboardStats = {
     leads: number;
     no_group: number;
     groups: { name: string; count: number }[];
+    /** The group that includes its leads (战略组), counted with them (0054). Absent before 0054. */
+    leadership?: { name: string; count: number } | null;
   };
   activities: {
     roundtable_total: number;

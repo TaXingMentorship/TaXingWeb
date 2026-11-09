@@ -35,7 +35,7 @@ import {
   recommendCellSx,
   wechatCellSx,
 } from "./RosterRows";
-import { FilterSearch, FilterSelect, TablePager, usePagination } from "./TableFilters";
+import { FilterMultiSelect, FilterSearch, FilterSelect, TablePager, usePagination } from "./TableFilters";
 import { usePortalSession } from "./PortalSessionProvider";
 import { useMentorRecommendations, useRosterNotes, useRosterStaffAuthors } from "./useRosterNotes";
 import { RosterAuthorsProvider } from "./RosterAuthorCard";
@@ -47,7 +47,7 @@ export default function VolunteerRoster() {
   const viewerId = realUser?.id ?? null;
   const [requestedCohort, setRequestedCohort] = React.useState("");
   const [search, setSearch] = React.useState("");
-  const [role, setRole] = React.useState<RosterFilters["role"]>("all");
+  const [role, setRole] = React.useState<RosterFilters["role"]>([]);
   const [note, setNote] = React.useState<NoteFilters["note"]>("all");
   const [noteAuthor, setNoteAuthor] = React.useState<string[]>([]);
   const [recommend, setRecommend] = React.useState<NoteFilters["recommend"]>("all");
@@ -93,11 +93,11 @@ export default function VolunteerRoster() {
     {
       search,
       role,
-      status: "all",
+      status: [],
       done: "all",
       activity: "all",
       gratitude: "all",
-      group: "all",
+      group: [],
       note,
       noteAuthor,
       recommend,
@@ -140,7 +140,7 @@ export default function VolunteerRoster() {
           <Box sx={{ gridColumn: { xs: "1 / -1", sm: "span 2" } }}>
             <FilterSearch fullWidth value={search} onChange={setSearch} placeholder={copy.staffSearch} />
           </Box>
-          <FilterSelect fullWidth label={tableCopy.roleLabel} value={role}
+          <FilterMultiSelect fullWidth label={tableCopy.roleLabel} value={role}
             onChange={(v) => setRole(v as RosterFilters["role"])}
             options={Object.entries(tableCopy.roleOptions).map(([value, label]) => ({ value, label }))} />
           <StaffFilterSelects

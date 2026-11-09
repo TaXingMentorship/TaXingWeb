@@ -213,9 +213,16 @@ export function FigureCell({
         borderRadius: 3,
         bgcolor: "action.hover",
         borderLeft: accent ? `4px solid ${accent}` : "4px solid transparent",
+        // One fixed height for every cell on the page: a caption that wraps to
+        // two lines must not make its row (or its neighbours) taller. Caption
+        // sits at the top, the number at the bottom, so numbers line up.
+        height: 80,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.35 }}>
         {label}
       </Typography>
       <Typography sx={{ fontSize: 26, fontWeight: 800, lineHeight: 1.15 }}>{value}</Typography>
@@ -379,17 +386,19 @@ export function CountTile({
         <Typography variant="body2" color="text.secondary">
           {label}
         </Typography>
-        <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
+        {/* The note shares the number's line, so every tile is two lines tall
+            and none is left with an empty row under its number. */}
+        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: 0.5 }}>
           <Typography sx={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1 }}>{value}</Typography>
           <Typography variant="body2" color="text.secondary">
             {unit}
           </Typography>
+          {note ? (
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 0.75 }}>
+              {note}
+            </Typography>
+          ) : null}
         </Box>
-        {note ? (
-          <Typography variant="caption" color="text.secondary">
-            {note}
-          </Typography>
-        ) : null}
       </Box>
     </Box>
   );
