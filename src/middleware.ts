@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isBannedUser } from "@/lib/supabase/banned";
 
 const PUBLIC_PORTAL_PATHS = [
   "/portal/login",
@@ -45,8 +46,18 @@ export async function middleware(request: NextRequest) {
   );
 
   const {
-    data: { user },
+    data: { user: authUser },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  // A banned account keeps a valid session until its token expires: end it
+  // here and send the user to the login page with the ban notice. Auth may
+  // report the ban either as `banned_until` on the user or as an error.
+  const banned =
+    authError?.code === "user_banned" ||
+    Boolean(authUser && isBannedUser(authUser));
+  if (banned) await supabase.auth.signOut({ scope: "local" });
+  const user = banned ? null : authUser;
 
   const isPublicPortalPath = PUBLIC_PORTAL_PATHS.includes(
     request.nextUrl.pathname,
@@ -59,6 +70,14 @@ export async function middleware(request: NextRequest) {
     );
     return redirect;
   };
+
+  if (banned && request.nextUrl.pathname !== "/portal/login") {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/portal/login";
+    loginUrl.search = "";
+    loginUrl.searchParams.set("reason", "banned");
+    return redirectWithCookies(loginUrl);
+  }
 
   if (!user && !isPublicPortalPath) {
     const loginUrl = request.nextUrl.clone();

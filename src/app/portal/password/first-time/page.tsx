@@ -12,6 +12,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SecretVisibilityToggle from "@/components/portal/SecretVisibilityToggle";
 import { createClient } from "@/lib/supabase/client";
+import { portalCopy } from "@/data/portalCopy";
 
 export default function FirstTimePasswordPage() {
   const supabase = React.useMemo(() => createClient(), []);
@@ -58,7 +59,11 @@ export default function FirstTimePasswordPage() {
       password,
     });
     if (signInError) {
-      setError("账号已激活，请返回登录页面使用新密码登录。");
+      setError(
+        signInError.code === "user_banned"
+          ? portalCopy.auth.accountBanned
+          : "账号已激活，请返回登录页面使用新密码登录。",
+      );
       setSubmitting(false);
       return;
     }

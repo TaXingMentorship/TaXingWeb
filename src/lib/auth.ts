@@ -1,3 +1,4 @@
+import { isBannedUser } from "@/lib/supabase/banned";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UserRole } from "@/types/portal";
 
@@ -18,7 +19,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  if (!user || isBannedUser(user)) return null;
 
   const { data: profile } = await supabase
     .from("profiles")

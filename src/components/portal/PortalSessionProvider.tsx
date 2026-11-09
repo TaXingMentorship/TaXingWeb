@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ParticipantRole, Persona, Profile } from "@/types/portal";
 import { createClient } from "@/lib/supabase/client";
+import { isBannedUser } from "@/lib/supabase/banned";
 
 export type PortalAuthUser = {
   id: string;
@@ -116,6 +117,40 @@ export function PortalSessionProvider({
 
     return () => subscription.unsubscribe();
   }, [queryClient, router, supabase]);
+
+  // A ban takes effect on the next full page load through the middleware.
+  // In-app navigation can be served from the router cache without reaching
+  // the middleware, so check again on every route change and whenever the tab
+  // comes back into view, and end a banned session right there.
+  const pathname = usePathname();
+  React.useEffect(() => {
+    if (pathname === "/portal/login") return;
+    let cancelled = false;
+
+    const checkBan = async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      const banned =
+        error?.code === "user_banned" || Boolean(user && isBannedUser(user));
+      if (!banned || cancelled) return;
+      cancelled = true;
+      await supabase.auth.signOut({ scope: "local" });
+      queryClient.removeQueries({ queryKey: ["portal"] });
+      window.location.replace("/portal/login?reason=banned");
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void checkBan();
+    };
+
+    void checkBan();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [pathname, queryClient, supabase]);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ["portal", "currentUser"],
