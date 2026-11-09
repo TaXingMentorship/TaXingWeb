@@ -150,6 +150,10 @@ export const emojiPickerGroups: { label: string; emojis: string[] }[] = [
 export const portalCopy = {
   brand: "她行 · Mentorship",
   prototypeBadge: "2026 Autumn",
+  auth: {
+    /** Shown at login, and after the middleware ends a banned session. */
+    accountBanned: "该账号已被封禁，如需解封请联系她行志愿者。",
+  },
   nav: {
     home: "首页",
     directory: "成员目录",

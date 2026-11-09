@@ -47,12 +47,16 @@ export async function middleware(request: NextRequest) {
 
   const {
     data: { user: authUser },
+    error: authError,
   } = await supabase.auth.getUser();
 
-  // A banned account keeps a valid session until its token expires, and a
-  // password-reset link may still mint a new one: end it here, every request.
-  const banned = Boolean(authUser && isBannedUser(authUser));
-  if (banned) await supabase.auth.signOut();
+  // A banned account keeps a valid session until its token expires: end it
+  // here and send the user to the login page with the ban notice. Auth may
+  // report the ban either as `banned_until` on the user or as an error.
+  const banned =
+    authError?.code === "user_banned" ||
+    Boolean(authUser && isBannedUser(authUser));
+  if (banned) await supabase.auth.signOut({ scope: "local" });
   const user = banned ? null : authUser;
 
   const isPublicPortalPath = PUBLIC_PORTAL_PATHS.includes(
@@ -66,6 +70,14 @@ export async function middleware(request: NextRequest) {
     );
     return redirect;
   };
+
+  if (banned && request.nextUrl.pathname !== "/portal/login") {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/portal/login";
+    loginUrl.search = "";
+    loginUrl.searchParams.set("reason", "banned");
+    return redirectWithCookies(loginUrl);
+  }
 
   if (!user && !isPublicPortalPath) {
     const loginUrl = request.nextUrl.clone();

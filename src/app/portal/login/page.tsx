@@ -13,6 +13,7 @@ import SecretVisibilityToggle from "@/components/portal/SecretVisibilityToggle";
 import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { safePortalNextPath } from "@/lib/portal/safeNextPath";
+import { portalCopy } from "@/data/portalCopy";
 
 export default function PortalLoginPage() {
   const supabase = React.useMemo(() => createClient(), []);
@@ -21,6 +22,12 @@ export default function PortalLoginPage() {
   const [passwordVisible, setPasswordVisible] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // The middleware sends a banned session here with ?reason=banned.
+  React.useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("reason");
+    if (reason === "banned") setError(portalCopy.auth.accountBanned);
+  }, []);
 
   const nextPath = React.useCallback(
     () =>
@@ -56,7 +63,9 @@ export default function PortalLoginPage() {
       // Only a rejected credential means "wrong email or password"; a failed
       // request or a rate limit says nothing about what the user typed.
       setError(
-        signInError.code === "invalid_credentials"
+        signInError.code === "user_banned"
+          ? portalCopy.auth.accountBanned
+          : signInError.code === "invalid_credentials"
           ? "邮箱或密码不正确。首次登录请先设置密码。"
           : isAuthRetryableFetchError(signInError)
             ? "无法连接到服务器，请检查网络后重试。"
