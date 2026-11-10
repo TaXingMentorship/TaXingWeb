@@ -938,7 +938,6 @@ export const portalCopy = {
     canHelpLabel: "我能帮上什么",
     canHelpPlaceholder:
       "① 求职与面试：简历怎么改、面试怎么准备、跨专业怎么切入\n② 岗位日常：这个岗位具体做什么、需要哪些能力\n③ 其他：海外求职 / 职场沟通 / AI 在工作中的应用 / 职业规划……",
-    requiredError: "请填写后再保存。",
   },
   namePronunciation: {
     fieldLabel: "昵称读音（选填）",

@@ -62,8 +62,9 @@ begin
 
     -- Volunteers: people, leads, unplaced, and headcount per group. Each
     -- volunteer sits in exactly one bucket (their own group, or no_group), so
-    -- the group counts add up to `total`. `includes_leads` (0013) is about
-    -- visibility, not headcount, and is deliberately ignored here.
+    -- the group counts add up to `total`; `includes_leads` (0013) does not
+    -- change them. `leadership` is the one figure that uses it: the flagged
+    -- group's direct members plus every lead, overlapping the partition.
     'volunteers', jsonb_build_object(
       'total', (select count(*) from public.volunteer_seasons vs
                 where vs.cohort_id = p_cohort_id),

@@ -187,8 +187,9 @@ export function LegendRow({
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.25 }}>
       <Box sx={{ width: 10, height: 10, borderRadius: "3px", bgcolor: color, flexShrink: 0 }} />
-      <Typography variant="body2">{label}</Typography>
-      <Typography variant="body2" fontWeight={800} sx={{ ml: 0.5 }}>
+      <Typography variant="body2" sx={{ minWidth: 0 }}>{label}</Typography>
+      {/* A long label wraps; the value never does, so 「8 人」 stays on one line. */}
+      <Typography variant="body2" fontWeight={800} sx={{ ml: 0.5, whiteSpace: "nowrap", flexShrink: 0 }}>
         {value}
       </Typography>
     </Box>
@@ -222,7 +223,20 @@ export function FigureCell({
         justifyContent: "space-between",
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.35 }}>
+      {/* Two caption lines at most, so the number always fits the fixed height;
+          the full caption stays in the tooltip. */}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        title={label}
+        sx={{
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+          lineHeight: 1.35,
+        }}
+      >
         {label}
       </Typography>
       <Typography sx={{ fontSize: 26, fontWeight: 800, lineHeight: 1.15 }}>{value}</Typography>

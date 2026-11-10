@@ -480,23 +480,25 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
                   {copy.volunteers.total}
                 </Typography>
               </Donut>
-              <Box>
+              {/* The leadership line shares the legend's column, so its label
+                  starts where the group labels above it start. */}
+              <Box sx={{ maxWidth: "100%" }}>
                 {volSlices.map((sl, i) => (
                   <LegendRow key={i} color={sl.color} label={sl.label} value={`${sl.value} ${copy.people}`} />
                 ))}
+                {leadership ? (
+                  <Box sx={{ borderTop: "1px dashed", borderColor: "divider", mt: 1, pt: 1 }}>
+                    <LegendRow
+                      color="transparent"
+                      label={copy.volunteers.leadershipLine(leadership.name)}
+                      value={`${leadership.count} ${copy.people}`}
+                    />
+                    <Typography variant="caption" color="text.secondary" component="p" sx={{ pl: 2.25 }}>
+                      {copy.volunteers.leadershipNote}
+                    </Typography>
+                  </Box>
+                ) : null}
               </Box>
-              {leadership ? (
-                <Box sx={{ width: "100%", borderTop: "1px dashed", borderColor: "divider", pt: 1 }}>
-                  <LegendRow
-                    color="transparent"
-                    label={copy.volunteers.leadershipLine(leadership.name)}
-                    value={`${leadership.count} ${copy.people}`}
-                  />
-                  <Typography variant="caption" color="text.secondary" component="p">
-                    {copy.volunteers.leadershipNote}
-                  </Typography>
-                </Box>
-              ) : null}
             </Box>
           )}
         </DashCard>

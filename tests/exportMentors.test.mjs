@@ -52,8 +52,8 @@ test("csv: the header is the ProfileDialog fields, in order", () => {
   assert.equal(
     header,
     [
-      "name", "field", "bio", "background", "yearsExperience", "menteeCapacity",
-      "menteeExpectations", "topics", "interests", "group", "linkedin",
+      "name", "field", "bio", "background", "yearsExperience", "canHelp", "menteeCapacity",
+      "menteeExpectations", "topics", "qaIntro", "qaTopic", "interests", "group", "linkedin",
     ].map((k) => csvCell(copy.fields[k])).join(","),
   );
 });
@@ -90,7 +90,7 @@ test("csv: an empty field is an empty cell, so the columns stay aligned", () => 
     copy,
   );
   const row = csv.slice(1).split("\r\n")[1];
-  assert.equal(row.split(",").length, 11); // none of the values here contain commas
+  assert.equal(row.split(",").length, 14); // none of the values here contain commas
 });
 
 test("no contact details anywhere in the file", () => {

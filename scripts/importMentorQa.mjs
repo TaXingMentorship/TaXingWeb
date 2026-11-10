@@ -75,6 +75,7 @@ const must = ({ data, error }, what) => {
 };
 
 const [cohort] = must(await db.from('cohorts').select('id').eq('name', COHORT_NAME), 'cohort');
+if (!cohort) throw new Error(`no cohort named「${COHORT_NAME}」`);
 const groups = must(await db.from('mentor_groups').select('id,name').eq('cohort_id', cohort.id), 'groups');
 const members = must(
   await db.from('mentor_group_members').select('group_id,profile_id').eq('cohort_id', cohort.id),

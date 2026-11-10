@@ -176,29 +176,30 @@ export default function MyProfilePage() {
   const isMentee = shownRole === "mentee";
   const isRealMentor = form.participant_role === "mentor";
 
-  const qaMissing = isMentor && !filled(form.qa_intro);
-  const qaTopicMissing = isMentor && !filled(form.qa_topic);
-  // Mentor profile fields that must be filled in before saving.
-  const mentorFieldsMissing =
-    isMentor &&
-    [form.bio, form.field, form.can_help, form.mentee_capacity, form.mentee_expectations, form.topics].some((v) => !filled(v));
+  // Mentor fields that must be filled in before saving, by element id in page
+  // order. Enforced only when the real account is a mentor shown as one: a
+  // persona preview must not block an admin from saving their own profile.
+  const requiredFields: [string, string | null | undefined][] =
+    isMentor && isRealMentor
+      ? [
+          ["mentor-bio", form.bio],
+          ["mentor-field", form.field],
+          ["mentor-can-help", form.can_help],
+          ["mentor-capacity", form.mentee_capacity],
+          ["mentor-expectations", form.mentee_expectations],
+          ["mentor-topics", form.topics],
+          ["qa-intro", form.qa_intro],
+          ["qa-topic", form.qa_topic],
+        ]
+      : [];
+  const missingIds = requiredFields.filter(([, v]) => !filled(v)).map(([id]) => id);
+  const showMissing = (id: string) => tried && missingIds.includes(id);
 
   const handleSave = () => {
     // Required mentor fields: refuse the save and point at the first empty one.
-    if (mentorFieldsMissing || qaMissing || qaTopicMissing) {
+    if (missingIds.length > 0) {
       setTried(true);
-      const order: [string, string | null | undefined][] = [
-        ["mentor-bio", form.bio],
-        ["mentor-field", form.field],
-        ["mentor-can-help", form.can_help],
-        ["mentor-capacity", form.mentee_capacity],
-        ["mentor-expectations", form.mentee_expectations],
-        ["mentor-topics", form.topics],
-        ["qa-intro", form.qa_intro],
-        ["qa-topic", form.qa_topic],
-      ];
-      const first = order.find(([, v]) => !filled(v))?.[0];
-      if (first) document.getElementById(first)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById(missingIds[0])?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     mutation.mutate({
@@ -219,9 +220,10 @@ export default function MyProfilePage() {
       mentee_capacity: form.mentee_capacity,
       mentee_expectations: form.mentee_expectations,
       topics: form.topics,
-      qa_intro: form.qa_intro,
-      qa_topic: form.qa_topic,
-      can_help: form.can_help,
+      // Mentor-only columns (0052, 0053): other accounts never send them.
+      ...(isRealMentor
+        ? { qa_intro: form.qa_intro, qa_topic: form.qa_topic, can_help: form.can_help }
+        : {}),
       help_needed: form.help_needed,
     });
   };
@@ -310,8 +312,8 @@ export default function MyProfilePage() {
               <TextField
                 id="mentor-bio"
                 label={isMentor ? <RequiredLabel text="一句话简介" /> : "一句话简介"}
-                error={tried && isMentor && !filled(form.bio)}
-                helperText={tried && isMentor && !filled(form.bio) ? portalCopy.requiredFieldError : undefined}
+                error={showMissing("mentor-bio")}
+                helperText={showMissing("mentor-bio") ? portalCopy.requiredFieldError : undefined}
                 value={form.bio ?? ""}
                 onChange={(e) => set("bio", e.target.value)}
                 fullWidth
@@ -321,8 +323,8 @@ export default function MyProfilePage() {
               <TextField
                 id="mentor-field"
                 label={isMentor ? <RequiredLabel text="领域" /> : "领域"}
-                error={tried && isMentor && !filled(form.field)}
-                helperText={tried && isMentor && !filled(form.field) ? portalCopy.requiredFieldError : undefined}
+                error={showMissing("mentor-field")}
+                helperText={showMissing("mentor-field") ? portalCopy.requiredFieldError : undefined}
                 value={form.field ?? ""}
                 onChange={(e) => set("field", e.target.value)}
                 fullWidth
@@ -348,8 +350,8 @@ export default function MyProfilePage() {
                   <TextField
                     id="mentor-can-help"
                     label={<RequiredLabel text={portalCopy.mentorQa.canHelpLabel} />}
-                    error={tried && !filled(form.can_help)}
-                    helperText={tried && !filled(form.can_help) ? portalCopy.mentorQa.requiredError : undefined}
+                    error={showMissing("mentor-can-help")}
+                    helperText={showMissing("mentor-can-help") ? portalCopy.requiredFieldError : undefined}
                     value={form.can_help ?? ""}
                     onChange={(e) => set("can_help", e.target.value)}
                     fullWidth
@@ -363,8 +365,8 @@ export default function MyProfilePage() {
                   <TextField
                     id="mentor-capacity"
                     label={<RequiredLabel text="可以帮助的 mentee 数量" />}
-                    error={tried && isMentor && !filled(form.mentee_capacity)}
-                    helperText={tried && isMentor && !filled(form.mentee_capacity) ? portalCopy.requiredFieldError : undefined}
+                    error={showMissing("mentor-capacity")}
+                    helperText={showMissing("mentor-capacity") ? portalCopy.requiredFieldError : undefined}
                     value={form.mentee_capacity ?? ""}
                     onChange={(e) => set("mentee_capacity", e.target.value)}
                     fullWidth
@@ -373,8 +375,8 @@ export default function MyProfilePage() {
                   <TextField
                     id="mentor-expectations"
                     label={<RequiredLabel text="对 mentee 的期望" />}
-                    error={tried && isMentor && !filled(form.mentee_expectations)}
-                    helperText={tried && isMentor && !filled(form.mentee_expectations) ? portalCopy.requiredFieldError : undefined}
+                    error={showMissing("mentor-expectations")}
+                    helperText={showMissing("mentor-expectations") ? portalCopy.requiredFieldError : undefined}
                     value={form.mentee_expectations ?? ""}
                     onChange={(e) => set("mentee_expectations", e.target.value)}
                     fullWidth
@@ -384,8 +386,8 @@ export default function MyProfilePage() {
                   <TextField
                     id="mentor-topics"
                     label={<RequiredLabel text="擅长与不擅长的话题" />}
-                    error={tried && isMentor && !filled(form.topics)}
-                    helperText={tried && isMentor && !filled(form.topics) ? portalCopy.requiredFieldError : undefined}
+                    error={showMissing("mentor-topics")}
+                    helperText={showMissing("mentor-topics") ? portalCopy.requiredFieldError : undefined}
                     value={form.topics ?? ""}
                     onChange={(e) => set("topics", e.target.value)}
                     fullWidth
@@ -409,8 +411,8 @@ export default function MyProfilePage() {
                   </Box>
                   <TextField
                     id="qa-intro"
-                    error={tried && qaMissing}
-                    helperText={tried && qaMissing ? portalCopy.mentorQa.requiredError : undefined}
+                    error={showMissing("qa-intro")}
+                    helperText={showMissing("qa-intro") ? portalCopy.requiredFieldError : undefined}
                     label={portalCopy.mentorQa.introLabel}
                     value={form.qa_intro ?? ""}
                     onChange={(e) => set("qa_intro", e.target.value)}
@@ -425,10 +427,10 @@ export default function MyProfilePage() {
                   />
                   <TextField
                     id="qa-topic"
-                    error={tried && qaTopicMissing}
+                    error={showMissing("qa-topic")}
                     helperText={
-                      tried && qaTopicMissing
-                        ? portalCopy.mentorQa.requiredError
+                      showMissing("qa-topic")
+                        ? portalCopy.requiredFieldError
                         : portalCopy.mentorQa.topicHelp
                     }
                     label={portalCopy.mentorQa.topicLabel}
