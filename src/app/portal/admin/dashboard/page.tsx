@@ -79,7 +79,9 @@ export default function DashboardPage() {
   if (!allowed) return <Alert severity="error">{copy.forbidden}</Alert>;
 
   return (
-    <Stack spacing={1.5}>
+    // On desktop the page fills the viewport (top bar 64px + main padding 2×32px),
+    // and DashboardBody grows its card rows to take the spare height.
+    <Stack spacing={1.5} sx={{ minHeight: { md: "calc(100vh - 128px)" } }}>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 2 }}>
         <Box sx={{ flexGrow: 1 }}>
           <Typography variant="h5" fontWeight={800}>
@@ -265,15 +267,15 @@ function DonutFigureCard({
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "104px minmax(0, 1fr)", lg: "minmax(0, 1fr)" },
+          gridTemplateColumns: { xs: "136px minmax(0, 1fr)", lg: "minmax(0, 1fr)" },
           justifyItems: { lg: "center" },
           alignItems: "center",
           gap: 2,
           "& > :last-child": { width: "100%" },
         }}
       >
-        <Donut size={104} thickness={12} ariaLabel={ariaLabel} max={max} slices={[slice]}>
-          <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>{centre}</Typography>
+        <Donut size={136} thickness={14} ariaLabel={ariaLabel} max={max} slices={[slice]}>
+          <Typography sx={{ fontSize: 30, fontWeight: 800, lineHeight: 1 }}>{centre}</Typography>
         </Donut>
         <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "1fr 1fr" }}>{children}</Box>
       </Box>
@@ -298,7 +300,14 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
 
   const groups = stats.volunteers.groups.filter((g) => g.count > 0).sort((x, y) => y.count - x.count);
   const ramp = volunteerRamp(groups.length);
-  const volSlices: DonutSlice[] = groups.map((g, i) => ({ label: g.name, value: g.count, color: ramp[i] }));
+  // The ring is a partition, so the leadership group (战略组) shows only its
+  // direct members there; the overlapping headcount gets its own line below.
+  const leadership = stats.volunteers.leadership ?? null;
+  const volSlices: DonutSlice[] = groups.map((g, i) => ({
+    label: leadership && g.name === leadership.name ? `${g.name}${copy.volunteers.directSuffix}` : g.name,
+    value: g.count,
+    color: ramp[i],
+  }));
   if (stats.volunteers.no_group > 0)
     volSlices.push({ label: copy.volunteers.noGroup, value: stats.volunteers.no_group, color: VIZ.other });
 
@@ -308,7 +317,7 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
   const grid = (cols: object) => ({ display: "grid", gap: 1.5, gridTemplateColumns: cols });
 
   return (
-    <Stack spacing={1.5}>
+    <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
       {/* 1. The answer first: how many activated, and who is still missing. */}
       <Paper
         variant="outlined"
@@ -406,7 +415,14 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
       </Box>
 
       {/* 3. Row one sits under the headline tiles: pairing under 实际参与, then Mentor, Mentee, volunteers. */}
-      <Box sx={{ ...grid({ xs: "1fr", md: "1fr 1fr", lg: "repeat(4, 1fr)" }), alignItems: "stretch" }}>
+      <Box
+        sx={{
+          ...grid({ xs: "1fr", md: "1fr 1fr", lg: "repeat(4, 1fr)" }),
+          alignItems: "stretch",
+          // Spare viewport height goes to the cards (3 : 1 with the row below).
+          flex: { md: "3 1 auto" },
+        }}
+      >
         <DonutFigureCard
           title={copy.mentoring.title}
           hint={pairingInsight}
@@ -464,10 +480,24 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
                   {copy.volunteers.total}
                 </Typography>
               </Donut>
-              <Box>
+              {/* The leadership line shares the legend's column, so its label
+                  starts where the group labels above it start. */}
+              <Box sx={{ maxWidth: "100%" }}>
                 {volSlices.map((sl, i) => (
                   <LegendRow key={i} color={sl.color} label={sl.label} value={`${sl.value} ${copy.people}`} />
                 ))}
+                {leadership ? (
+                  <Box sx={{ borderTop: "1px dashed", borderColor: "divider", mt: 1, pt: 1 }}>
+                    <LegendRow
+                      color="transparent"
+                      label={copy.volunteers.leadershipLine(leadership.name)}
+                      value={`${leadership.count} ${copy.people}`}
+                    />
+                    <Typography variant="caption" color="text.secondary" component="p" sx={{ pl: 2.25 }}>
+                      {copy.volunteers.leadershipNote}
+                    </Typography>
+                  </Box>
+                ) : null}
               </Box>
             </Box>
           )}
@@ -475,7 +505,7 @@ function DashboardBody({ stats, showQaGroup }: { stats: DashboardStats; showQaGr
       </Box>
 
       {/* 4. Row two: activities & interaction, full width. */}
-      <Box>
+      <Box sx={{ display: "flex", flexDirection: "column", flex: { md: "1 1 auto" }, "& > *": { flexGrow: 1 } }}>
         {/* Session totals only — no progress, these are end-of-season tallies. */}
         <DashCard
           title={copy.activities.title}

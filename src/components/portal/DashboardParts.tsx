@@ -187,8 +187,9 @@ export function LegendRow({
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.25 }}>
       <Box sx={{ width: 10, height: 10, borderRadius: "3px", bgcolor: color, flexShrink: 0 }} />
-      <Typography variant="body2">{label}</Typography>
-      <Typography variant="body2" fontWeight={800} sx={{ ml: 0.5 }}>
+      <Typography variant="body2" sx={{ minWidth: 0 }}>{label}</Typography>
+      {/* A long label wraps; the value never does, so 「8 人」 stays on one line. */}
+      <Typography variant="body2" fontWeight={800} sx={{ ml: 0.5, whiteSpace: "nowrap", flexShrink: 0 }}>
         {value}
       </Typography>
     </Box>
@@ -213,9 +214,29 @@ export function FigureCell({
         borderRadius: 3,
         bgcolor: "action.hover",
         borderLeft: accent ? `4px solid ${accent}` : "4px solid transparent",
+        // One fixed height for every cell on the page: a caption that wraps to
+        // two lines must not make its row (or its neighbours) taller. Caption
+        // sits at the top, the number at the bottom, so numbers line up.
+        height: 80,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+      {/* Two caption lines at most, so the number always fits the fixed height;
+          the full caption stays in the tooltip. */}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        title={label}
+        sx={{
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+          lineHeight: 1.35,
+        }}
+      >
         {label}
       </Typography>
       <Typography sx={{ fontSize: 26, fontWeight: 800, lineHeight: 1.15 }}>{value}</Typography>
@@ -379,17 +400,19 @@ export function CountTile({
         <Typography variant="body2" color="text.secondary">
           {label}
         </Typography>
-        <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
+        {/* The note shares the number's line, so every tile is two lines tall
+            and none is left with an empty row under its number. */}
+        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: 0.5 }}>
           <Typography sx={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1 }}>{value}</Typography>
           <Typography variant="body2" color="text.secondary">
             {unit}
           </Typography>
+          {note ? (
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 0.75 }}>
+              {note}
+            </Typography>
+          ) : null}
         </Box>
-        {note ? (
-          <Typography variant="caption" color="text.secondary">
-            {note}
-          </Typography>
-        ) : null}
       </Box>
     </Box>
   );

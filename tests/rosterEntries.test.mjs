@@ -47,12 +47,12 @@ const row = (p) => ({
 });
 const all = {
   search: "",
-  role: "all",
-  status: "all",
+  role: [],
+  status: [],
   done: "all",
   activity: "all",
   gratitude: "all",
-  group: "all",
+  group: [],
 };
 
 test("roster search reads private row notes, not the legacy profile column", () => {
@@ -66,7 +66,7 @@ test("roster search reads private row notes, not the legacy profile column", () 
     filterEntries([entry], { ...all, search: "legacy-secret" }, new Map()),
     [],
   );
-  assert.deepEqual(rosterNames(exportEntries([entry], "all")), ["member"]);
+  assert.deepEqual(rosterNames(exportEntries([entry], [])), ["member"]);
 });
 
 test("claimed with no profile is setup", () => {
@@ -141,7 +141,7 @@ test("a role-less member is listed, but completion does not apply to them", () =
     );
   // listed once, as a member: the mismatched invite produces no row
   assert.deepEqual(ids({}), ["mentor", "staff"]);
-  assert.deepEqual(ids({ role: "admin" }), ["staff"]);
+  assert.deepEqual(ids({ role: ["admin"] }), ["staff"]);
   // neither 未完成 nor 已完成
   assert.deepEqual(ids({ done: "todo" }), ["mentor"]);
   assert.deepEqual(ids({ done: "done" }), []);
@@ -209,7 +209,7 @@ test("select all covers only the mentors the filter still shows", () => {
   const mentee = profile("m", "m@x.com", { participant_role: "mentee" });
   const entries = buildEntries([row(a), row(b), row(c), row(mentee)], [], []);
   const groupOfMentor = new Map([["a", "g1"], ["b", "g1"]]); // only c is unassigned
-  const shown = filterEntries(entries, { ...all, group: "none" }, groupOfMentor);
+  const shown = filterEntries(entries, { ...all, group: ["none"] }, groupOfMentor);
   assert.deepEqual(selectableMentorIds(shown), ["c"]);
   assert.deepEqual(selectableMentorIds(entries).sort(), ["a", "b", "c"]);
 });
@@ -230,12 +230,15 @@ test("status and role filters", () => {
     filterEntries(entries, { ...all, ...f }, new Map()).map((e) =>
       e.kind === "member" ? e.row.profile.id : e.invite.id,
     );
-  assert.deepEqual(ids({ status: "active" }).sort(), ["p1", "setup"]);
-  assert.deepEqual(ids({ status: "setup" }), ["setup"]);
-  assert.deepEqual(ids({ status: "waiting" }), ["wait"]);
-  assert.deepEqual(ids({ status: "account" }), ["acct"]);
-  assert.deepEqual(ids({ status: "out" }), ["out"]);
-  assert.deepEqual(ids({ role: "mentor" }), ["p1"]);
+  assert.deepEqual(ids({ status: ["active"] }).sort(), ["p1", "setup"]);
+  assert.deepEqual(ids({ status: ["setup"] }), ["setup"]);
+  assert.deepEqual(ids({ status: ["waiting"] }), ["wait"]);
+  assert.deepEqual(ids({ status: ["account"] }), ["acct"]);
+  assert.deepEqual(ids({ status: ["out"] }), ["out"]);
+  assert.deepEqual(ids({ role: ["mentor"] }), ["p1"]);
+  // several values: any of them matches
+  assert.deepEqual(ids({ status: ["waiting", "out"] }).sort(), ["out", "wait"]);
+  assert.deepEqual(ids({ status: ["setup", "account"] }).sort(), ["acct", "setup"]);
   // the completion filter only speaks about activated members
   assert.deepEqual(ids({ done: "todo" }), ["p1"]);
 });
@@ -275,8 +278,8 @@ test("exportEntries leaves out 不参与 invites unless the status filter asks f
     { kind: "invited", invite: invite("w", "w@x.org"), state: "waiting" },
     { kind: "invited", invite: invite("o", "o@x.org"), state: "out" },
   ];
-  assert.deepEqual(rosterNames(exportEntries(entries, "all")), ["m", "w"]);
-  assert.deepEqual(rosterNames(exportEntries(entries, "out")), ["m", "w", "o"]);
+  assert.deepEqual(rosterNames(exportEntries(entries, [])), ["m", "w"]);
+  assert.deepEqual(rosterNames(exportEntries(entries, ["out"])), ["m", "w", "o"]);
 });
 
 const noteEntry = (id, author_id, body = id) => ({

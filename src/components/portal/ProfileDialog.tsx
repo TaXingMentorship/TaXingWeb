@@ -71,9 +71,12 @@ export default function ProfileDialog({
             {profile.participant_role === "mentor" && (
               <>
                 <Field label="工作年限" value={profile.years_experience} />
+                <Field label={portalCopy.mentorQa.canHelpLabel} value={profile.can_help} />
                 <Field label="可以帮助的 mentee 数量" value={profile.mentee_capacity} />
                 <Field label="对 mentee 的期望" value={profile.mentee_expectations} />
                 <Field label="擅长与不擅长的话题" value={profile.topics} />
+                <Field label={portalCopy.mentorQa.introLabel} value={profile.qa_intro} />
+                <Field label={portalCopy.mentorQa.topicLabel} value={profile.qa_topic} />
               </>
             )}
             {profile.participant_role === "mentee" && (
@@ -108,7 +111,7 @@ export default function ProfileDialog({
   );
 }
 
-function Field({ label, value }: { label: string; value: string | null }) {
+function Field({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
     <Box sx={{ mb: 2 }}>

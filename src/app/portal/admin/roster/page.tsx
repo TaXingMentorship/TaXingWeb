@@ -66,6 +66,7 @@ import {
 } from "@/components/portal/RosterRows";
 import {
   FilterSearch,
+  FilterMultiSelect,
   FilterSelect,
   TablePager,
   usePagination,
@@ -239,12 +240,12 @@ function AdminRoster() {
   // Filters. Any change sends the table back to page one and drops the
   // selection (see below).
   const [search, setSearch] = React.useState("");
-  const [roleFilter, setRoleFilter] = React.useState<RosterFilters["role"]>("all");
-  const [statusFilter, setStatusFilter] = React.useState<RosterFilters["status"]>("all");
+  const [roleFilter, setRoleFilter] = React.useState<RosterFilters["role"]>([]);
+  const [statusFilter, setStatusFilter] = React.useState<RosterFilters["status"]>([]);
   const [doneFilter, setDoneFilter] = React.useState<RosterFilters["done"]>("all");
   const [activityFilter, setActivityFilter] = React.useState<RosterFilters["activity"]>("all");
   const [gratitudeFilter, setGratitudeFilter] = React.useState<RosterFilters["gratitude"]>("all");
-  const [groupFilter, setGroupFilter] = React.useState("all");
+  const [groupFilter, setGroupFilter] = React.useState<string[]>([]);
   const [noteFilter, setNoteFilter] = React.useState<NoteFilters["note"]>("all");
   const [noteAuthorFilter, setNoteAuthorFilter] = React.useState<string[]>([]);
   const [recommendFilter, setRecommendFilter] = React.useState<NoteFilters["recommend"]>("all");
@@ -255,12 +256,12 @@ function AdminRoster() {
     recommendFilter,
     cohortId,
     search,
-    roleFilter,
-    statusFilter,
+    roleFilter.join(","),
+    statusFilter.join(","),
     doneFilter,
     activityFilter,
     gratitudeFilter,
-    groupFilter,
+    groupFilter.join(","),
   ].join("|");
 
   const entries = React.useMemo(
@@ -473,15 +474,15 @@ function AdminRoster() {
     const tag = (label: string, v: string) =>
       v === "all" ? "" : `${label}${tableCopy.doneOptions[v as "done" | "todo"]}`;
     const season = (cohorts ?? []).find((c) => c.id === cohortId)?.name ?? "";
-    const groupName =
-      groupFilter === "all"
-        ? ""
-        : groupFilter === "none"
-          ? groupCopy.unassigned
-          : ((groups ?? []).find((g) => g.id === groupFilter)?.name ?? "");
+    const groupName = groupFilter
+      .map((g) =>
+        g === "none" ? groupCopy.unassigned : ((groups ?? []).find((x) => x.id === g)?.name ?? ""),
+      )
+      .filter(Boolean)
+      .join("+");
     const label = [
-      roleFilter === "all" ? "" : tableCopy.roleOptions[roleFilter],
-      statusFilter === "all" ? "" : tableCopy.statusOptions[statusFilter],
+      roleFilter.map((r) => tableCopy.roleOptions[r]).join("+"),
+      statusFilter.map((s) => tableCopy.statusOptions[s]).join("+"),
       groupName,
       tag(tableCopy.doneLabel, doneFilter),
       tag(tableCopy.activityLabel, activityFilter),
@@ -505,12 +506,12 @@ function AdminRoster() {
   // filters that could hide some of them (a mentee role, a completion filter).
   const showUnassigned = () => {
     setSearch("");
-    setRoleFilter("all");
-    setStatusFilter("all");
+    setRoleFilter([]);
+    setStatusFilter([]);
     setDoneFilter("all");
     setActivityFilter("all");
     setGratitudeFilter("all");
-    setGroupFilter("none");
+    setGroupFilter(["none"]);
   };
 
   if (!currentUser?.is_admin) {
@@ -633,30 +634,26 @@ function AdminRoster() {
                 placeholder={tableCopy.searchPlaceholder}
               />
             </Box>
-            <FilterSelect
+            <FilterMultiSelect
               fullWidth
               label={tableCopy.statusLabel}
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as RosterFilters["status"])}
-              options={[
-                { value: "all", label: portalCopy.tableFilters.all },
-                ...toOptions(tableCopy.statusOptions),
-              ]}
+              options={toOptions(tableCopy.statusOptions)}
             />
-            <FilterSelect
+            <FilterMultiSelect
               fullWidth
               label={tableCopy.roleLabel}
               value={roleFilter}
               onChange={(v) => setRoleFilter(v as RosterFilters["role"])}
               options={toOptions(tableCopy.roleOptions)}
             />
-            <FilterSelect
+            <FilterMultiSelect
               fullWidth
               label={groupCopy.columnLabel}
               value={groupFilter}
               onChange={setGroupFilter}
               options={[
-                { value: "all", label: portalCopy.tableFilters.all },
                 { value: "none", label: groupCopy.unassigned },
                 ...(groups ?? []).map((g) => ({ value: g.id, label: g.name })),
               ]}

@@ -29,7 +29,7 @@ import { dimmedRowSx, InviteStateChip } from "@/components/portal/RosterRows";
 import {
   FilterRow,
   FilterSearch,
-  FilterSelect,
+  FilterMultiSelect,
   TablePager,
   usePagination,
 } from "@/components/portal/TableFilters";
@@ -82,14 +82,14 @@ export default function PendingInvites() {
   );
 
   const [search, setSearch] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState("all");
-  const [seasonFilter, setSeasonFilter] = React.useState("all");
+  const [statusFilter, setStatusFilter] = React.useState<string[]>([]);
+  const [seasonFilter, setSeasonFilter] = React.useState<string[]>([]);
   const visible = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     return pending.filter(({ invite, state }) => {
       if (q && !`${invite.full_name ?? ""} ${invite.email}`.toLowerCase().includes(q)) return false;
-      if (statusFilter !== "all" && state !== statusFilter) return false;
-      if (seasonFilter !== "all" && invite.cohort_id !== seasonFilter) return false;
+      if (statusFilter.length > 0 && !statusFilter.includes(state)) return false;
+      if (seasonFilter.length > 0 && !seasonFilter.includes(invite.cohort_id)) return false;
       return true;
     });
   }, [pending, search, statusFilter, seasonFilter]);
@@ -142,23 +142,21 @@ export default function PendingInvites() {
               onChange={setSearch}
               placeholder={copy.searchPlaceholder}
             />
-            <FilterSelect
+            <FilterMultiSelect
               label={copy.statusLabel}
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
-                { value: "all", label: portalCopy.tableFilters.all },
                 { value: "waiting", label: copy.stillExpected },
                 { value: "account", label: copy.accountOnly },
                 { value: "out", label: copy.notParticipating },
               ]}
             />
-            <FilterSelect
+            <FilterMultiSelect
               label={copy.columns.season}
               value={seasonFilter}
               onChange={setSeasonFilter}
               options={[
-                { value: "all", label: copy.allSeasons },
                 ...(cohorts ?? []).map((c: Cohort) => ({ value: c.id, label: c.name })),
               ]}
             />

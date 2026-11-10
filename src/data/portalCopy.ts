@@ -540,6 +540,9 @@ export const portalCopy = {
       menteeCapacity: "可以帮助的 mentee 数量",
       menteeExpectations: "对 mentee 的期望",
       topics: "擅长与不擅长的话题",
+      qaIntro: "答疑组自我介绍",
+      qaTopic: "本次分享的主题",
+      canHelp: "我能帮上什么",
       interests: "兴趣方向",
       group: "答疑组",
       linkedin: "LinkedIn",
@@ -917,6 +920,25 @@ export const portalCopy = {
     rejectNoteHint: "必填，申请人会看到这段话。",
     confirmReject: "确认拒绝",
   },
+  requiredTag: "必填",
+  requiredFieldError: "请填写后再保存。",
+  mentorQa: {
+    sectionTitle: "答疑组分享",
+    sectionHelp:
+      "答疑组活动有两个目的：① 针对大家的共性问题，让 mentor 之间的经验得以共享；② 自我推荐——方便 mentee 在后续环节更了解你，从而让 mentorship 的匹配更合适。上一期填写过的内容会保留在这里，请确认是否仍适用，需要的话直接修改。",
+    carryOverNote:
+      "参加过往期答疑组的 mentor，之前填写的记录会被保留，确认后按需修改即可；第一次参加的新 mentor 需要自己填写。",
+    introLabel: "答疑组自我介绍",
+    introPlaceholder:
+      "【我是谁】\nHi 大家好，我是 ××。本科 / 研究生学的是 ○○ 专业，毕业后进入 ○○ 行业，现在在 ○○ 公司做 ○○ 岗位，日常主要负责 ○○。\n入行契机：专业不对口时是怎么转行的，为什么选了这个方向。\n工作之外：喜欢什么、最近在折腾什么（可选）。",
+    topicLabel: "本次分享的主题",
+    topicHelp: "可以用几个关键词或提纲描述，供志愿者制作 PPT、供 mentee 选择场次时参考。可参考留言板上 mentee 的提问，选自己更想聊、更有共性的话题。",
+    topicPlaceholder:
+      "1. 转行契机\n2. 跨行需要的准备\n3. AI 在工作中的应用",
+    canHelpLabel: "我能帮上什么",
+    canHelpPlaceholder:
+      "① 求职与面试：简历怎么改、面试怎么准备、跨专业怎么切入\n② 岗位日常：这个岗位具体做什么、需要哪些能力\n③ 其他：海外求职 / 职场沟通 / AI 在工作中的应用 / 职业规划……",
+  },
   namePronunciation: {
     fieldLabel: "昵称读音（选填）",
     placeholder: "例如：Xiǎo Míng，或“像……”",
@@ -997,6 +1019,9 @@ export const portalCopy = {
       total: "志愿者",
       noGroup: "未分组",
       empty: "本季还没有志愿者记录。",
+      directSuffix: "（直属）",
+      leadershipLine: (name: string) => `${name}（含各组负责人兼任）`,
+      leadershipNote: "负责人在环形图里算在各自所在的组，所以这一行不计入上方合计。",
     },
     activities: {
       title: "活动与互动",
@@ -1183,6 +1208,9 @@ export const portalCopy = {
   tableFilters: {
     searchLabel: "搜索",
     all: "全部",
+    /** Multi-select filter: shown while something is picked. */
+    multiSelected: (labels: string[]) =>
+      labels.length <= 2 ? labels.join("、") : `${labels.slice(0, 2).join("、")} 等 ${labels.length} 项`,
     rowsPerPage: "每页",
     displayedRows: (from: number, to: number, count: number) =>
       `${from}–${to} / ${count}`,
@@ -1199,7 +1227,6 @@ export const portalCopy = {
     },
     roleLabel: "身份",
     roleOptions: {
-      all: "全部身份",
       mentor: "导师",
       mentee: "学员",
       volunteer: "志愿者",
