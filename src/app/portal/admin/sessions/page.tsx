@@ -13,6 +13,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import Table from "@mui/material/Table";
+import TableContainer from "@mui/material/TableContainer";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
@@ -242,37 +243,39 @@ function MenteeView({
             由导师或负责人录入，展示你参与的所有交流场次。
           </Typography>
           {sessions && sessions.length > 0 ? (
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>日期</TableCell>
-                  <TableCell>导师</TableCell>
-                  <TableCell>类型</TableCell>
-                  <TableCell>备注</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sessions.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell>{s.session_date}</TableCell>
-                    <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        variant="outlined"
-                        color={sessionTypeColors[s.session_type]}
-                        label={sessionTypeLabels[s.session_type]}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" title={s.notes ?? ""}>
-                        {s.notes ?? "—"}
-                      </Typography>
-                    </TableCell>
+            <TableContainer>
+              <Table size="small" sx={{ "& th, & td": { whiteSpace: "nowrap" } }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>日期</TableCell>
+                    <TableCell>导师</TableCell>
+                    <TableCell>类型</TableCell>
+                    <TableCell>备注</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {sessions.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell>{s.session_date}</TableCell>
+                      <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color={sessionTypeColors[s.session_type]}
+                          label={sessionTypeLabels[s.session_type]}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 200 }}>
+                        <Typography variant="body2" noWrap title={s.notes ?? ""}>
+                          {s.notes ?? "—"}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           ) : (
             <Alert severity="info">暂时还没有交流记录。</Alert>
           )}
@@ -693,59 +696,62 @@ function StaffView({
               最近的交流记录（{sessions?.length ?? 0}）
             </Typography>
             {sessions && sessions.length > 0 ? (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>日期</TableCell>
-                    <TableCell>导师</TableCell>
-                    <TableCell>学员</TableCell>
-                    <TableCell>类型</TableCell>
-                    <TableCell>备注</TableCell>
-                    {role !== "volunteer" && (
-                      <TableCell align="right">操作</TableCell>
-                    )}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {sessions.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell>{s.session_date}</TableCell>
-                      <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
-                      <TableCell>{nameOf(s.mentee_id ?? s.mentee_invite_id)}</TableCell>
-                      <TableCell>
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          color={sessionTypeColors[s.session_type]}
-                          label={sessionTypeLabels[s.session_type]}
-                        />
-                      </TableCell>
-                      <TableCell sx={{ maxWidth: 200 }}>
-                        <Typography variant="body2" noWrap title={s.notes ?? ""}>
-                          {s.notes ?? "—"}
-                        </Typography>
-                      </TableCell>
+              <TableContainer>
+                <Table size="small" sx={{ "& th, & td": { whiteSpace: "nowrap" } }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>日期</TableCell>
+                      <TableCell>导师</TableCell>
+                      <TableCell>学员</TableCell>
+                      <TableCell>类型</TableCell>
+                      <TableCell>备注</TableCell>
                       {role !== "volunteer" && (
-                        <TableCell align="right">
-                          <Tooltip title="编辑">
-                            <IconButton size="small" onClick={() => setEditing(s)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="删除">
-                            <IconButton
-                              size="small"
-                              onClick={() => deleteMutation.mutate(s.id)}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
+                        <TableCell align="right">操作</TableCell>
                       )}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {sessions.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell>{s.session_date}</TableCell>
+                        <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
+                        <TableCell>{nameOf(s.mentee_id ?? s.mentee_invite_id)}</TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            color={sessionTypeColors[s.session_type]}
+                            label={sessionTypeLabels[s.session_type]}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 200 }}>
+                          <Typography variant="body2" noWrap title={s.notes ?? ""}>
+                            {s.notes ?? "—"}
+                          </Typography>
+                        </TableCell>
+                        {role !== "volunteer" && (
+                          <TableCell align="right">
+                            <Tooltip title="编辑">
+                              <IconButton aria-label="编辑" size="small" onClick={() => setEditing(s)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="删除">
+                              <IconButton
+                                aria-label="删除"
+                                size="small"
+                                onClick={() => deleteMutation.mutate(s.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             ) : (
               <Alert severity="info">还没有任何交流记录。</Alert>
             )}
