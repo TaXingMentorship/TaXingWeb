@@ -3,6 +3,10 @@
 import * as React from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -38,6 +42,7 @@ const isSubmitKey = (e: React.KeyboardEvent) =>
  * Authors edit or delete their own entries; admins may also delete any.
  */
 export default function RosterNoteThread({
+  memberName,
   entries,
   viewerId,
   isAdmin,
@@ -45,6 +50,7 @@ export default function RosterNoteThread({
   onEdit,
   onDelete,
 }: {
+  memberName: string;
   entries: RosterNoteEntry[];
   viewerId: string | null;
   isAdmin: boolean;
@@ -58,6 +64,7 @@ export default function RosterNoteThread({
   const [error, setError] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [adding, setAdding] = React.useState(false);
 
   const shown = expanded ? entries : entries.slice(-COLLAPSED);
   const hidden = entries.length - shown.length;
@@ -79,7 +86,10 @@ export default function RosterNoteThread({
   const submit = async () => {
     const body = text.trim();
     if (!body || busy) return;
-    if (await run(() => onAdd(body), copy.noteSaveError)) setText("");
+    if (await run(() => onAdd(body), copy.noteSaveError)) {
+      setText("");
+      setAdding(false);
+    }
   };
 
   return (
@@ -126,32 +136,53 @@ export default function RosterNoteThread({
           />
         );
       })}
-      <Stack direction="row" spacing={0.5} alignItems="flex-end">
-        <TextField
-          variant="standard"
-          size="small"
-          placeholder={copy.notePlaceholder}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (isSubmitKey(e)) {
-              e.preventDefault();
-              void submit();
-            }
-          }}
-          disabled={busy && editingId === null}
-          error={Boolean(error)}
-          helperText={error ?? (busy && editingId === null ? copy.noteSaving : undefined)}
-          multiline
-          fullWidth
-          slotProps={{ htmlInput: { maxLength: 2000 } }}
-        />
-        {text.trim() && (
-          <Button size="small" variant="text" disabled={busy} onClick={submit} sx={{ minWidth: 0 }}>
+      {error && !adding && (
+        <Typography variant="caption" color="error">{error}</Typography>
+      )}
+      <Button
+        size="small"
+        disabled={busy}
+        onClick={() => {
+          setError(null);
+          setAdding(true);
+        }}
+        sx={{ alignSelf: "flex-start", whiteSpace: "nowrap" }}
+      >
+        {copy.notePlaceholder}
+      </Button>
+      <Dialog open={adding} onClose={() => { if (!busy) setAdding(false); }} maxWidth="sm" fullWidth>
+        <DialogTitle>{copy.noteAddFor(memberName)}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            label={copy.notePlaceholder}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (isSubmitKey(e)) {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+            disabled={busy}
+            error={Boolean(error)}
+            helperText={error ?? (busy ? copy.noteSaving : undefined)}
+            multiline
+            minRows={4}
+            fullWidth
+            sx={{ mt: 1 }}
+            slotProps={{ htmlInput: { maxLength: 2000 } }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={busy} onClick={() => setAdding(false)}>
+            {copy.noteEditCancel}
+          </Button>
+          <Button variant="contained" disabled={busy || !text.trim()} onClick={submit}>
             {copy.noteAdd}
           </Button>
-        )}
-      </Stack>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

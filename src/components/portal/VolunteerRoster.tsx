@@ -206,6 +206,7 @@ export default function VolunteerRoster() {
                       </TableCell>
                       <TableCell sx={notesCellSx}>
                         <RosterNoteThread
+                          memberName={p.full_name ?? "—"}
                           entries={noteEntries ?? []}
                           viewerId={viewerId}
                           isAdmin={false}

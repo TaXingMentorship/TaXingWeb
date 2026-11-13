@@ -862,6 +862,7 @@ function AdminRoster() {
                         }
                         notesCell={
                           <RosterNoteThread
+                            memberName={entry.row.profile.full_name ?? "—"}
                             entries={entry.row.noteEntries ?? []}
                             viewerId={viewerId}
                             isAdmin

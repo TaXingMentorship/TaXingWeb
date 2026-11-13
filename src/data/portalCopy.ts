@@ -1054,6 +1054,7 @@ export const portalCopy = {
     noteSaveError: "备注保存失败，修改尚未保存，请重试。",
     noteSaving: "正在保存…",
     notePlaceholder: "添加备注",
+    noteAddFor: (name: string) => `为 ${name} 添加备注`,
     noteAdd: "添加",
     noteDelete: "删除这条备注",
     noteEdit: "编辑这条备注",
