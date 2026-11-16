@@ -275,6 +275,7 @@ function AdminRoster() {
   const [recommendFilter, setRecommendFilter] = React.useState<NoteFilters["recommend"]>("all");
   const [moreFiltersOpen, setMoreFiltersOpen] = React.useState(false);
   const advancedFilterCount = [
+    blacklistFilter !== "all",
     groupFilter.length > 0,
     doneFilter !== "all",
     activityFilter !== "all",
@@ -696,13 +697,6 @@ function AdminRoster() {
               onChange={(v) => setRoleFilter(v as RosterFilters["role"])}
               options={toOptions(tableCopy.roleOptions)}
             />
-            <FilterSelect
-              fullWidth
-              label={tableCopy.blacklistLabel}
-              value={blacklistFilter}
-              onChange={(v) => setBlacklistFilter(v as NonNullable<RosterFilters["blacklist"]>)}
-              options={toOptions(tableCopy.blacklistOptions)}
-            />
             <Button
               variant="outlined"
               size="small"
@@ -788,6 +782,13 @@ function AdminRoster() {
               onNoteAuthor={setNoteAuthorFilter}
               recommend={recommendFilter}
               onRecommend={setRecommendFilter}
+            />
+            <FilterSelect
+              fullWidth
+              label={tableCopy.blacklistLabel}
+              value={blacklistFilter}
+              onChange={(v) => setBlacklistFilter(v as NonNullable<RosterFilters["blacklist"]>)}
+              options={toOptions(tableCopy.blacklistOptions)}
             />
           </Box>
 
