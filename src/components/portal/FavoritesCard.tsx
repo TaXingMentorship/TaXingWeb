@@ -14,7 +14,7 @@ import Typography from "@mui/material/Typography";
 import ButtonBase from "@mui/material/ButtonBase";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import type { Profile } from "@/types/portal";
-import { listCohorts, listMentorGroupMembers, listMentorGroups, listProfiles } from "@/lib/portal/store";
+import { listBlacklistedProfileIds, listCohorts, listMentorGroupMembers, listMentorGroups, listProfiles } from "@/lib/portal/store";
 import { visibleToMember } from "@/lib/portal/directoryFilters";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
@@ -27,7 +27,7 @@ import ProfileDialog from "@/components/portal/ProfileDialog";
  * the strip never lists someone the viewer cannot open.
  */
 export default function FavoritesCard() {
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
   const { ids } = useFavorites();
   const [selected, setSelected] = React.useState<Profile | null>(null);
 
@@ -35,6 +35,11 @@ export default function FavoritesCard() {
     queryKey: ["portal", "favoriteProfiles", ids],
     queryFn: () => listProfiles({ ids }),
     enabled: ids.length > 0,
+  });
+  const { data: blacklisted } = useQuery({
+    queryKey: ["portal", "blacklist", realUser?.id],
+    queryFn: listBlacklistedProfileIds,
+    enabled: Boolean(realUser?.is_admin && ids.length),
   });
 
   // Group names are per season; use the viewer's newest, like the directory.
@@ -60,13 +65,14 @@ export default function FavoritesCard() {
   };
 
   const shown = React.useMemo(() => {
-    if (!profiles || !currentUser) return [];
+    if (!profiles || !currentUser || (realUser?.is_admin && !blacklisted)) return [];
     const byId = new Map(profiles.map((p) => [p.id, p]));
+    const excluded = new Set(blacklisted ?? []);
     return ids
       .map((id) => byId.get(id))
       .filter((p): p is Profile => Boolean(p))
-      .filter((p) => currentUser.is_admin || visibleToMember(p, currentUser.cohort_ids));
-  }, [profiles, ids, currentUser]);
+      .filter((p) => !excluded.has(p.id) && (currentUser.is_admin || visibleToMember(p, currentUser.cohort_ids)));
+  }, [profiles, ids, currentUser, realUser?.is_admin, blacklisted]);
 
   if (shown.length === 0) return null;
   const copy = portalCopy.favorites;

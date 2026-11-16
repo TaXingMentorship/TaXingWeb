@@ -24,7 +24,7 @@ import DirectoryCard from "./DirectoryCard";
 import ProfileDialog from "./ProfileDialog";
 import { usePortalSession } from "./PortalSessionProvider";
 
-export default function MyMentorshipGroups() {
+export default function MyMentorshipGroups({ excludedProfileIds }: { excludedProfileIds: Set<string> }) {
   const { realUser, currentUser } = usePortalSession();
   const copy = portalCopy.myMentorship;
   const [requestedSeason, setRequestedSeason] = React.useState("");
@@ -51,7 +51,11 @@ export default function MyMentorshipGroups() {
         listProfiles({ ids }),
         listSessionRosterInvites(cohortId),
       ]);
-      return { matches, profiles, invites };
+      const claimedIds = invites.flatMap((invite) =>
+        invite.claimed_user_id ? [invite.claimed_user_id] : [],
+      );
+      const claimedProfiles = await listProfiles({ ids: claimedIds });
+      return { matches, profiles, invites, claimedProfiles };
     },
     enabled: Boolean(realUser && cohortId),
   });
@@ -63,7 +67,7 @@ export default function MyMentorshipGroups() {
 
   const profiles = new Map(
     (groupsQuery.data?.profiles ?? [])
-      .filter((p) => currentUser?.is_admin || visibleToMember(p, realUser?.cohort_ids ?? []))
+      .filter((p) => !excludedProfileIds.has(p.id) && (currentUser?.is_admin || visibleToMember(p, realUser?.cohort_ids ?? [])))
       .map((p) => [p.id, p]),
   );
   const invites = new Map(
@@ -82,14 +86,21 @@ export default function MyMentorshipGroups() {
   const loading = cohortsQuery.isLoading || (Boolean(cohortId) && groupsQuery.isLoading);
   const selected = !error && !loading && selectedId ? profiles.get(selectedId) ?? null : null;
   const member = (id: string) => {
+    if (excludedProfileIds.has(id)) return null;
     const profile: Profile | undefined = profiles.get(id);
     const invite = invites.get(id);
+    if (invite?.claimed_user_id && excludedProfileIds.has(invite.claimed_user_id)) return null;
+    const claimedProfile = invite?.claimed_user_id
+      ? groupsQuery.data?.claimedProfiles.find((p) => p.id === invite.claimed_user_id)
+      : undefined;
+    const showInvite = invite && (!invite.claimed_user_id ||
+      (claimedProfile && (currentUser?.is_admin || visibleToMember(claimedProfile, realUser?.cohort_ids ?? []))));
     return (
       <Grid key={id} size={{ xs: 12, sm: 6, md: 4 }} sx={{ minWidth: 0, display: "flex" }}>
         <Box sx={{ width: "100%", minWidth: 0 }}>
           {profile ? (
             <DirectoryCard profile={profile} onSelect={(p) => setSelectedId(p.id)} />
-          ) : invite ? (
+          ) : showInvite ? (
             <Alert severity="info" sx={{ width: "100%" }}>
               {invite.full_name ?? invite.email} ·{" "}
               {invite.claimed_user_id ? "账号已关联" : "未激活"}

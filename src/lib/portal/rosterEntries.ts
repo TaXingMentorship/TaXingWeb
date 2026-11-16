@@ -10,6 +10,7 @@ import type {
 
 export type MemberRowData = {
   profile: Profile;
+  blacklisted?: boolean;
   /** Searchable text of the note thread (bodies and author names). */
   notes?: string | null;
   noteEntries?: RosterNoteEntry[];
@@ -112,12 +113,21 @@ export function buildEntries(
   invites: RosterInvite[],
   profiles: Profile[] | undefined,
 ): RosterEntry[] {
+  const blacklisted = rows.filter((row) => row.blacklisted);
   return [
     ...rows.map((row): RosterEntry => ({ kind: "member", row })),
-    ...inviteRows(invites, profiles).map(
+    ...inviteRows(excludeBlacklistedInvites(invites, blacklisted.map((row) => row.profile)), profiles).map(
       ({ invite, state }): RosterEntry => ({ kind: "invited", invite, state }),
     ),
   ];
+}
+
+export function excludeBlacklistedInvites(invites: RosterInvite[], profiles: Profile[]): RosterInvite[] {
+  const ids = new Set(profiles.map((profile) => profile.id));
+  const emails = new Set(profiles.map((profile) => emailKey(profile.email)).filter(Boolean));
+  return invites.filter(
+    (invite) => !ids.has(invite.claimed_user_id ?? "") && !emails.has(emailKey(invite.email)),
+  );
 }
 
 /**
@@ -149,7 +159,7 @@ export type RosterFilters = {
 } & Partial<NoteFilters>;
 
 export type RosterRole = "mentor" | "mentee" | "volunteer" | "admin";
-export type RosterStatus = "active" | "setup" | "account" | "waiting" | "out";
+export type RosterStatus = "active" | "setup" | "account" | "waiting" | "out" | "blacklisted";
 
 /** Filters over the staff-only columns, shared by the admin and volunteer views. */
 export type NoteFilters = {
@@ -314,7 +324,8 @@ export function filterEntries(
 
 // 已激活 covers both finished and unfinished onboarding.
 function matchesStatus(entry: RosterEntry, state: string | null, status: RosterStatus): boolean {
-  if (status === "active") return entry.kind === "member" || state === "setup";
+  if (status === "blacklisted") return entry.kind === "member" && Boolean(entry.row.blacklisted);
+  if (status === "active") return (entry.kind === "member" && !entry.row.blacklisted) || state === "setup";
   return state === status;
 }
 
@@ -340,8 +351,10 @@ export function exportEntries(
   entries: RosterEntry[],
   status: RosterFilters["status"],
 ): RosterEntry[] {
-  if (status.includes("out")) return entries;
-  return entries.filter((e) => !(e.kind === "invited" && e.state === "out"));
+  return entries.filter((e) =>
+    !(e.kind === "invited" && e.state === "out" && !status.includes("out")) &&
+    !(e.kind === "member" && e.row.blacklisted && !status.includes("blacklisted")),
+  );
 }
 
 /** Display names of the entries shown, in table order; blanks are dropped. */
@@ -359,7 +372,7 @@ export function rosterNames(entries: RosterEntry[]): string[] {
  */
 export function selectableMentorIds(entries: RosterEntry[]): string[] {
   return entries.flatMap((entry) =>
-    entry.kind === "member" && entry.row.profile.participant_role === "mentor"
+    entry.kind === "member" && !entry.row.blacklisted && entry.row.profile.participant_role === "mentor"
       ? [entry.row.profile.id]
       : [],
   );

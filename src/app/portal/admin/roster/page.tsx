@@ -27,6 +27,7 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import {
   listCohorts,
   listMatches,
+  listBlacklistedProfileIds,
   listMentorGroupMembers,
   listMentorGroups,
   listParticipation,
@@ -34,6 +35,7 @@ import {
   listRosterInvites,
   listSessions,
   setMentorGroup,
+  setMemberBlacklist,
 } from "@/lib/portal/store";
 import {
   buildEntries,
@@ -110,6 +112,25 @@ function AdminRoster() {
   const { data: profiles, error: profilesError } = useQuery({
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
+  });
+  const blacklistQuery = useQuery({
+    queryKey: ["portal", "blacklist", realUser?.id],
+    queryFn: listBlacklistedProfileIds,
+    enabled: Boolean(realUser?.is_admin),
+  });
+  const blacklistIds = React.useMemo(
+    () => new Set(blacklistQuery.data ?? []),
+    [blacklistQuery.data],
+  );
+  const blacklistMutation = useMutation({
+    mutationFn: ({ profileId, blacklisted }: { profileId: string; blacklisted: boolean }) =>
+      setMemberBlacklist(profileId, blacklisted),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["portal", "blacklist"] });
+      void queryClient.invalidateQueries({ queryKey: ["portal", "profiles"] });
+      void queryClient.invalidateQueries({ queryKey: ["portal", "favoriteProfiles"] });
+      void queryClient.invalidateQueries({ queryKey: ["portal", "myMentorship"] });
+    },
   });
 
   const { data: invites } = useQuery({
@@ -190,8 +211,8 @@ function AdminRoster() {
     // stay reachable or its identity could never be changed again.
     const members = (profiles ?? []).filter(
       (p) =>
-        (p.participant_role !== null || p.is_admin || p.is_volunteer) &&
-        p.cohort_ids.includes(cohortId),
+        (blacklistIds.has(p.id) || p.participant_role !== null || p.is_admin || p.is_volunteer) &&
+        (p.cohort_ids.includes(cohortId) || blacklistIds.has(p.id)),
     );
     return members.map((p) => {
       const sessionCount = (sessions ?? []).filter((s) =>
@@ -220,6 +241,7 @@ function AdminRoster() {
       const noteEntries = notes.get(p.id) ?? [];
       return {
         profile: p,
+        blacklisted: blacklistIds.has(p.id),
         notes: noteSearchText(noteEntries),
         noteEntries,
         recommendations: recs.get(p.id) ?? [],
@@ -229,10 +251,10 @@ function AdminRoster() {
         completedAll,
       };
     });
-  }, [profiles, sessions, participation, cohortId, notesQuery.data, recsQuery.data]);
+  }, [profiles, sessions, participation, cohortId, notesQuery.data, recsQuery.data, blacklistIds]);
 
   const mentorIds = React.useMemo(
-    () => rows.filter((r) => r.profile.participant_role === "mentor").map((r) => r.profile.id),
+    () => rows.filter((r) => !r.blacklisted && r.profile.participant_role === "mentor").map((r) => r.profile.id),
     [rows],
   );
   const unassignedCount = mentorIds.filter((id) => !groupOfMentor.has(id)).length;
@@ -517,6 +539,12 @@ function AdminRoster() {
   if (!currentUser?.is_admin) {
     return <Alert severity="error">仅负责人可访问成员名单。</Alert>;
   }
+  if (blacklistQuery.error) {
+    return <Alert severity="error">{blacklistQuery.error.message}</Alert>;
+  }
+  if (blacklistQuery.isLoading) {
+    return <Alert severity="info">{pairCopy.staffLoading}</Alert>;
+  }
   if (notesQuery.error) {
     return <Alert severity="error">{pairCopy.notesLoadError} {notesQuery.error.message}</Alert>;
   }
@@ -766,6 +794,9 @@ function AdminRoster() {
           {(assignMutation.error as Error).message}
         </Alert>
       )}
+      {blacklistMutation.error && (
+        <Alert severity="error" sx={{ mb: 2 }}>{blacklistMutation.error.message}</Alert>
+      )}
       <MentorGroupsDialog
         open={groupsOpen}
         cohortId={cohortId}
@@ -824,6 +855,16 @@ function AdminRoster() {
                       <MemberRow
                         key={`${realUser?.id}:${cohortId}:${entry.row.profile.id}`}
                         row={entry.row}
+                        blacklistPending={blacklistMutation.isPending}
+                        onBlacklist={() => {
+                          const blacklisted = !entry.row.blacklisted;
+                          const name = entry.row.profile.full_name ?? entry.row.profile.email ?? "该成员";
+                          if (window.confirm(blacklisted
+                            ? tableCopy.blacklistConfirmAdd(name)
+                            : tableCopy.blacklistConfirmRemove(name))) {
+                            blacklistMutation.mutate({ profileId: entry.row.profile.id, blacklisted });
+                          }
+                        }}
                         groups={groups ?? []}
                         groupId={groupOfMentor.get(entry.row.profile.id)}
                         selected={selected.includes(entry.row.profile.id)}
@@ -998,7 +1039,7 @@ function AdminRoster() {
       {view === "table" && (
         <>
           <Divider sx={{ my: 5 }} />
-          <PendingInvites />
+          <PendingInvites blacklistIds={blacklistIds} />
         </>
       )}
 

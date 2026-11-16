@@ -21,6 +21,7 @@ import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import type { ParticipantRole, Profile } from "@/types/portal";
 import {
   listCohorts,
+  listBlacklistedProfileIds,
   listMentorGroupMembers,
   listMentorGroups,
   listProfiles,
@@ -42,7 +43,7 @@ import MyMentorshipGroups from "@/components/portal/MyMentorshipGroups";
 const DIRECTORY_PAGE_SIZE = 12;
 
 export default function DirectoryPage() {
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
   const [tab, setTab] = React.useState<ParticipantRole | "volunteer">("mentor");
   const [cohortId, setCohortId] = React.useState("");
   const [search, setSearch] = React.useState("");
@@ -56,6 +57,15 @@ export default function DirectoryPage() {
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
   });
+  const blacklistQuery = useQuery({
+    queryKey: ["portal", "blacklist", realUser?.id],
+    queryFn: listBlacklistedProfileIds,
+    enabled: Boolean(realUser?.is_admin),
+  });
+  const blacklistIds = React.useMemo(
+    () => new Set(blacklistQuery.data ?? []),
+    [blacklistQuery.data],
+  );
   const { data: cohorts } = useQuery({
     queryKey: ["portal", "cohorts"],
     queryFn: listCohorts,
@@ -163,14 +173,14 @@ export default function DirectoryPage() {
   React.useEffect(() => setGroupFilter("all"), [volunteerCohortId]);
 
   const visible = React.useMemo(() => {
-    if (!profiles || !currentUser) return [];
+    if (!profiles || !currentUser || (realUser?.is_admin && !blacklistQuery.data)) return [];
     if (currentUser.is_admin) {
       return cohortId
-        ? profiles.filter((profile) => profile.cohort_ids.includes(cohortId))
+        ? profiles.filter((profile) => profile.cohort_ids.includes(cohortId) && !blacklistIds.has(profile.id))
         : [];
     }
-    return profiles.filter((p) => visibleToMember(p, currentUser.cohort_ids));
-  }, [profiles, currentUser, cohortId]);
+    return profiles.filter((p) => !blacklistIds.has(p.id) && visibleToMember(p, currentUser.cohort_ids));
+  }, [profiles, currentUser, cohortId, realUser?.is_admin, blacklistQuery.data, blacklistIds]);
 
   const allInterests = React.useMemo(
     () => Array.from(new Set(visible.flatMap((p) => p.interests))).sort(),
@@ -241,7 +251,11 @@ export default function DirectoryPage() {
         浏览导师、学员、负责人与志愿者，按姓名、简介或兴趣筛选。
       </Typography>
 
-      <MyMentorshipGroups />
+      {realUser?.is_admin && blacklistQuery.error ? (
+        <Alert severity="error">{blacklistQuery.error.message}</Alert>
+      ) : (!realUser?.is_admin || blacklistQuery.data) && (
+        <MyMentorshipGroups excludedProfileIds={blacklistIds} />
+      )}
 
       {currentUser?.is_admin && (
         <TextField
@@ -348,7 +362,7 @@ export default function DirectoryPage() {
         />
       )}
 
-      {isLoading ? (
+      {isLoading || (Boolean(realUser?.is_admin) && blacklistQuery.isLoading) ? (
         <Typography color="text.secondary">加载中…</Typography>
       ) : filtered.length === 0 ? (
         <Alert severity="info">

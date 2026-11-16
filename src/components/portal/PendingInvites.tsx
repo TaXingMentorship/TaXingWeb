@@ -23,7 +23,7 @@ import {
   listRosterInvites,
   setInviteNotParticipating,
 } from "@/lib/portal/store";
-import { pendingInvites, type ClassifiedInvite } from "@/lib/portal/rosterEntries";
+import { excludeBlacklistedInvites, pendingInvites, type ClassifiedInvite } from "@/lib/portal/rosterEntries";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
 import { dimmedRowSx, InviteStateChip } from "@/components/portal/RosterRows";
 import {
@@ -47,7 +47,7 @@ import {
  * still has not come" is a question about people, not about a season, and with
  * eleven seasons the answer would otherwise take eleven clicks to assemble.
  */
-export default function PendingInvites() {
+export default function PendingInvites({ blacklistIds }: { blacklistIds: Set<string> }) {
   const copy = portalCopy.pendingInvites;
   const queryClient = useQueryClient();
 
@@ -77,8 +77,11 @@ export default function PendingInvites() {
   // Ordered so the top is whoever can still be chased and flagged-out people
   // sink to the bottom.
   const pending = React.useMemo<ClassifiedInvite[]>(
-    () => pendingInvites(invites ?? [], profiles),
-    [invites, profiles],
+    () => pendingInvites(
+      excludeBlacklistedInvites(invites ?? [], (profiles ?? []).filter((p) => blacklistIds.has(p.id))),
+      profiles,
+    ),
+    [invites, profiles, blacklistIds],
   );
 
   const [search, setSearch] = React.useState("");

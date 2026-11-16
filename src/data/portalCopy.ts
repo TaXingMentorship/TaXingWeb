@@ -1225,6 +1225,7 @@ export const portalCopy = {
       waiting: "已邀请 · 待激活",
       account: "已有账号 · 不在本季名单",
       out: "不参与本次项目",
+      blacklisted: "黑名单",
     },
     roleLabel: "身份",
     roleOptions: {
@@ -1247,7 +1248,12 @@ export const portalCopy = {
       waiting: "待激活",
       account: "已有账号 · 不在本季名单",
       out: "不参与本次项目",
+      blacklisted: "黑名单",
     },
+    blacklistAdd: "加入黑名单",
+    blacklistRemove: "解除黑名单",
+    blacklistConfirmAdd: (name: string) => `确定将 ${name} 加入黑名单？该账号将无法登录，并从成员目录移除。`,
+    blacklistConfirmRemove: (name: string) => `确定将 ${name} 移出黑名单并恢复账号登录？`,
     statusColumn: "状态",
     total: (shown: number, all: number) =>
       shown === all ? `共 ${shown} 人` : `共 ${shown} 人\n(筛选自 ${all} 人)`,
