@@ -129,6 +129,7 @@ export function MemberRow({
           <Chip size="small" color={row.blacklisted ? "error" : "success"}
             label={row.blacklisted ? stateCopy.blacklisted : stateCopy.active} />
           <Button size="small" color={row.blacklisted ? "primary" : "error"}
+            sx={{ whiteSpace: "nowrap" }}
             disabled={blacklistPending || (profile.is_admin && !row.blacklisted)}
             onClick={onBlacklist}>
             {row.blacklisted ? portalCopy.rosterTable.blacklistRemove : portalCopy.rosterTable.blacklistAdd}
