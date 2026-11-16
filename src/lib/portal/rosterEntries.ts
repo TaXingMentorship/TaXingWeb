@@ -149,6 +149,7 @@ export type RosterFilters = {
   role: RosterRole[];
   /** Any of these states matches. Empty = all. */
   status: RosterStatus[];
+  blacklist?: "all" | "only" | "exclude";
   done: "all" | "done" | "todo";
   /** 活动记录 submitted? Mentees only; everyone else drops out once it is set. */
   activity: "all" | "done" | "todo";
@@ -159,7 +160,7 @@ export type RosterFilters = {
 } & Partial<NoteFilters>;
 
 export type RosterRole = "mentor" | "mentee" | "volunteer" | "admin";
-export type RosterStatus = "active" | "setup" | "account" | "waiting" | "out" | "blacklisted";
+export type RosterStatus = "active" | "setup" | "account" | "waiting" | "out";
 
 /** Filters over the staff-only columns, shared by the admin and volunteer views. */
 export type NoteFilters = {
@@ -285,6 +286,9 @@ export function filterEntries(
       if (!haystack.includes(q)) return false;
     }
     if (filters.role.length > 0 && !filters.role.some((r) => id[r])) return false;
+    const blacklisted = entry.kind === "member" && Boolean(entry.row.blacklisted);
+    if (filters.blacklist === "only" && !blacklisted) return false;
+    if (filters.blacklist === "exclude" && blacklisted) return false;
 
     // Notes and recommendations only exist for activated members.
     if (noteFiltersActive(filters)) {
@@ -324,8 +328,7 @@ export function filterEntries(
 
 // 已激活 covers both finished and unfinished onboarding.
 function matchesStatus(entry: RosterEntry, state: string | null, status: RosterStatus): boolean {
-  if (status === "blacklisted") return entry.kind === "member" && Boolean(entry.row.blacklisted);
-  if (status === "active") return (entry.kind === "member" && !entry.row.blacklisted) || state === "setup";
+  if (status === "active") return entry.kind === "member" || state === "setup";
   return state === status;
 }
 
@@ -345,15 +348,17 @@ function matchesFlag(
 
 /**
  * The shown entries an export lists. People flagged 不参与本次项目 are not
- * part of the season, so they stay out unless the status filter asks for them.
+ * part of the season, and blacklisted people are not exportable participants.
+ * Each stays out unless its corresponding filter explicitly asks for it.
  */
 export function exportEntries(
   entries: RosterEntry[],
   status: RosterFilters["status"],
+  blacklist: RosterFilters["blacklist"] = "all",
 ): RosterEntry[] {
   return entries.filter((e) =>
     !(e.kind === "invited" && e.state === "out" && !status.includes("out")) &&
-    !(e.kind === "member" && e.row.blacklisted && !status.includes("blacklisted")),
+    !(e.kind === "member" && e.row.blacklisted && blacklist !== "only"),
   );
 }
 

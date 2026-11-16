@@ -1227,8 +1227,9 @@ export const portalCopy = {
       waiting: "已邀请 · 待激活",
       account: "已有账号 · 不在本季名单",
       out: "不参与本次项目",
-      blacklisted: "黑名单",
     },
+    blacklistLabel: "黑名单",
+    blacklistOptions: { all: "全部", only: "在黑名单", exclude: "不在黑名单" },
     roleLabel: "身份",
     roleOptions: {
       mentor: "导师",

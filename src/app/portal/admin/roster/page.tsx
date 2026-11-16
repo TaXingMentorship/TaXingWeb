@@ -265,6 +265,7 @@ function AdminRoster() {
   const [search, setSearch] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState<RosterFilters["role"]>([]);
   const [statusFilter, setStatusFilter] = React.useState<RosterFilters["status"]>([]);
+  const [blacklistFilter, setBlacklistFilter] = React.useState<NonNullable<RosterFilters["blacklist"]>>("all");
   const [doneFilter, setDoneFilter] = React.useState<RosterFilters["done"]>("all");
   const [activityFilter, setActivityFilter] = React.useState<RosterFilters["activity"]>("all");
   const [gratitudeFilter, setGratitudeFilter] = React.useState<RosterFilters["gratitude"]>("all");
@@ -291,6 +292,7 @@ function AdminRoster() {
     search,
     roleFilter.join(","),
     statusFilter.join(","),
+    blacklistFilter,
     doneFilter,
     activityFilter,
     gratitudeFilter,
@@ -309,6 +311,7 @@ function AdminRoster() {
           search,
           role: roleFilter,
           status: statusFilter,
+          blacklist: blacklistFilter,
           done: doneFilter,
           activity: activityFilter,
           gratitude: gratitudeFilter,
@@ -331,6 +334,7 @@ function AdminRoster() {
       search,
       roleFilter,
       statusFilter,
+      blacklistFilter,
       doneFilter,
       activityFilter,
       gratitudeFilter,
@@ -499,7 +503,7 @@ function AdminRoster() {
   const exportReady =
     sessions !== undefined && participation !== undefined && groupMembers !== undefined;
   const [exportError, setExportError] = React.useState(false);
-  const toExport = exportEntries(filtered, statusFilter);
+  const toExport = exportEntries(filtered, statusFilter, blacklistFilter);
 
   // The file name carries every active filter but the search, so a list saved
   // as 感谢赠言已完成 is recognisable later.
@@ -516,6 +520,7 @@ function AdminRoster() {
     const label = [
       roleFilter.map((r) => tableCopy.roleOptions[r]).join("+"),
       statusFilter.map((s) => tableCopy.statusOptions[s]).join("+"),
+      blacklistFilter === "all" ? "" : tableCopy.blacklistOptions[blacklistFilter],
       groupName,
       tag(tableCopy.doneLabel, doneFilter),
       tag(tableCopy.activityLabel, activityFilter),
@@ -541,6 +546,7 @@ function AdminRoster() {
     setSearch("");
     setRoleFilter([]);
     setStatusFilter([]);
+    setBlacklistFilter("exclude");
     setDoneFilter("all");
     setActivityFilter("all");
     setGratitudeFilter("all");
@@ -689,6 +695,13 @@ function AdminRoster() {
               value={roleFilter}
               onChange={(v) => setRoleFilter(v as RosterFilters["role"])}
               options={toOptions(tableCopy.roleOptions)}
+            />
+            <FilterSelect
+              fullWidth
+              label={tableCopy.blacklistLabel}
+              value={blacklistFilter}
+              onChange={(v) => setBlacklistFilter(v as NonNullable<RosterFilters["blacklist"]>)}
+              options={toOptions(tableCopy.blacklistOptions)}
             />
             <Button
               variant="outlined"

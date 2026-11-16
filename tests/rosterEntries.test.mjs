@@ -59,10 +59,11 @@ test("blacklisted people are filterable, excluded from normal exports and bulk a
   const banned = { kind: "member", row: { ...row(profile("b", "b@x.com")), blacklisted: true } };
   const active = { kind: "member", row: row(profile("a", "a@x.com")) };
   const entries = [banned, active];
-  assert.deepEqual(filterEntries(entries, { ...all, status: ["blacklisted"] }, new Map()), [banned]);
-  assert.deepEqual(filterEntries(entries, { ...all, status: ["active"] }, new Map()), [active]);
+  assert.deepEqual(filterEntries(entries, { ...all, blacklist: "only" }, new Map()), [banned]);
+  assert.deepEqual(filterEntries(entries, { ...all, blacklist: "exclude" }, new Map()), [active]);
+  assert.deepEqual(filterEntries(entries, { ...all, status: ["active"], blacklist: "only" }, new Map()), [banned]);
   assert.deepEqual(exportEntries(entries, []), [active]);
-  assert.deepEqual(exportEntries(entries, ["blacklisted"]), entries);
+  assert.deepEqual(exportEntries([banned], [], "only"), [banned]);
   assert.deepEqual(selectableMentorIds(entries), ["a"]);
 });
 
