@@ -1218,6 +1218,8 @@ export const portalCopy = {
   },
   rosterTable: {
     searchPlaceholder: "姓名 / 邮箱 / 微信号 / 备注",
+    showFilters: (count: number) => count ? `更多筛选（${count}）` : "更多筛选",
+    hideFilters: "收起筛选",
     statusLabel: "激活状态",
     statusOptions: {
       active: "已激活（含待填资料）",

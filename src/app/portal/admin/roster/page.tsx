@@ -24,6 +24,7 @@ import Checkbox from "@mui/material/Checkbox";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import {
   listCohorts,
   listMatches,
@@ -271,6 +272,16 @@ function AdminRoster() {
   const [noteFilter, setNoteFilter] = React.useState<NoteFilters["note"]>("all");
   const [noteAuthorFilter, setNoteAuthorFilter] = React.useState<string[]>([]);
   const [recommendFilter, setRecommendFilter] = React.useState<NoteFilters["recommend"]>("all");
+  const [moreFiltersOpen, setMoreFiltersOpen] = React.useState(false);
+  const advancedFilterCount = [
+    groupFilter.length > 0,
+    doneFilter !== "all",
+    activityFilter !== "all",
+    gratitudeFilter !== "all",
+    noteFilter !== "all",
+    noteAuthorFilter.length > 0,
+    recommendFilter !== "all",
+  ].filter(Boolean).length;
   const viewerId = realUser?.id ?? null;
   const resetKey = [
     noteFilter,
@@ -534,6 +545,10 @@ function AdminRoster() {
     setActivityFilter("all");
     setGratitudeFilter("all");
     setGroupFilter(["none"]);
+    setNoteFilter("all");
+    setNoteAuthorFilter([]);
+    setRecommendFilter("all");
+    setMoreFiltersOpen(true);
   };
 
   if (!currentUser?.is_admin) {
@@ -645,7 +660,6 @@ function AdminRoster() {
 
       {view === "table" && (
         <>
-          {/* One grid so every filter shares a column width and a left edge. */}
           <Box
             sx={{
               display: "grid",
@@ -676,6 +690,42 @@ function AdminRoster() {
               onChange={(v) => setRoleFilter(v as RosterFilters["role"])}
               options={toOptions(tableCopy.roleOptions)}
             />
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<FilterListIcon />}
+              aria-expanded={moreFiltersOpen}
+              aria-controls="roster-advanced-filters"
+              onClick={() => setMoreFiltersOpen((open) => !open)}
+              sx={{ minHeight: 40 }}
+            >
+              {moreFiltersOpen ? tableCopy.hideFilters : tableCopy.showFilters(advancedFilterCount)}
+            </Button>
+            <Stack justifyContent="center" sx={{ minHeight: 40 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
+                {tableCopy.total(filtered.length, entries.length)}
+              </Typography>
+              {unassignedCount > 0 && (
+                <Button
+                  size="small"
+                  color="warning"
+                  onClick={showUnassigned}
+                  sx={{ alignSelf: "flex-start", minWidth: 0, p: 0 }}
+                >
+                  {groupCopy.unassignedCount(unassignedCount)}
+                </Button>
+              )}
+            </Stack>
+          </Box>
+          <Box
+            id="roster-advanced-filters"
+            sx={{
+              display: moreFiltersOpen ? "grid" : "none",
+              gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+              gap: 1.5,
+              mb: moreFiltersOpen ? 1.5 : 0,
+            }}
+          >
             <FilterMultiSelect
               fullWidth
               label={groupCopy.columnLabel}
@@ -726,24 +776,6 @@ function AdminRoster() {
               recommend={recommendFilter}
               onRecommend={setRecommendFilter}
             />
-            {/* Fills the last grid cell, so the count needs no row of its own.
-                The unassigned warning only shows when there is one, and jumps
-                straight to those mentors. */}
-            <Stack justifyContent="center" sx={{ minHeight: 40 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
-                {tableCopy.total(filtered.length, entries.length)}
-              </Typography>
-              {unassignedCount > 0 && (
-                <Button
-                  size="small"
-                  color="warning"
-                  onClick={showUnassigned}
-                  sx={{ alignSelf: "flex-start", minWidth: 0, p: 0 }}
-                >
-                  {groupCopy.unassignedCount(unassignedCount)}
-                </Button>
-              )}
-            </Stack>
           </Box>
 
           {/* Bulk assignment only exists while something is selected. */}
