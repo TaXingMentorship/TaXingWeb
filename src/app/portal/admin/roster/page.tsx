@@ -24,9 +24,11 @@ import Checkbox from "@mui/material/Checkbox";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import {
   listCohorts,
   listMatches,
+  listBlacklistedProfileIds,
   listMentorGroupMembers,
   listMentorGroups,
   listParticipation,
@@ -34,6 +36,7 @@ import {
   listRosterInvites,
   listSessions,
   setMentorGroup,
+  setMemberBlacklist,
 } from "@/lib/portal/store";
 import {
   buildEntries,
@@ -110,6 +113,25 @@ function AdminRoster() {
   const { data: profiles, error: profilesError } = useQuery({
     queryKey: ["portal", "profiles"],
     queryFn: () => listProfiles(),
+  });
+  const blacklistQuery = useQuery({
+    queryKey: ["portal", "blacklist", realUser?.id],
+    queryFn: listBlacklistedProfileIds,
+    enabled: Boolean(realUser?.is_admin),
+  });
+  const blacklistIds = React.useMemo(
+    () => new Set(blacklistQuery.data ?? []),
+    [blacklistQuery.data],
+  );
+  const blacklistMutation = useMutation({
+    mutationFn: ({ profileId, blacklisted }: { profileId: string; blacklisted: boolean }) =>
+      setMemberBlacklist(profileId, blacklisted),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["portal", "blacklist"] });
+      void queryClient.invalidateQueries({ queryKey: ["portal", "profiles"] });
+      void queryClient.invalidateQueries({ queryKey: ["portal", "favoriteProfiles"] });
+      void queryClient.invalidateQueries({ queryKey: ["portal", "myMentorship"] });
+    },
   });
 
   const { data: invites } = useQuery({
@@ -190,8 +212,8 @@ function AdminRoster() {
     // stay reachable or its identity could never be changed again.
     const members = (profiles ?? []).filter(
       (p) =>
-        (p.participant_role !== null || p.is_admin || p.is_volunteer) &&
-        p.cohort_ids.includes(cohortId),
+        (blacklistIds.has(p.id) || p.participant_role !== null || p.is_admin || p.is_volunteer) &&
+        (p.cohort_ids.includes(cohortId) || blacklistIds.has(p.id)),
     );
     return members.map((p) => {
       const sessionCount = (sessions ?? []).filter((s) =>
@@ -220,6 +242,7 @@ function AdminRoster() {
       const noteEntries = notes.get(p.id) ?? [];
       return {
         profile: p,
+        blacklisted: blacklistIds.has(p.id),
         notes: noteSearchText(noteEntries),
         noteEntries,
         recommendations: recs.get(p.id) ?? [],
@@ -229,10 +252,10 @@ function AdminRoster() {
         completedAll,
       };
     });
-  }, [profiles, sessions, participation, cohortId, notesQuery.data, recsQuery.data]);
+  }, [profiles, sessions, participation, cohortId, notesQuery.data, recsQuery.data, blacklistIds]);
 
   const mentorIds = React.useMemo(
-    () => rows.filter((r) => r.profile.participant_role === "mentor").map((r) => r.profile.id),
+    () => rows.filter((r) => !r.blacklisted && r.profile.participant_role === "mentor").map((r) => r.profile.id),
     [rows],
   );
   const unassignedCount = mentorIds.filter((id) => !groupOfMentor.has(id)).length;
@@ -242,6 +265,7 @@ function AdminRoster() {
   const [search, setSearch] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState<RosterFilters["role"]>([]);
   const [statusFilter, setStatusFilter] = React.useState<RosterFilters["status"]>([]);
+  const [blacklistFilter, setBlacklistFilter] = React.useState<NonNullable<RosterFilters["blacklist"]>>("all");
   const [doneFilter, setDoneFilter] = React.useState<RosterFilters["done"]>("all");
   const [activityFilter, setActivityFilter] = React.useState<RosterFilters["activity"]>("all");
   const [gratitudeFilter, setGratitudeFilter] = React.useState<RosterFilters["gratitude"]>("all");
@@ -249,6 +273,17 @@ function AdminRoster() {
   const [noteFilter, setNoteFilter] = React.useState<NoteFilters["note"]>("all");
   const [noteAuthorFilter, setNoteAuthorFilter] = React.useState<string[]>([]);
   const [recommendFilter, setRecommendFilter] = React.useState<NoteFilters["recommend"]>("all");
+  const [moreFiltersOpen, setMoreFiltersOpen] = React.useState(false);
+  const advancedFilterCount = [
+    blacklistFilter !== "all",
+    groupFilter.length > 0,
+    doneFilter !== "all",
+    activityFilter !== "all",
+    gratitudeFilter !== "all",
+    noteFilter !== "all",
+    noteAuthorFilter.length > 0,
+    recommendFilter !== "all",
+  ].filter(Boolean).length;
   const viewerId = realUser?.id ?? null;
   const resetKey = [
     noteFilter,
@@ -258,6 +293,7 @@ function AdminRoster() {
     search,
     roleFilter.join(","),
     statusFilter.join(","),
+    blacklistFilter,
     doneFilter,
     activityFilter,
     gratitudeFilter,
@@ -276,6 +312,7 @@ function AdminRoster() {
           search,
           role: roleFilter,
           status: statusFilter,
+          blacklist: blacklistFilter,
           done: doneFilter,
           activity: activityFilter,
           gratitude: gratitudeFilter,
@@ -298,6 +335,7 @@ function AdminRoster() {
       search,
       roleFilter,
       statusFilter,
+      blacklistFilter,
       doneFilter,
       activityFilter,
       gratitudeFilter,
@@ -466,7 +504,7 @@ function AdminRoster() {
   const exportReady =
     sessions !== undefined && participation !== undefined && groupMembers !== undefined;
   const [exportError, setExportError] = React.useState(false);
-  const toExport = exportEntries(filtered, statusFilter);
+  const toExport = exportEntries(filtered, statusFilter, blacklistFilter);
 
   // The file name carries every active filter but the search, so a list saved
   // as 感谢赠言已完成 is recognisable later.
@@ -483,6 +521,7 @@ function AdminRoster() {
     const label = [
       roleFilter.map((r) => tableCopy.roleOptions[r]).join("+"),
       statusFilter.map((s) => tableCopy.statusOptions[s]).join("+"),
+      blacklistFilter === "all" ? "" : tableCopy.blacklistOptions[blacklistFilter],
       groupName,
       tag(tableCopy.doneLabel, doneFilter),
       tag(tableCopy.activityLabel, activityFilter),
@@ -508,14 +547,25 @@ function AdminRoster() {
     setSearch("");
     setRoleFilter([]);
     setStatusFilter([]);
+    setBlacklistFilter("exclude");
     setDoneFilter("all");
     setActivityFilter("all");
     setGratitudeFilter("all");
     setGroupFilter(["none"]);
+    setNoteFilter("all");
+    setNoteAuthorFilter([]);
+    setRecommendFilter("all");
+    setMoreFiltersOpen(true);
   };
 
   if (!currentUser?.is_admin) {
     return <Alert severity="error">仅负责人可访问成员名单。</Alert>;
+  }
+  if (blacklistQuery.error) {
+    return <Alert severity="error">{blacklistQuery.error.message}</Alert>;
+  }
+  if (blacklistQuery.isLoading) {
+    return <Alert severity="info">{pairCopy.staffLoading}</Alert>;
   }
   if (notesQuery.error) {
     return <Alert severity="error">{pairCopy.notesLoadError} {notesQuery.error.message}</Alert>;
@@ -617,7 +667,6 @@ function AdminRoster() {
 
       {view === "table" && (
         <>
-          {/* One grid so every filter shares a column width and a left edge. */}
           <Box
             sx={{
               display: "grid",
@@ -648,6 +697,42 @@ function AdminRoster() {
               onChange={(v) => setRoleFilter(v as RosterFilters["role"])}
               options={toOptions(tableCopy.roleOptions)}
             />
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<FilterListIcon />}
+              aria-expanded={moreFiltersOpen}
+              aria-controls="roster-advanced-filters"
+              onClick={() => setMoreFiltersOpen((open) => !open)}
+              sx={{ minHeight: 40 }}
+            >
+              {moreFiltersOpen ? tableCopy.hideFilters : tableCopy.showFilters(advancedFilterCount)}
+            </Button>
+            <Stack justifyContent="center" sx={{ minHeight: 40 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
+                {tableCopy.total(filtered.length, entries.length)}
+              </Typography>
+              {unassignedCount > 0 && (
+                <Button
+                  size="small"
+                  color="warning"
+                  onClick={showUnassigned}
+                  sx={{ alignSelf: "flex-start", minWidth: 0, p: 0 }}
+                >
+                  {groupCopy.unassignedCount(unassignedCount)}
+                </Button>
+              )}
+            </Stack>
+          </Box>
+          <Box
+            id="roster-advanced-filters"
+            sx={{
+              display: moreFiltersOpen ? "grid" : "none",
+              gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+              gap: 1.5,
+              mb: moreFiltersOpen ? 1.5 : 0,
+            }}
+          >
             <FilterMultiSelect
               fullWidth
               label={groupCopy.columnLabel}
@@ -698,24 +783,13 @@ function AdminRoster() {
               recommend={recommendFilter}
               onRecommend={setRecommendFilter}
             />
-            {/* Fills the last grid cell, so the count needs no row of its own.
-                The unassigned warning only shows when there is one, and jumps
-                straight to those mentors. */}
-            <Stack justifyContent="center" sx={{ minHeight: 40 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
-                {tableCopy.total(filtered.length, entries.length)}
-              </Typography>
-              {unassignedCount > 0 && (
-                <Button
-                  size="small"
-                  color="warning"
-                  onClick={showUnassigned}
-                  sx={{ alignSelf: "flex-start", minWidth: 0, p: 0 }}
-                >
-                  {groupCopy.unassignedCount(unassignedCount)}
-                </Button>
-              )}
-            </Stack>
+            <FilterSelect
+              fullWidth
+              label={tableCopy.blacklistLabel}
+              value={blacklistFilter}
+              onChange={(v) => setBlacklistFilter(v as NonNullable<RosterFilters["blacklist"]>)}
+              options={toOptions(tableCopy.blacklistOptions)}
+            />
           </Box>
 
           {/* Bulk assignment only exists while something is selected. */}
@@ -765,6 +839,9 @@ function AdminRoster() {
         <Alert severity="error" sx={{ mb: 2 }}>
           {(assignMutation.error as Error).message}
         </Alert>
+      )}
+      {blacklistMutation.error && (
+        <Alert severity="error" sx={{ mb: 2 }}>{blacklistMutation.error.message}</Alert>
       )}
       <MentorGroupsDialog
         open={groupsOpen}
@@ -824,6 +901,16 @@ function AdminRoster() {
                       <MemberRow
                         key={`${realUser?.id}:${cohortId}:${entry.row.profile.id}`}
                         row={entry.row}
+                        blacklistPending={blacklistMutation.isPending}
+                        onBlacklist={() => {
+                          const blacklisted = !entry.row.blacklisted;
+                          const name = entry.row.profile.full_name ?? entry.row.profile.email ?? "该成员";
+                          if (window.confirm(blacklisted
+                            ? tableCopy.blacklistConfirmAdd(name)
+                            : tableCopy.blacklistConfirmRemove(name))) {
+                            blacklistMutation.mutate({ profileId: entry.row.profile.id, blacklisted });
+                          }
+                        }}
                         groups={groups ?? []}
                         groupId={groupOfMentor.get(entry.row.profile.id)}
                         selected={selected.includes(entry.row.profile.id)}
@@ -998,7 +1085,7 @@ function AdminRoster() {
       {view === "table" && (
         <>
           <Divider sx={{ my: 5 }} />
-          <PendingInvites />
+          <PendingInvites blacklistIds={blacklistIds} />
         </>
       )}
 

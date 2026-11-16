@@ -1218,6 +1218,8 @@ export const portalCopy = {
   },
   rosterTable: {
     searchPlaceholder: "姓名 / 邮箱 / 微信号 / 备注",
+    showFilters: (count: number) => count ? `更多筛选（${count}）` : "更多筛选",
+    hideFilters: "收起筛选",
     statusLabel: "激活状态",
     statusOptions: {
       active: "已激活（含待填资料）",
@@ -1226,6 +1228,8 @@ export const portalCopy = {
       account: "已有账号 · 不在本季名单",
       out: "不参与本次项目",
     },
+    blacklistLabel: "黑名单",
+    blacklistOptions: { all: "全部", only: "在黑名单", exclude: "不在黑名单" },
     roleLabel: "身份",
     roleOptions: {
       mentor: "导师",
@@ -1247,7 +1251,12 @@ export const portalCopy = {
       waiting: "待激活",
       account: "已有账号 · 不在本季名单",
       out: "不参与本次项目",
+      blacklisted: "黑名单",
     },
+    blacklistAdd: "加入黑名单",
+    blacklistRemove: "解除黑名单",
+    blacklistConfirmAdd: (name: string) => `确定将 ${name} 加入黑名单？该账号将无法登录，并从成员目录移除。`,
+    blacklistConfirmRemove: (name: string) => `确定将 ${name} 移出黑名单并恢复账号登录？`,
     statusColumn: "状态",
     total: (shown: number, all: number) =>
       shown === all ? `共 ${shown} 人` : `共 ${shown} 人\n(筛选自 ${all} 人)`,

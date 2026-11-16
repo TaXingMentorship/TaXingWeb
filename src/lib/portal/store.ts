@@ -157,6 +157,16 @@ export async function getCohort(id: string): Promise<Cohort | null> {
 
 // --- Profiles --------------------------------------------------------------
 
+export async function listBlacklistedProfileIds(): Promise<string[]> {
+  const response = await fetch("/api/admin/blacklist", { credentials: "same-origin" });
+  if (!response.ok) throw new Error("读取黑名单失败，请刷新后重试。");
+  return response.json();
+}
+
+export function setMemberBlacklist(profileId: string, blacklisted: boolean): Promise<{ blacklisted: boolean }> {
+  return adminJson("/api/admin/blacklist", "PATCH", { profileId, blacklisted }, "更新黑名单");
+}
+
 export async function listProfiles(filter?: {
   participantRole?: ParticipantRole;
   cohortId?: string;

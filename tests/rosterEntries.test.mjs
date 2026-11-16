@@ -55,6 +55,30 @@ const all = {
   group: [],
 };
 
+test("blacklisted people are filterable, excluded from normal exports and bulk assignment", () => {
+  const banned = { kind: "member", row: { ...row(profile("b", "b@x.com")), blacklisted: true } };
+  const active = { kind: "member", row: row(profile("a", "a@x.com")) };
+  const entries = [banned, active];
+  assert.deepEqual(filterEntries(entries, { ...all, blacklist: "only" }, new Map()), [banned]);
+  assert.deepEqual(filterEntries(entries, { ...all, blacklist: "exclude" }, new Map()), [active]);
+  assert.deepEqual(filterEntries(entries, { ...all, status: ["active"], blacklist: "only" }, new Map()), [banned]);
+  assert.deepEqual(exportEntries(entries, []), [active]);
+  assert.deepEqual(exportEntries([banned], [], "only"), [banned]);
+  assert.deepEqual(selectableMentorIds(entries), ["a"]);
+});
+
+test("blacklisted accounts do not appear again as invitations from another season", () => {
+  const banned = profile("b", "b@x.com", { cohort_ids: ["old"] });
+  const rows = [{ ...row(banned), blacklisted: true }];
+  const invites = [
+    invite("one", "B@X.COM"),
+    invite("two", "other@x.com", { claimed_user_id: "b" }),
+    invite("three", "new@x.com"),
+  ];
+  assert.deepEqual(buildEntries(rows, invites, [banned]).map((entry) =>
+    entry.kind === "member" ? entry.row.profile.id : entry.invite.id), ["b", "three"]);
+});
+
 test("roster search reads private row notes, not the legacy profile column", () => {
   const member = profile("member", "a@x.com", { admin_notes: "legacy-secret" });
   const entry = { kind: "member", row: { ...row(member), notes: "staff-only" } };

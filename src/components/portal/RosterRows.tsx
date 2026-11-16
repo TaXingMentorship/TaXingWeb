@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Checkbox from "@mui/material/Checkbox";
+import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
@@ -73,6 +74,8 @@ export function MemberRow({
   onAssign,
   recommendCell,
   notesCell,
+  onBlacklist,
+  blacklistPending,
 }: {
   row: MemberRowData;
   groups: MentorGroup[];
@@ -84,6 +87,8 @@ export function MemberRow({
   /** 推荐 (mentors only; anything else shows a dash). */
   recommendCell: React.ReactNode;
   notesCell: React.ReactNode;
+  onBlacklist: () => void;
+  blacklistPending: boolean;
 }) {
   const { profile, sessionCount, submitted, gaveGratitude, completedAll } = row;
   const groupCopy = portalCopy.mentorGroups;
@@ -93,7 +98,7 @@ export function MemberRow({
   return (
     <TableRow hover>
       <TableCell padding="checkbox">
-        {isMentor && (
+        {isMentor && !row.blacklisted && (
           <Checkbox
             size="small"
             checked={selected}
@@ -120,7 +125,16 @@ export function MemberRow({
         <IdentityCell profile={profile} />
       </TableCell>
       <TableCell>
-        <Chip size="small" color="success" label={stateCopy.active} />
+        <Stack spacing={0.5} alignItems="flex-start">
+          <Chip size="small" color={row.blacklisted ? "error" : "success"}
+            label={row.blacklisted ? stateCopy.blacklisted : stateCopy.active} />
+          <Button size="small" color={row.blacklisted ? "primary" : "error"}
+            sx={{ whiteSpace: "nowrap" }}
+            disabled={blacklistPending || (profile.is_admin && !row.blacklisted)}
+            onClick={onBlacklist}>
+            {row.blacklisted ? portalCopy.rosterTable.blacklistRemove : portalCopy.rosterTable.blacklistAdd}
+          </Button>
+        </Stack>
       </TableCell>
       <TableCell sx={{ maxWidth: 220 }}>
         {isMentor ? (
@@ -136,7 +150,7 @@ export function MemberRow({
               },
             }}
             value={groupId ?? ""}
-            disabled={assigning}
+            disabled={assigning || row.blacklisted}
             onChange={(e) => onAssign(e.target.value || null)}
             error={!groupId}
             slotProps={{

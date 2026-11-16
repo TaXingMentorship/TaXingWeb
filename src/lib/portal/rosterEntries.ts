@@ -10,6 +10,7 @@ import type {
 
 export type MemberRowData = {
   profile: Profile;
+  blacklisted?: boolean;
   /** Searchable text of the note thread (bodies and author names). */
   notes?: string | null;
   noteEntries?: RosterNoteEntry[];
@@ -112,12 +113,21 @@ export function buildEntries(
   invites: RosterInvite[],
   profiles: Profile[] | undefined,
 ): RosterEntry[] {
+  const blacklisted = rows.filter((row) => row.blacklisted);
   return [
     ...rows.map((row): RosterEntry => ({ kind: "member", row })),
-    ...inviteRows(invites, profiles).map(
+    ...inviteRows(excludeBlacklistedInvites(invites, blacklisted.map((row) => row.profile)), profiles).map(
       ({ invite, state }): RosterEntry => ({ kind: "invited", invite, state }),
     ),
   ];
+}
+
+export function excludeBlacklistedInvites(invites: RosterInvite[], profiles: Profile[]): RosterInvite[] {
+  const ids = new Set(profiles.map((profile) => profile.id));
+  const emails = new Set(profiles.map((profile) => emailKey(profile.email)).filter(Boolean));
+  return invites.filter(
+    (invite) => !ids.has(invite.claimed_user_id ?? "") && !emails.has(emailKey(invite.email)),
+  );
 }
 
 /**
@@ -139,6 +149,7 @@ export type RosterFilters = {
   role: RosterRole[];
   /** Any of these states matches. Empty = all. */
   status: RosterStatus[];
+  blacklist?: "all" | "only" | "exclude";
   done: "all" | "done" | "todo";
   /** 活动记录 submitted? Mentees only; everyone else drops out once it is set. */
   activity: "all" | "done" | "todo";
@@ -275,6 +286,9 @@ export function filterEntries(
       if (!haystack.includes(q)) return false;
     }
     if (filters.role.length > 0 && !filters.role.some((r) => id[r])) return false;
+    const blacklisted = entry.kind === "member" && Boolean(entry.row.blacklisted);
+    if (filters.blacklist === "only" && !blacklisted) return false;
+    if (filters.blacklist === "exclude" && blacklisted) return false;
 
     // Notes and recommendations only exist for activated members.
     if (noteFiltersActive(filters)) {
@@ -334,14 +348,18 @@ function matchesFlag(
 
 /**
  * The shown entries an export lists. People flagged 不参与本次项目 are not
- * part of the season, so they stay out unless the status filter asks for them.
+ * part of the season, and blacklisted people are not exportable participants.
+ * Each stays out unless its corresponding filter explicitly asks for it.
  */
 export function exportEntries(
   entries: RosterEntry[],
   status: RosterFilters["status"],
+  blacklist: RosterFilters["blacklist"] = "all",
 ): RosterEntry[] {
-  if (status.includes("out")) return entries;
-  return entries.filter((e) => !(e.kind === "invited" && e.state === "out"));
+  return entries.filter((e) =>
+    !(e.kind === "invited" && e.state === "out" && !status.includes("out")) &&
+    !(e.kind === "member" && e.row.blacklisted && blacklist !== "only"),
+  );
 }
 
 /** Display names of the entries shown, in table order; blanks are dropped. */
@@ -359,7 +377,7 @@ export function rosterNames(entries: RosterEntry[]): string[] {
  */
 export function selectableMentorIds(entries: RosterEntry[]): string[] {
   return entries.flatMap((entry) =>
-    entry.kind === "member" && entry.row.profile.participant_role === "mentor"
+    entry.kind === "member" && !entry.row.blacklisted && entry.row.profile.participant_role === "mentor"
       ? [entry.row.profile.id]
       : [],
   );
