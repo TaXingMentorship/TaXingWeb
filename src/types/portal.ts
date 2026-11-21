@@ -105,6 +105,17 @@ export type RosterNoteEntry = {
   edited_at?: string | null;
 };
 
+/** A lead-only note about a volunteer (0056). Never shown to the volunteer or to mentors/mentees. */
+export type VolunteerLeadNote = {
+  id: string;
+  volunteer_id: string;
+  author_id: string | null;
+  author_name: string | null;
+  body: string;
+  created_at: string;
+  edited_at: string | null;
+};
+
 /** Someone who wrote a roster note or recommendation, for the author card (0044). */
 export type RosterStaffAuthor = Pick<
   Profile,
