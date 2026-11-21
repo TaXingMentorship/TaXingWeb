@@ -14,6 +14,22 @@ import type { MentorGroupColor } from "@/data/mentorGroupColors";
 import { portalCopy, profileLabels } from "@/data/portalCopy";
 import FavoriteButton from "@/components/portal/FavoriteButton";
 
+/** Cards per row at most; narrower screens fit fewer. */
+export const DIRECTORY_PER_ROW = 5;
+
+/**
+ * The shared card grid of the member directory: as many 200px+ columns as fit,
+ * never more than DIRECTORY_PER_ROW, so wide screens show more people per row
+ * without the cards turning into slivers on a laptop.
+ */
+export const directoryGridSx = {
+  display: "grid",
+  gap: 2,
+  gridTemplateColumns: `repeat(auto-fill, minmax(max(200px, calc((100% - ${
+    DIRECTORY_PER_ROW - 1
+  } * 16px) / ${DIRECTORY_PER_ROW})), 1fr))`,
+} as const;
+
 export type DirectoryBadge = {
   label: string;
   color?: string;
@@ -54,10 +70,10 @@ export default function DirectoryCard({
       <FavoriteButton profileId={profile.id} sx={{ position: "absolute", top: 8, right: 8, zIndex: 1 }} />
       <CardActionArea onClick={() => onSelect(profile)} sx={{ height: "100%" }}>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5, pr: 4 }}>
-            <MemberAvatar src={profile.avatar_url ?? undefined} sx={{ width: 52, height: 52 }} />
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5, pr: 4 }}>
+            <MemberAvatar src={profile.avatar_url ?? undefined} sx={{ width: 48, height: 48 }} />
             <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
-              <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
+              <Typography variant="subtitle1" fontWeight={700} lineHeight={1.25}>
                 {profile.full_name}
               </Typography>
               {profile.name_pronunciation && (

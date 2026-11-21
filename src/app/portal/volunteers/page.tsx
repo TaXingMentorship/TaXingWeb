@@ -46,12 +46,16 @@ import type {
 } from "@/types/portal";
 import {
   deleteVolunteer,
+  listBlacklistedProfileIds,
   listCohorts,
   listVolunteerGroups,
   listVolunteers,
 } from "@/lib/portal/store";
 import { portalCopy } from "@/data/portalCopy";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
+import VolunteerLeadNoteThread from "@/components/portal/VolunteerLeadNoteThread";
+import { useVolunteerLeadNotes } from "@/components/portal/useVolunteerLeadNotes";
+import type { VolunteerLeadNote } from "@/types/portal";
 import VolunteerDialog from "@/components/portal/VolunteerDialog";
 import VolunteerLinkCandidates from "@/components/portal/VolunteerLinkCandidates";
 import VolunteerGroupsSection from "@/components/portal/VolunteerGroupsSection";
@@ -85,7 +89,7 @@ export default function VolunteersPage() {
 
 function VolunteersPageContent() {
   const copy = portalCopy.volunteers;
-  const { currentUser } = usePortalSession();
+  const { currentUser, realUser } = usePortalSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -120,6 +124,41 @@ function VolunteersPageContent() {
     queryFn: listCohorts,
     enabled: Boolean(currentUser),
   });
+
+  // Lead-only notes (0056). Two gates: the REAL account must be allowed (the
+  // database enforces that, and the persona switcher can never grant it), and
+  // the persona being previewed must itself be an admin or a volunteer lead, so
+  // 「以志愿者视角查看」 shows what a volunteer really sees — no notes column.
+  const viewerIsRealAdmin = (realUser?.is_admin ?? false) && (currentUser?.is_admin ?? false);
+  const viewerIsLead = Boolean(
+    realUser &&
+      volunteers?.some(
+        (v) => v.profile_id === realUser.id && v.seasons.some((season) => season.is_lead),
+      ),
+  );
+  // A lead has no persona of their own — they browse as 志愿者 — so a non-admin
+  // lead sees the column in that view. An admin who is also on the roster as a
+  // lead uses the 管理员 view for it; their 志愿者 view is a plain volunteer's.
+  const canLeadNotes =
+    viewerIsRealAdmin ||
+    (viewerIsLead && !(realUser?.is_admin ?? false) && Boolean(currentUser?.is_volunteer));
+  const leadNotes = useVolunteerLeadNotes(canLeadNotes);
+  const notesByVolunteer = React.useMemo(() => {
+    const map = new Map<string, VolunteerLeadNote[]>();
+    for (const note of leadNotes.query.data ?? []) {
+      const list = map.get(note.volunteer_id) ?? [];
+      list.push(note);
+      map.set(note.volunteer_id, list);
+    }
+    return map;
+  }, [leadNotes.query.data]);
+  // Only admins may read the blacklist (0055); leads simply see no tag.
+  const { data: blacklistedIds } = useQuery({
+    queryKey: ["portal", "blacklistIds", realUser?.id],
+    queryFn: listBlacklistedProfileIds,
+    enabled: viewerIsRealAdmin,
+  });
+  const blacklisted = React.useMemo(() => new Set(blacklistedIds ?? []), [blacklistedIds]);
 
   const groupById = React.useMemo(
     () => new Map((groups ?? []).map((group) => [group.id, group])),
@@ -479,6 +518,9 @@ function VolunteersPageContent() {
                   <TableCell>{copy.seasonGroupColumn}</TableCell>
                   <TableCell>{copy.columns.email}</TableCell>
                   <TableCell>{copy.columns.wechat}</TableCell>
+                  {canLeadNotes ? (
+                    <TableCell sx={{ minWidth: 280 }}>{copy.leadNotes.column}</TableCell>
+                  ) : null}
                   {isAdmin ? (
                     <TableCell align="right">{copy.columns.actions}</TableCell>
                   ) : null}
@@ -494,6 +536,27 @@ function VolunteersPageContent() {
                     groupColor={groupColor}
                     cohortById={cohortById}
                     isAdmin={isAdmin}
+                    leadNotes={
+                      canLeadNotes
+                        ? {
+                            notes: notesByVolunteer.get(volunteer.id) ?? [],
+                            viewerId: realUser?.id ?? null,
+                            isAdmin: viewerIsRealAdmin,
+                            blacklisted: Boolean(
+                              volunteer.profile_id && blacklisted.has(volunteer.profile_id),
+                            ),
+                            onAdd: async (body) => {
+                              await leadNotes.add.mutateAsync({ volunteerId: volunteer.id, body });
+                            },
+                            onEdit: async (noteId, body) => {
+                              await leadNotes.edit.mutateAsync({ noteId, body });
+                            },
+                            onDelete: async (noteId) => {
+                              await leadNotes.remove.mutateAsync(noteId);
+                            },
+                          }
+                        : undefined
+                    }
                     onEdit={openEdit}
                     onDelete={setPendingDelete}
                     onShowSeasons={setSeasonHistory}
@@ -603,6 +666,7 @@ function VolunteerRow({
   groupColor,
   cohortById,
   isAdmin,
+  leadNotes,
   onEdit,
   onDelete,
   onShowSeasons,
@@ -613,6 +677,16 @@ function VolunteerRow({
   groupColor: Map<string, (typeof GROUP_COLORS)[number]>;
   cohortById: Map<string, Cohort>;
   isAdmin: boolean;
+  /** Present only for admins and leads (0056); undefined renders no column. */
+  leadNotes?: {
+    notes: VolunteerLeadNote[];
+    viewerId: string | null;
+    isAdmin: boolean;
+    blacklisted: boolean;
+    onAdd: (body: string) => Promise<void>;
+    onEdit: (noteId: string, body: string) => Promise<void>;
+    onDelete: (noteId: string) => Promise<void>;
+  };
   onEdit: (volunteer: ResolvedVolunteerWithSeasons) => void;
   onDelete: (volunteer: ResolvedVolunteerWithSeasons) => void;
   onShowSeasons: (volunteer: ResolvedVolunteerWithSeasons) => void;
@@ -739,6 +813,20 @@ function VolunteerRow({
           {volunteer.wechat_number ?? "—"}
         </Typography>
       </TableCell>
+      {leadNotes ? (
+        <TableCell sx={{ minWidth: 280, verticalAlign: "top" }}>
+          <VolunteerLeadNoteThread
+            volunteerName={volunteer.full_name}
+            notes={leadNotes.notes}
+            viewerId={leadNotes.viewerId}
+            isAdmin={leadNotes.isAdmin}
+            blacklisted={leadNotes.blacklisted}
+            onAdd={leadNotes.onAdd}
+            onEdit={leadNotes.onEdit}
+            onDelete={leadNotes.onDelete}
+          />
+        </TableCell>
+      ) : null}
       {isAdmin ? (
         <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
           <IconButton
