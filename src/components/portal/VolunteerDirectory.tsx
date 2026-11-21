@@ -16,11 +16,15 @@ import type {
   VolunteerGroup,
 } from "@/types/portal";
 import { portalCopy } from "@/data/portalCopy";
-import DirectoryCard, { type DirectoryBadge } from "./DirectoryCard";
+import DirectoryCard, {
+  DIRECTORY_PER_ROW,
+  directoryGridSx,
+  type DirectoryBadge,
+} from "./DirectoryCard";
 import MemberAvatar from "./MemberAvatar";
 
 /** Cards per row at most, and rows shown before 「+N」. */
-const PER_ROW = 5;
+const PER_ROW = DIRECTORY_PER_ROW;
 const ROWS = 2;
 const COLLAPSED_COUNT = PER_ROW * ROWS;
 
@@ -173,16 +177,7 @@ export default function VolunteerDirectory({
               </Typography>
             )}
           </Stack>
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              // At most PER_ROW cards a row; narrower screens fit fewer.
-              gridTemplateColumns: `repeat(auto-fill, minmax(max(220px, calc((100% - ${
-                PER_ROW - 1
-              } * 16px) / ${PER_ROW})), 1fr))`,
-            }}
-          >
+          <Box sx={directoryGridSx}>
             {shown.map(({ profile, badges }) => (
               <DirectoryCard
                 key={profile.id}
