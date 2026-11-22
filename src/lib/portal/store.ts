@@ -327,6 +327,13 @@ export async function deleteRosterNoteEntry(entryId: string): Promise<void> {
   throwQueryError("删除内部备注", error);
 }
 
+/** Is the signed-in account a lead of the current (newest) season? (0057) */
+export async function isCurrentSeasonLead(): Promise<boolean> {
+  const { data, error } = await createClient().rpc("is_current_season_lead");
+  throwQueryError("读取负责人身份", error);
+  return Boolean(data);
+}
+
 export async function listVolunteerLeadNotes(): Promise<VolunteerLeadNote[]> {
   const { data, error } = await createClient().rpc("list_volunteer_lead_notes");
   throwQueryError("读取负责人备注", error);

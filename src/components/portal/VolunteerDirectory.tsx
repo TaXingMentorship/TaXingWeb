@@ -23,10 +23,9 @@ import DirectoryCard, {
 } from "./DirectoryCard";
 import MemberAvatar from "./MemberAvatar";
 
-/** Cards per row at most, and rows shown before 「+N」. */
-const PER_ROW = DIRECTORY_PER_ROW;
+/** Rows shown before 「+N」. */
 const ROWS = 2;
-const COLLAPSED_COUNT = PER_ROW * ROWS;
+const COLLAPSED_COUNT = DIRECTORY_PER_ROW * ROWS;
 
 /** Cycled by group order, so a group keeps its colour while the list is stable. */
 const GROUP_COLORS = ["#1565c0", "#2e7d32", "#6a1b9a", "#00838f", "#ad1457", "#5d4037"];

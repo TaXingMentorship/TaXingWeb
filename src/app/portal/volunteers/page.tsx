@@ -46,6 +46,7 @@ import type {
 } from "@/types/portal";
 import {
   deleteVolunteer,
+  isCurrentSeasonLead,
   listBlacklistedProfileIds,
   listCohorts,
   listVolunteerGroups,
@@ -125,17 +126,17 @@ function VolunteersPageContent() {
     enabled: Boolean(currentUser),
   });
 
-  // Lead-only notes (0056). Two gates: the REAL account must be allowed (the
-  // database enforces that, and the persona switcher can never grant it), and
-  // the persona being previewed must itself be an admin or a volunteer lead, so
-  // 「以志愿者视角查看」 shows what a volunteer really sees — no notes column.
+  // Lead-only notes (0056/0057). Two gates: the REAL account must be allowed
+  // (the database enforces that, and the persona switcher can never grant it),
+  // and the persona being previewed must itself be an admin or a volunteer lead,
+  // so 「以志愿者视角查看」 shows what a volunteer really sees — no notes column.
+  // Only leads of the current (newest) season count; the database decides that.
   const viewerIsRealAdmin = (realUser?.is_admin ?? false) && (currentUser?.is_admin ?? false);
-  const viewerIsLead = Boolean(
-    realUser &&
-      volunteers?.some(
-        (v) => v.profile_id === realUser.id && v.seasons.some((season) => season.is_lead),
-      ),
-  );
+  const { data: viewerIsLead = false } = useQuery({
+    queryKey: ["portal", "isCurrentSeasonLead", realUser?.id],
+    queryFn: isCurrentSeasonLead,
+    enabled: Boolean(realUser && !realUser.is_admin && currentUser?.is_volunteer),
+  });
   // A lead has no persona of their own — they browse as 志愿者 — so a non-admin
   // lead sees the column in that view. An admin who is also on the roster as a
   // lead uses the 管理员 view for it; their 志愿者 view is a plain volunteer's.
@@ -154,7 +155,7 @@ function VolunteersPageContent() {
   }, [leadNotes.query.data]);
   // Only admins may read the blacklist (0055); leads simply see no tag.
   const { data: blacklistedIds } = useQuery({
-    queryKey: ["portal", "blacklistIds", realUser?.id],
+    queryKey: ["portal", "blacklist", realUser?.id],
     queryFn: listBlacklistedProfileIds,
     enabled: viewerIsRealAdmin,
   });
@@ -501,6 +502,20 @@ function VolunteersPageContent() {
           {copy.count(filtered.length)}
         </Typography>
       </Stack>
+
+      {canLeadNotes && leadNotes.query.isError ? (
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={() => void leadNotes.query.refetch()}>
+              {copy.leadNotes.retry}
+            </Button>
+          }
+        >
+          {copy.leadNotes.loadError}
+        </Alert>
+      ) : null}
 
       {isLoading ? (
         <Typography color="text.secondary">{copy.loading}</Typography>

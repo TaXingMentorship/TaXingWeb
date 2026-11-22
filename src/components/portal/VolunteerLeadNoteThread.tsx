@@ -25,6 +25,16 @@ const COLLAPSED = 2;
 const isSubmitKey = (e: React.KeyboardEvent) =>
   e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing;
 
+/** The RPCs' error codes (0056) as a message the user can act on; else `fallback`. */
+function noteErrorMessage(err: unknown, fallback: string): string {
+  const copy = portalCopy.volunteers.leadNotes;
+  const message = err instanceof Error ? err.message : "";
+  if (message.includes("LEAD_NOTES_FORBIDDEN")) return copy.forbiddenError;
+  if (message.includes("LEAD_NOTE_TOO_LONG")) return copy.tooLongError;
+  if (message.includes("LEAD_NOTE_NOT_FOUND")) return copy.notFoundError;
+  return fallback;
+}
+
 /**
  * Lead-only notes about one volunteer. Deliberately unlike the roster's note
  * thread: an amber, locked box that says who can read it, so nobody mistakes it
@@ -66,8 +76,8 @@ export default function VolunteerLeadNoteThread({
     try {
       await action();
       return true;
-    } catch {
-      setError(message);
+    } catch (err) {
+      setError(noteErrorMessage(err, message));
       return false;
     } finally {
       setBusy(false);

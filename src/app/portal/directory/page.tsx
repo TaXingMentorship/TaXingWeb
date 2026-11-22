@@ -372,7 +372,7 @@ export default function DirectoryPage() {
           {pageCount > 1 && (
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-                共 {filtered.length} 人
+                {portalCopy.directoryFilters.total(filtered.length)}
               </Typography>
               <Pagination
                 size="small"
@@ -427,6 +427,22 @@ export default function DirectoryPage() {
             ))}
           </Box>
         )
+      )}
+      {tab !== "volunteer" && pageCount > 1 && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+          <Pagination
+            shape="rounded"
+            count={pageCount}
+            page={currentPage}
+            onChange={(_, value) => {
+              setPage(value);
+              // The bottom pager sits below a full page of cards: bring the new
+              // page's first row into view rather than its last.
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            siblingCount={1}
+          />
+        </Box>
       )}
 
       <ProfileDialog

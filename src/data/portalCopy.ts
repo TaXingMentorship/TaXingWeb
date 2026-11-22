@@ -523,6 +523,7 @@ export const portalCopy = {
     groupLabel: "答疑组",
     allGroups: "全部答疑组",
     groupOption: (name: string, count: number) => `${name}（${count}）`,
+    total: (n: number) => `共 ${n} 人`,
   },
   /** 目录页「导出」: a CSV of the mentors shown, for mentees without outside access. */
   directoryExport: {
@@ -765,6 +766,10 @@ export const portalCopy = {
       none: "暂无",
       blacklisted: "已列入黑名单",
       loadError: "负责人备注读取失败。",
+      retry: "重试",
+      forbiddenError: "你目前不是本期负责人，无法操作负责人备注。",
+      tooLongError: "备注最多 2000 字。",
+      notFoundError: "这条备注已被删除，请刷新页面。",
     },
     columns: {
       name: "姓名",
