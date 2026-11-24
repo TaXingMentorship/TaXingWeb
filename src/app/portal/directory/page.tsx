@@ -3,8 +3,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
-import Button from "@mui/material/Button";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Typography from "@mui/material/Typography";
@@ -16,6 +14,7 @@ import Stack from "@mui/material/Stack";
 import SearchIcon from "@mui/icons-material/Search";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
+import Pagination from "@mui/material/Pagination";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import type { ParticipantRole, Profile } from "@/types/portal";
@@ -31,7 +30,7 @@ import {
 import { canExportMentors } from "@/lib/portal/exportMentors";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 import ProfileDialog from "@/components/portal/ProfileDialog";
-import DirectoryCard from "@/components/portal/DirectoryCard";
+import DirectoryCard, { directoryGridSx } from "@/components/portal/DirectoryCard";
 import { mentorGroupColors } from "@/data/mentorGroupColors";
 import { matchesGroupFilter, matchesSearch, visibleToMember } from "@/lib/portal/directoryFilters";
 import { portalCopy } from "@/data/portalCopy";
@@ -40,7 +39,8 @@ import VolunteerDirectory from "@/components/portal/VolunteerDirectory";
 import { useFavorites } from "@/components/portal/useFavorites";
 import MyMentorshipGroups from "@/components/portal/MyMentorshipGroups";
 
-const DIRECTORY_PAGE_SIZE = 12;
+/** Four rows of the five-card grid; a page fits a laptop screen without long scrolling. */
+const DIRECTORY_PAGE_SIZE = 20;
 
 export default function DirectoryPage() {
   const { currentUser, realUser } = usePortalSession();
@@ -50,7 +50,7 @@ export default function DirectoryPage() {
   const [interests, setInterests] = React.useState<string[]>([]);
   const [selected, setSelected] = React.useState<Profile | null>(null);
   const [onlyFavorites, setOnlyFavorites] = React.useState(false);
-  const [visibleCount, setVisibleCount] = React.useState(DIRECTORY_PAGE_SIZE);
+  const [page, setPage] = React.useState(1);
   const { ids: favoriteIds } = useFavorites();
 
   const { data: profiles, isLoading } = useQuery({
@@ -128,11 +128,16 @@ export default function DirectoryPage() {
    * 「导出」 is for admins and the volunteers of the season shown. The user's own
    * id is looked up directly: their profile need not be among `visible`.
    */
-  const canExport = canExportMentors({
-    isAdmin: Boolean(currentUser?.is_admin),
-    userId: currentUser?.id,
-    seasonVolunteerIds,
-  });
+  const canExport =
+    // The persona being previewed must itself be an admin or a volunteer: the id
+    // survives the lens, so without this a volunteer previewing 导师 or 学员
+    // would still see the button.
+    Boolean(currentUser?.is_admin || currentUser?.is_volunteer) &&
+    canExportMentors({
+      isAdmin: Boolean(currentUser?.is_admin),
+      userId: currentUser?.id,
+      seasonVolunteerIds,
+    });
 
   // A mentor's answer group belongs to one season: the one the volunteer tab is
   // showing (an admin's picked project, otherwise the member's newest season).
@@ -212,9 +217,14 @@ export default function DirectoryPage() {
       );
   }, [visible, tab, search, interests, isVolunteer, groupOf, groupIdOf, groupFilter, onlyFavorites, favoriteSet]);
   React.useEffect(() => {
-    setVisibleCount(DIRECTORY_PAGE_SIZE);
+    setPage(1);
   }, [tab, cohortId, search, interests, groupFilter, onlyFavorites]);
-  const displayed = filtered.slice(0, visibleCount);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / DIRECTORY_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const displayed = filtered.slice(
+    (currentPage - 1) * DIRECTORY_PAGE_SIZE,
+    currentPage * DIRECTORY_PAGE_SIZE,
+  );
 
   // How many of the mentors on screen sit in each group, for the dropdown.
   const groupCounts = React.useMemo(() => {
@@ -257,30 +267,23 @@ export default function DirectoryPage() {
         <MyMentorshipGroups excludedProfileIds={blacklistIds} />
       )}
 
-      {currentUser?.is_admin && (
-        <TextField
-         select
-         size="small"
-         label="选择项目"
-         value={cohortId}
-         onChange={(event) => setCohortId(event.target.value)}
-         sx={{ minWidth: 240, mb: 2 }}
-        >
-         {(cohorts ?? []).map((cohort) => (
-           <MenuItem key={cohort.id} value={cohort.id}>
-             {cohort.name}
-           </MenuItem>
-         ))}
-        </TextField>
-      )}
-
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-        <Tab value="mentor" label={`导师（${visible.filter((p) => p.participant_role === "mentor").length}）`} />
-        <Tab value="mentee" label={`学员（${visible.filter((p) => p.participant_role === "mentee").length}）`} />
-        <Tab value="volunteer" label={`志愿者（${visible.filter(isVolunteer).length}）`} />
-      </Tabs>
-
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 3 }}>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2 }} alignItems={{ sm: "flex-start" }}>
+        {currentUser?.is_admin && (
+          <TextField
+           select
+           size="small"
+           label="选择项目"
+           value={cohortId}
+           onChange={(event) => setCohortId(event.target.value)}
+           sx={{ minWidth: { sm: 200 }, width: { xs: "100%", sm: "auto" }, flex: "none" }}
+          >
+           {(cohorts ?? []).map((cohort) => (
+             <MenuItem key={cohort.id} value={cohort.id}>
+               {cohort.name}
+             </MenuItem>
+           ))}
+          </TextField>
+        )}
         <TextField
           fullWidth
           size="small"
@@ -341,17 +344,47 @@ export default function DirectoryPage() {
         />
       </Stack>
 
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
+        <Tab value="mentor" label={`导师（${visible.filter((p) => p.participant_role === "mentor").length}）`} />
+        <Tab value="mentee" label={`学员（${visible.filter((p) => p.participant_role === "mentee").length}）`} />
+        <Tab value="volunteer" label={`志愿者（${visible.filter(isVolunteer).length}）`} />
+      </Tabs>
+
       {tab !== "volunteer" && (
-        <Chip
-          clickable
-          icon={onlyFavorites ? <FavoriteIcon /> : <FavoriteBorderIcon />}
-          label={portalCopy.favorites.onlyFavorites(favoriteCount)}
-          color={onlyFavorites ? "error" : "default"}
-          variant={onlyFavorites ? "filled" : "outlined"}
-          onClick={() => setOnlyFavorites((value) => !value)}
-          aria-pressed={onlyFavorites}
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          flexWrap="wrap"
+          useFlexGap
+          spacing={1}
           sx={{ mb: 2 }}
-        />
+        >
+          <Chip
+            clickable
+            icon={onlyFavorites ? <FavoriteIcon /> : <FavoriteBorderIcon />}
+            label={portalCopy.favorites.onlyFavorites(favoriteCount)}
+            color={onlyFavorites ? "error" : "default"}
+            variant={onlyFavorites ? "filled" : "outlined"}
+            onClick={() => setOnlyFavorites((value) => !value)}
+            aria-pressed={onlyFavorites}
+          />
+          {pageCount > 1 && (
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                {portalCopy.directoryFilters.total(filtered.length)}
+              </Typography>
+              <Pagination
+                size="small"
+                shape="rounded"
+                count={pageCount}
+                page={currentPage}
+                onChange={(_, value) => setPage(value)}
+                siblingCount={0}
+              />
+            </Stack>
+          )}
+        </Stack>
       )}
 
       {tab === "mentor" && canExport && (
@@ -383,27 +416,32 @@ export default function DirectoryPage() {
             onSelect={setSelected}
           />
         ) : (
-          <Grid container spacing={2}>
+          <Box sx={directoryGridSx}>
             {displayed.map((p) => (
-              <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                <DirectoryCard
-                  profile={p}
-                  onSelect={setSelected}
-                  group={p.participant_role === "mentor" ? groupOf(p) : null}
-                />
-              </Grid>
+              <DirectoryCard
+                key={p.id}
+                profile={p}
+                onSelect={setSelected}
+                group={p.participant_role === "mentor" ? groupOf(p) : null}
+              />
             ))}
-          </Grid>
+          </Box>
         )
       )}
-      {tab !== "volunteer" && displayed.length < filtered.length && (
+      {tab !== "volunteer" && pageCount > 1 && (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-          <Button
-            variant="outlined"
-            onClick={() => setVisibleCount((count) => count + DIRECTORY_PAGE_SIZE)}
-          >
-            加载更多（还有 {filtered.length - displayed.length} 人）
-          </Button>
+          <Pagination
+            shape="rounded"
+            count={pageCount}
+            page={currentPage}
+            onChange={(_, value) => {
+              setPage(value);
+              // The bottom pager sits below a full page of cards: bring the new
+              // page's first row into view rather than its last.
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            siblingCount={1}
+          />
         </Box>
       )}
 

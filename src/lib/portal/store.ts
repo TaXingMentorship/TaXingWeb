@@ -24,6 +24,7 @@ import type {
   RosterInvite,
   SessionRosterInvite,
   RosterNoteEntry,
+  VolunteerLeadNote,
   RosterStaffAuthor,
   MentorRecommendation,
   SessionLog,
@@ -324,6 +325,43 @@ export async function deleteRosterNoteEntry(entryId: string): Promise<void> {
     p_entry_id: entryId,
   });
   throwQueryError("删除内部备注", error);
+}
+
+/** Is the signed-in account a lead of the current (newest) season? (0057) */
+export async function isCurrentSeasonLead(): Promise<boolean> {
+  const { data, error } = await createClient().rpc("is_current_season_lead");
+  throwQueryError("读取负责人身份", error);
+  return Boolean(data);
+}
+
+export async function listVolunteerLeadNotes(): Promise<VolunteerLeadNote[]> {
+  const { data, error } = await createClient().rpc("list_volunteer_lead_notes");
+  throwQueryError("读取负责人备注", error);
+  return (data ?? []) as VolunteerLeadNote[];
+}
+
+export async function addVolunteerLeadNote(volunteerId: string, body: string): Promise<string> {
+  const { data, error } = await createClient().rpc("add_volunteer_lead_note", {
+    p_volunteer_id: volunteerId,
+    p_body: body,
+  });
+  throwQueryError("添加负责人备注", error);
+  return data as string;
+}
+
+export async function updateVolunteerLeadNote(noteId: string, body: string): Promise<void> {
+  const { error } = await createClient().rpc("update_volunteer_lead_note", {
+    p_note_id: noteId,
+    p_body: body,
+  });
+  throwQueryError("修改负责人备注", error);
+}
+
+export async function deleteVolunteerLeadNote(noteId: string): Promise<void> {
+  const { error } = await createClient().rpc("delete_volunteer_lead_note", {
+    p_note_id: noteId,
+  });
+  throwQueryError("删除负责人备注", error);
 }
 
 export async function listRosterStaffAuthors(cohortId: string): Promise<RosterStaffAuthor[]> {

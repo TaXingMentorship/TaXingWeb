@@ -523,6 +523,7 @@ export const portalCopy = {
     groupLabel: "答疑组",
     allGroups: "全部答疑组",
     groupOption: (name: string, count: number) => `${name}（${count}）`,
+    total: (n: number) => `共 ${n} 人`,
   },
   /** 目录页「导出」: a CSV of the mentors shown, for mentees without outside access. */
   directoryExport: {
@@ -739,6 +740,37 @@ export const portalCopy = {
     searchPlaceholder: "搜索姓名、邮箱或微信…",
     seasonLabel: "季度",
     allSeasons: "全部季度",
+    leadNotes: {
+      column: "负责人备注",
+      badge: "仅负责人与管理员可见",
+      hint: "志愿者本人、mentor 和 mentee 都看不到这些备注。",
+      add: "添加负责人备注",
+      addFor: (name: string) => `为 ${name} 添加负责人备注`,
+      placeholder: "写给负责人团队的备注…",
+      save: "保存",
+      cancel: "取消",
+      saving: "正在保存…",
+      saveError: "备注保存失败，请重试。",
+      deleteError: "删除失败，请重试。",
+      edit: "编辑这条备注",
+      delete: "删除这条备注",
+      edited: "已编辑",
+      deleteConfirm: (author: string | null) =>
+        author
+          ? `删除「${author}」写的这条负责人备注？此操作无法撤销。`
+          : "删除这条负责人备注？此操作无法撤销。",
+      unknownAuthor: "未知成员",
+      showAll: (n: number) => `展开全部 ${n} 条`,
+      collapse: "收起",
+      count: (n: number) => `${n} 条`,
+      none: "暂无",
+      blacklisted: "已列入黑名单",
+      loadError: "负责人备注读取失败。",
+      retry: "重试",
+      forbiddenError: "你目前不是本期负责人，无法操作负责人备注。",
+      tooLongError: "备注最多 2000 字。",
+      notFoundError: "这条备注已被删除，请刷新页面。",
+    },
     columns: {
       name: "姓名",
       group: "组别",
