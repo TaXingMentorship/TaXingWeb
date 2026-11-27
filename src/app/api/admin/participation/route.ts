@@ -17,29 +17,29 @@ const deleteSchema = z.object({ id: z.uuid() });
 async function loadAuthorized(id: string) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "请先登录。" }, { status: 401 });
-  if (!user.profile || (!user.profile.is_admin && !user.profile.is_volunteer)) {
+  if (!user.profile) {
     return NextResponse.json({ error: "没有权限执行此操作。" }, { status: 403 });
   }
+  const forbidden = () =>
+    NextResponse.json({ error: "没有权限管理该活动记录。" }, { status: 403 });
 
   const service = createServiceRoleClient();
   const { data: record, error: readError } = await service
     .from("participation_records")
-    .select("id, cohort_id, screenshot_path")
+    .select("id, cohort_id, mentee_id, screenshot_path")
     .eq("id", id)
     .maybeSingle();
   if (readError) return databaseError("读取活动记录", readError.message);
-  if (!record) {
-    return NextResponse.json({ error: "找不到该活动记录。" }, { status: 404 });
-  }
+  // Same answer for a missing record and a forbidden one, so non-managers
+  // cannot probe which ids exist.
+  if (!record) return forbidden();
 
   const client = await createClient();
   const { data: allowed, error } = await client.rpc("can_manage_season_progress", {
     p_cohort_id: record.cohort_id,
   });
   if (error) return databaseError("验证进度管理权限", error.message);
-  if (allowed !== true) {
-    return NextResponse.json({ error: "没有权限管理该活动记录。" }, { status: 403 });
-  }
+  if (allowed !== true) return forbidden();
   return { service, record };
 }
 
@@ -67,16 +67,24 @@ export async function DELETE(request: Request) {
   const loaded = await loadAuthorized(parsed.data.id);
   if (loaded instanceof NextResponse) return loaded;
 
-  if (loaded.record.screenshot_path) {
-    const { error: storageError } = await loaded.service.storage
-      .from("participation")
-      .remove([loaded.record.screenshot_path]);
-    if (storageError) return databaseError("删除活动截图", storageError.message);
-  }
+  // Row first: if it fails, the record and its screenshot both stay intact.
   const { error } = await loaded.service
     .from("participation_records")
     .delete()
     .eq("id", parsed.data.id);
   if (error) return databaseError("删除活动记录", error.message);
+
+  // Only ever remove an object in the mentee's own folder (0059 enforces this
+  // for new paths; older rows are checked here too). A failure leaves an
+  // orphaned object, not a broken record.
+  const path = loaded.record.screenshot_path;
+  if (path && path.startsWith(`${loaded.record.mentee_id}/`)) {
+    const { error: storageError } = await loaded.service.storage
+      .from("participation")
+      .remove([path]);
+    if (storageError) console.error(`删除活动截图: ${storageError.message}`);
+  } else if (path) {
+    console.error(`删除活动截图: skipped path outside mentee folder (${parsed.data.id})`);
+  }
   return new NextResponse(null, { status: 204 });
 }

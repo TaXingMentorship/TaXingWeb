@@ -70,7 +70,8 @@ async function canManageSeasonProgress(
   cohortId: string,
 ): Promise<boolean | NextResponse> {
   if (actor.profile.is_admin) return true;
-  if (!actor.profile.is_volunteer) return false;
+  // The function alone decides (as the page does): a lead / 人事组 link in
+  // volunteer_seasons counts even if profiles.is_volunteer is not set.
   const client = await createClient();
   const { data, error } = await client.rpc("can_manage_season_progress", {
     p_cohort_id: cohortId,

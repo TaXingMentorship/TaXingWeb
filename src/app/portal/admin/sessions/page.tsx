@@ -88,7 +88,8 @@ function withinPeriod(value: string, period: Period): boolean {
   if (period === "all") return true;
   const cutoff = new Date();
   cutoff.setHours(0, 0, 0, 0);
-  cutoff.setDate(cutoff.getDate() - Number(period));
+  // "近 7 天" = today and the 6 days before it.
+  cutoff.setDate(cutoff.getDate() - (Number(period) - 1));
   return new Date(value.length === 10 ? `${value}T00:00:00` : value) >= cutoff;
 }
 
@@ -505,13 +506,13 @@ function ParticipationRow({
             {record.screenshot_name ? ` · ${record.screenshot_name}` : "（无截图）"}
           </Typography>
         </Box>
-        <Tooltip title="编辑">
-          <IconButton aria-label="编辑" size="small" onClick={onEdit}>
+        <Tooltip title={filterCopy.edit}>
+          <IconButton aria-label={filterCopy.edit} size="small" onClick={onEdit}>
             <EditIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title="删除">
-          <IconButton aria-label="删除" size="small" onClick={onDelete}>
+        <Tooltip title={filterCopy.confirmDelete}>
+          <IconButton aria-label={filterCopy.confirmDelete} size="small" onClick={onDelete}>
             <DeleteIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -559,16 +560,16 @@ function EditParticipationDialog({
 
   return (
     <Dialog open={Boolean(record)} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>编辑活动记录</DialogTitle>
+      <DialogTitle>{filterCopy.editRecordTitle}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {Boolean(fileError || error) && (
             <Alert severity="error">
-              {fileError ?? (error instanceof Error ? error.message : "活动记录更新失败。")}
+              {fileError ?? (error instanceof Error ? error.message : filterCopy.updateRecordFailed)}
             </Alert>
           )}
           <TextField
-            label="活动名称"
+            label={filterCopy.eventName}
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
             fullWidth
@@ -576,7 +577,7 @@ function EditParticipationDialog({
           {allowScreenshot && (
             <>
               <Button component="label" variant="outlined" startIcon={<UploadFileIcon />}>
-                {record?.screenshot_path ? "更换截图" : "上传截图"}
+                {record?.screenshot_path ? filterCopy.replaceShot : filterCopy.uploadShot}
                 <input
                   type="file"
                   accept={IMAGE_ACCEPT}
@@ -589,17 +590,17 @@ function EditParticipationDialog({
               </Button>
               <Typography variant="caption" color="text.secondary">
                 {file
-                  ? `新截图：${file.name}`
+                  ? filterCopy.newShot(file.name)
                   : record?.screenshot_name
-                    ? `当前截图：${record.screenshot_name}（不选择则保留）`
-                    : "JPEG、PNG 或 WebP，最大 5 MB"}
+                    ? filterCopy.currentShot(record.screenshot_name)
+                    : filterCopy.shotHint}
               </Typography>
             </>
           )}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>取消</Button>
+        <Button onClick={onClose}>{filterCopy.cancel}</Button>
         <Button
           variant="contained"
           color="secondary"
@@ -608,7 +609,7 @@ function EditParticipationDialog({
             record && onSave({ record, eventName: eventName.trim(), file })
           }
         >
-          保存
+          {filterCopy.save}
         </Button>
       </DialogActions>
     </Dialog>
@@ -1205,10 +1206,10 @@ function ManagerParticipationSection({
   return (
     <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
       <Typography variant="h6" fontWeight={700} gutterBottom>
-        学员活动记录（{filterCopy.counted(filteredRecords.length, records?.length ?? 0)}）
+        {filterCopy.recordsTitle(filterCopy.counted(filteredRecords.length, records?.length ?? 0))}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        学员提交的活动参与记录。管理员、各组负责人和人事组志愿者可以修改或删除。
+        {filterCopy.recordsIntro}
       </Typography>
       {records && records.length > 0 && (
         <FilterRow>
@@ -1265,7 +1266,7 @@ function ManagerParticipationSection({
           ))}
         </Grid>
       ) : (
-        <Alert severity="info">还没有学员提交活动记录。</Alert>
+        <Alert severity="info">{filterCopy.noRecords}</Alert>
       )}
       {filteredRecords.length > 0 && <TablePager pagination={recordPage} />}
 
@@ -1401,7 +1402,7 @@ function useConfirmDelete() {
       await request.run();
       setDone(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "删除失败。");
+      setError(e instanceof Error ? e.message : filterCopy.deleteFailed);
     } finally {
       setPending(false);
     }
