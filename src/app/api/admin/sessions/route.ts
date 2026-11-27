@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import type { Profile, SessionLog } from "@/types/portal";
-import { databaseError, invalidBody, requireApiRole } from "../_lib";
+import { databaseError, invalidBody } from "../_lib";
 
 const dateSchema = z
   .string()
@@ -64,9 +64,44 @@ async function authorizeCohort(
   return null;
 }
 
+/** Admin, or a lead / 人事组 member of this season (0058). */
+async function canManageSeasonProgress(
+  actor: SessionActor,
+  cohortId: string,
+): Promise<boolean | NextResponse> {
+  if (actor.profile.is_admin) return true;
+  // The function alone decides (as the page does): a lead / 人事组 link in
+  // volunteer_seasons counts even if profiles.is_volunteer is not set.
+  const client = await createClient();
+  const { data, error } = await client.rpc("can_manage_season_progress", {
+    p_cohort_id: cohortId,
+  });
+  if (error) return databaseError("验证进度管理权限", error.message);
+  return data === true;
+}
+
+/**
+ * Who may change an existing row: a season progress manager (any mentor/mentee
+ * of the season), or the mentor on the row (only as themselves).
+ */
+async function authorizeExisting(
+  actor: SessionActor,
+  current: Pick<SessionLog, "cohort_id" | "mentor_id">,
+  forbiddenMessage: string,
+): Promise<{ restrictToMentor: boolean } | NextResponse> {
+  const manager = await canManageSeasonProgress(actor, current.cohort_id);
+  if (manager instanceof NextResponse) return manager;
+  if (manager) return { restrictToMentor: false };
+  if (actor.profile.participant_role === "mentor" && current.mentor_id === actor.id) {
+    return { restrictToMentor: true };
+  }
+  return NextResponse.json({ error: forbiddenMessage }, { status: 403 });
+}
+
 async function validateParticipants(
   service: ServiceClient,
   actor: SessionActor,
+  restrictToMentor: boolean,
   session: Pick<
     SessionLog,
     "cohort_id" | "mentor_id" | "mentee_id" | "mentor_invite_id" | "mentee_invite_id"
@@ -156,11 +191,7 @@ async function validateParticipants(
     if (!match) return "只能为已配对的学员记录交流。";
   }
 
-  if (
-    !actor.profile.is_admin &&
-    !actor.profile.is_volunteer &&
-    actor.profile.participant_role === "mentor"
-  ) {
+  if (restrictToMentor) {
     if (mentorProfile?.id !== actor.id || mentorInvite) {
       return "导师只能管理自己的交流记录。";
     }
@@ -195,17 +226,16 @@ export async function POST(request: Request) {
   if (authorizationError) return authorizationError;
 
   const service = createServiceRoleClient();
+  const restrictToMentor =
+    !actor.profile.is_admin &&
+    !actor.profile.is_volunteer &&
+    actor.profile.participant_role === "mentor";
   const input = {
     ...parsed.data,
-    mentor_id:
-      !actor.profile.is_admin &&
-      !actor.profile.is_volunteer &&
-      actor.profile.participant_role === "mentor"
-        ? actor.id
-        : parsed.data.mentor_id,
+    mentor_id: restrictToMentor ? actor.id : parsed.data.mentor_id,
     created_by: actor.id,
   };
-  const participants = await validateParticipants(service, actor, {
+  const participants = await validateParticipants(service, actor, restrictToMentor, {
     cohort_id: input.cohort_id,
     mentor_id: input.mentor_id,
     mentee_id: input.mentee_id,
@@ -224,7 +254,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const actor = await requireApiRole(["admin", "mentor"]);
+  const actor = await requireSessionActor();
   if (actor instanceof NextResponse) return actor;
 
   const parsed = updateSchema.safeParse(await request.json().catch(() => null));
@@ -240,29 +270,25 @@ export async function PATCH(request: Request) {
   if (!current) {
     return NextResponse.json({ error: "找不到该交流记录。" }, { status: 404 });
   }
-  if (
-    !actor.profile.is_admin &&
-    actor.profile.participant_role === "mentor" &&
-    current.mentor_id !== actor.id
-  ) {
-    return NextResponse.json({ error: "没有权限修改该记录。" }, { status: 403 });
-  }
+  const access = await authorizeExisting(actor, current, "没有权限修改该记录。");
+  if (access instanceof NextResponse) return access;
+  const { restrictToMentor } = access;
 
   const next = {
     ...current,
     ...parsed.data.patch,
-    mentor_id:
-      !actor.profile.is_admin && actor.profile.participant_role === "mentor"
-        ? actor.id
-        : parsed.data.patch.mentor_id ?? current.mentor_id,
-    mentor_invite_id: parsed.data.patch.mentor_id
-      ? null
-      : current.mentor_invite_id,
+    mentor_id: restrictToMentor
+      ? actor.id
+      : parsed.data.patch.mentor_id ?? current.mentor_id,
+    mentor_invite_id:
+      restrictToMentor || parsed.data.patch.mentor_id
+        ? null
+        : current.mentor_invite_id,
     mentee_invite_id: parsed.data.patch.mentee_id
       ? null
       : current.mentee_invite_id,
   };
-  const participants = await validateParticipants(service, actor, {
+  const participants = await validateParticipants(service, actor, restrictToMentor, {
     cohort_id: current.cohort_id,
     mentor_id: next.mentor_id,
     mentee_id: next.mentee_id,
@@ -271,10 +297,9 @@ export async function PATCH(request: Request) {
   });
   if (typeof participants === "string") return invalidBody(participants);
 
-  const update =
-    !actor.profile.is_admin && actor.profile.participant_role === "mentor"
-      ? { ...parsed.data.patch, ...participants, mentor_id: actor.id }
-      : { ...parsed.data.patch, ...participants };
+  const update = restrictToMentor
+    ? { ...parsed.data.patch, ...participants, mentor_id: actor.id }
+    : { ...parsed.data.patch, ...participants };
   const { data, error } = await service
     .from("sessions_log")
     .update(update)
@@ -286,7 +311,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const actor = await requireApiRole(["admin", "mentor"]);
+  const actor = await requireSessionActor();
   if (actor instanceof NextResponse) return actor;
 
   const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
@@ -302,13 +327,8 @@ export async function DELETE(request: Request) {
   if (!current) {
     return NextResponse.json({ error: "找不到该交流记录。" }, { status: 404 });
   }
-  if (
-    !actor.profile.is_admin &&
-    actor.profile.participant_role === "mentor" &&
-    current.mentor_id !== actor.id
-  ) {
-    return NextResponse.json({ error: "没有权限删除该记录。" }, { status: 403 });
-  }
+  const access = await authorizeExisting(actor, current, "没有权限删除该记录。");
+  if (access instanceof NextResponse) return access;
 
   const { error } = await service.from("sessions_log").delete().eq("id", parsed.data.id);
   if (error) return databaseError("删除交流记录", error.message);
