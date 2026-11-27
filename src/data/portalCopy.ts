@@ -1248,6 +1248,38 @@ export const portalCopy = {
     displayedRows: (from: number, to: number, count: number) =>
       `${from}–${to} / ${count}`,
   },
+  progressFilters: {
+    sessionSearch: "导师 / 学员 / 备注",
+    recordSearch: "学员 / 活动名称",
+    type: "类型",
+    period: "时间",
+    screenshot: "截图",
+    periods: [
+      { value: "all", label: "全部时间" },
+      { value: "7", label: "近 7 天" },
+      { value: "30", label: "近 30 天" },
+      { value: "90", label: "近 90 天" },
+    ],
+    screenshotOptions: [
+      { value: "all", label: "全部" },
+      { value: "with", label: "有截图" },
+      { value: "without", label: "无截图" },
+    ],
+    clear: "清除筛选",
+    deleteTitle: "确认删除",
+    deleteSession: (date: string, mentor: string, mentee: string) =>
+      `删除 ${date} ${mentor} 与 ${mentee} 的交流记录？`,
+    deleteRecord: (name: string, owner?: string) =>
+      owner ? `删除 ${owner} 的活动记录「${name}」？` : `删除活动记录「${name}」？`,
+    deleteWarning: "删除后无法恢复，截图也会一并删除。",
+    deleteSessionWarning: "删除后无法恢复。",
+    cancel: "取消",
+    confirmDelete: "删除",
+    deleted: "已删除",
+    noMatch: "没有符合筛选条件的记录。",
+    counted: (shown: number, total: number) =>
+      shown === total ? `${total}` : `${shown} / ${total}`,
+  },
   rosterTable: {
     searchPlaceholder: "姓名 / 邮箱 / 微信号 / 备注",
     showFilters: (count: number) => count ? `更多筛选（${count}）` : "更多筛选",

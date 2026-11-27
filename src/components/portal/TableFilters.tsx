@@ -19,16 +19,20 @@ const PAGE_SIZES = [25, 50, 100];
  * filter change — flagging a row in a filtered view removes it — and an
  * out-of-range page renders as an empty table.
  */
-export function usePagination(total: number, resetKey: string) {
+export function usePagination(
+  total: number,
+  resetKey: string,
+  pageSizes: number[] = PAGE_SIZES,
+) {
   const [requested, setPage] = React.useState(0);
-  const [rowsPerPage, setRowsPerPage] = React.useState(PAGE_SIZES[0]);
+  const [rowsPerPage, setRowsPerPage] = React.useState(pageSizes[0]);
   React.useEffect(() => {
     setPage(0);
   }, [resetKey, rowsPerPage]);
 
   const page = clampPage(requested, total, rowsPerPage);
   const slice = <T,>(items: T[]) => items.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
-  return { page, rowsPerPage, setPage, setRowsPerPage, slice, total };
+  return { page, rowsPerPage, setPage, setRowsPerPage, slice, total, pageSizes };
 }
 
 export type Pagination = ReturnType<typeof usePagination>;
@@ -43,7 +47,7 @@ export function TablePager({ pagination }: { pagination: Pagination }) {
       onPageChange={(_, next) => pagination.setPage(next)}
       rowsPerPage={pagination.rowsPerPage}
       onRowsPerPageChange={(e) => pagination.setRowsPerPage(Number(e.target.value))}
-      rowsPerPageOptions={PAGE_SIZES}
+      rowsPerPageOptions={pagination.pageSizes}
       labelRowsPerPage={copy.rowsPerPage}
       labelDisplayedRows={({ from, to, count }) => copy.displayedRows(from, to, count)}
     />
@@ -85,7 +89,7 @@ export function FilterSelect({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  options: readonly { value: string; label: string }[];
   fullWidth?: boolean;
 }) {
   return (

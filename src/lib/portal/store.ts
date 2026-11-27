@@ -880,6 +880,65 @@ export async function deleteParticipation(id: string): Promise<void> {
   throwQueryError("删除参与记录", error);
 }
 
+/** Mentee edits their own record under RLS (participation_modify_own). */
+export async function updateOwnParticipation(
+  id: string,
+  patch: Pick<ParticipationRecord, "event_name"> &
+    Partial<Pick<ParticipationRecord, "screenshot_name" | "screenshot_path">>,
+): Promise<ParticipationRecord> {
+  const { data, error } = await createClient()
+    .from("participation_records")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  throwQueryError("更新活动记录", error);
+  return data as ParticipationRecord;
+}
+
+/** Admin, or a lead / 人事组 member of this season (0058). Gates the edit UI. */
+export async function canManageSeasonProgress(cohortId: string): Promise<boolean> {
+  const { data, error } = await createClient().rpc("can_manage_season_progress", {
+    p_cohort_id: cohortId,
+  });
+  throwQueryError("验证进度管理权限", error);
+  return data === true;
+}
+
+/** A progress manager renames a mentee's activity record. */
+export async function managerUpdateParticipation(
+  id: string,
+  eventName: string,
+): Promise<ParticipationRecord> {
+  return adminJson<ParticipationRecord>(
+    "/api/admin/participation",
+    "PATCH",
+    { id, event_name: eventName },
+    "更新活动记录",
+  );
+}
+
+/** A progress manager deletes a mentee's activity record and its screenshot. */
+export async function managerDeleteParticipation(id: string): Promise<void> {
+  const response = await fetch("/api/admin/participation", {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
+        ? payload.error
+        : `${response.status} ${response.statusText}`;
+    throw new Error(`删除活动记录失败：${message}`);
+  }
+}
+
 // --- Roster import ---------------------------------------------------------
 
 export type RosterRowInput = {

@@ -25,6 +25,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Chip from "@mui/material/Chip";
+import { keyframes } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
@@ -38,6 +39,7 @@ import type {
   SessionType,
 } from "@/types/portal";
 import {
+  canManageSeasonProgress,
   createParticipation,
   deleteParticipation,
   deleteSession,
@@ -51,6 +53,9 @@ import {
   listStaffRoster,
   listSessions,
   logSession,
+  managerDeleteParticipation,
+  managerUpdateParticipation,
+  updateOwnParticipation,
   updateSession,
 } from "@/lib/portal/store";
 import {
@@ -61,12 +66,44 @@ import {
   uploadParticipationScreenshot,
   validateImageFile,
 } from "@/lib/portal/uploads";
-import { sessionTypeColors, sessionTypeLabels } from "@/data/portalCopy";
+import { portalCopy, sessionTypeColors, sessionTypeLabels } from "@/data/portalCopy";
+import {
+  FilterRow,
+  FilterSearch,
+  FilterSelect,
+  TablePager,
+  usePagination,
+} from "@/components/portal/TableFilters";
 import { usePortalSession } from "@/components/portal/PortalSessionProvider";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 const sessionTypes: SessionType[] = ["mentorship", "gratitude"];
+const filterCopy = portalCopy.progressFilters;
+
+type Period = "all" | "7" | "30" | "90";
+
+/** Is an ISO date / timestamp within the last N days (inclusive)? */
+function withinPeriod(value: string, period: Period): boolean {
+  if (period === "all") return true;
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setDate(cutoff.getDate() - Number(period));
+  return new Date(value.length === 10 ? `${value}T00:00:00` : value) >= cutoff;
+}
+
+const matchesSearch = (query: string, fields: (string | null | undefined)[]) => {
+  const q = query.trim().toLowerCase();
+  return !q || fields.some((f) => f?.toLowerCase().includes(q));
+};
+
+// Keeps 编辑 / 删除 visible when the table scrolls sideways on narrow screens.
+const stickyActionsSx = {
+  position: "sticky",
+  right: 0,
+  bgcolor: "background.paper",
+  zIndex: 1,
+} as const;
 type SessionPerson = Pick<Profile, "id" | "full_name" | "email" | "wechat_number"> & {
   statusLabel?: string;
 };
@@ -104,7 +141,7 @@ export default function ProgressPage() {
   }
 
   return (
-    <Box sx={{ maxWidth: 1000 }}>
+    <Box sx={{ maxWidth: 1280 }}>
       <Typography variant="h4" fontWeight={800} gutterBottom>
         进度跟踪
       </Typography>
@@ -135,7 +172,7 @@ export default function ProgressPage() {
         (role === "mentee" ? (
           <MenteeView cohortId={cohortId} currentUser={currentUser!} />
         ) : (
-          <StaffView cohortId={cohortId} role={role} currentUser={currentUser!} />
+          <StaffView key={cohortId} cohortId={cohortId} role={role} currentUser={currentUser!} />
         ))}
     </Box>
   );
@@ -218,6 +255,36 @@ function MenteeView({
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteParticipation(id),
     onSuccess: invalidate,
+  });
+  const confirmDelete = useConfirmDelete();
+
+  const [editingRecord, setEditingRecord] = React.useState<ParticipationRecord | null>(null);
+  const editMutation = useMutation({
+    mutationFn: async ({ record, eventName, file }: ParticipationEdit) => {
+      if (!file) {
+        return updateOwnParticipation(record.id, { event_name: eventName });
+      }
+      const newPath = await uploadParticipationScreenshot(currentUser.id, file);
+      let updated: ParticipationRecord;
+      try {
+        updated = await updateOwnParticipation(record.id, {
+          event_name: eventName,
+          screenshot_name: file.name,
+          screenshot_path: newPath,
+        });
+      } catch (error) {
+        await removeParticipationScreenshot(newPath).catch(() => {});
+        throw error;
+      }
+      if (record.screenshot_path) {
+        await removeParticipationScreenshot(record.screenshot_path).catch(() => {});
+      }
+      return updated;
+    },
+    onSuccess: () => {
+      setEditingRecord(null);
+      invalidate();
+    },
   });
 
   const handleFile = (file: File | undefined) => {
@@ -351,7 +418,14 @@ function MenteeView({
                 <ParticipationRow
                   key={r.id}
                   record={r}
-                  onDelete={() => deleteMutation.mutate(r.id)}
+                  onEdit={() => setEditingRecord(r)}
+                  onDelete={() =>
+                    confirmDelete.ask({
+                      message: filterCopy.deleteRecord(r.event_name),
+                      warning: filterCopy.deleteWarning,
+                      run: () => deleteMutation.mutateAsync(r.id),
+                    })
+                  }
                 />
               ))}
             </Stack>
@@ -360,15 +434,32 @@ function MenteeView({
           )}
         </Paper>
       </Grid>
+
+      {confirmDelete.dialog}
+      <EditParticipationDialog
+        record={editingRecord}
+        allowScreenshot
+        saving={editMutation.isPending}
+        error={editMutation.error}
+        onClose={() => {
+          setEditingRecord(null);
+          editMutation.reset();
+        }}
+        onSave={(edit) => editMutation.mutate(edit)}
+      />
     </Grid>
   );
 }
 
 function ParticipationRow({
   record,
+  subtitle,
+  onEdit,
   onDelete,
 }: {
   record: ParticipationRecord;
+  subtitle?: string;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const { data: signedUrl } = useQuery({
@@ -409,17 +500,118 @@ function ParticipationRow({
             {record.event_name}
           </Typography>
           <Typography variant="caption" color="text.secondary">
+            {subtitle ? `${subtitle} · ` : ""}
             {new Date(record.created_at).toLocaleDateString("zh-CN")}
             {record.screenshot_name ? ` · ${record.screenshot_name}` : "（无截图）"}
           </Typography>
         </Box>
+        <Tooltip title="编辑">
+          <IconButton aria-label="编辑" size="small" onClick={onEdit}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <Tooltip title="删除">
-          <IconButton size="small" onClick={onDelete}>
+          <IconButton aria-label="删除" size="small" onClick={onDelete}>
             <DeleteIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       </Stack>
     </Paper>
+  );
+}
+
+type ParticipationEdit = {
+  record: ParticipationRecord;
+  eventName: string;
+  file: File | null;
+};
+
+function EditParticipationDialog({
+  record,
+  allowScreenshot,
+  saving,
+  error,
+  onClose,
+  onSave,
+}: {
+  record: ParticipationRecord | null;
+  allowScreenshot: boolean;
+  saving: boolean;
+  error: unknown;
+  onClose: () => void;
+  onSave: (edit: ParticipationEdit) => void;
+}) {
+  const [eventName, setEventName] = React.useState("");
+  const [file, setFile] = React.useState<File | null>(null);
+  const [fileError, setFileError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setEventName(record?.event_name ?? "");
+    setFile(null);
+    setFileError(null);
+  }, [record]);
+
+  const handleFile = (next: File | undefined) => {
+    if (!next) return;
+    const validationError = validateImageFile(next, PARTICIPATION_MAX_BYTES);
+    setFileError(validationError);
+    setFile(validationError ? null : next);
+  };
+
+  return (
+    <Dialog open={Boolean(record)} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>编辑活动记录</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {Boolean(fileError || error) && (
+            <Alert severity="error">
+              {fileError ?? (error instanceof Error ? error.message : "活动记录更新失败。")}
+            </Alert>
+          )}
+          <TextField
+            label="活动名称"
+            value={eventName}
+            onChange={(e) => setEventName(e.target.value)}
+            fullWidth
+          />
+          {allowScreenshot && (
+            <>
+              <Button component="label" variant="outlined" startIcon={<UploadFileIcon />}>
+                {record?.screenshot_path ? "更换截图" : "上传截图"}
+                <input
+                  type="file"
+                  accept={IMAGE_ACCEPT}
+                  hidden
+                  onChange={(e) => {
+                    handleFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                {file
+                  ? `新截图：${file.name}`
+                  : record?.screenshot_name
+                    ? `当前截图：${record.screenshot_name}（不选择则保留）`
+                    : "JPEG、PNG 或 WebP，最大 5 MB"}
+              </Typography>
+            </>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>取消</Button>
+        <Button
+          variant="contained"
+          color="secondary"
+          disabled={saving || !eventName.trim()}
+          onClick={() =>
+            record && onSave({ record, eventName: eventName.trim(), file })
+          }
+        >
+          保存
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -471,6 +663,14 @@ function StaffView({
       listSessions(isMentor ? { cohortId, mentorId: currentUser.id } : { cohortId }),
     enabled: Boolean(cohortId),
   });
+
+  // Admins, group leads and 人事组 members of this season (0058).
+  const { data: canManage = false } = useQuery({
+    queryKey: ["portal", "canManageSeasonProgress", cohortId],
+    queryFn: () => canManageSeasonProgress(cohortId),
+    enabled: Boolean(cohortId),
+  });
+  const showActions = role !== "volunteer" || canManage;
 
   const { data: matches } = useQuery({
     queryKey: ["portal", "matches", cohortId],
@@ -566,6 +766,27 @@ function StaffView({
     eligibleInvites.find((invite) => invite.id === id)?.full_name ??
     "未知";
 
+  const [sessionQuery, setSessionQuery] = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState<"all" | SessionType>("all");
+  const [periodFilter, setPeriodFilter] = React.useState<Period>("all");
+  const filtersActive =
+    Boolean(sessionQuery.trim()) || typeFilter !== "all" || periodFilter !== "all";
+  const filteredSessions = (sessions ?? []).filter(
+    (s) =>
+      (typeFilter === "all" || s.session_type === typeFilter) &&
+      withinPeriod(s.session_date, periodFilter) &&
+      matchesSearch(sessionQuery, [
+        nameOf(s.mentor_id ?? s.mentor_invite_id),
+        nameOf(s.mentee_id ?? s.mentee_invite_id),
+        s.notes,
+      ]),
+  );
+  const sessionPage = usePagination(
+    filteredSessions.length,
+    `${sessionQuery}|${typeFilter}|${periodFilter}`,
+    [10, 20, 50],
+  );
+
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["portal", "sessions"] }).then(() =>
       queryClient.invalidateQueries({ queryKey: ["portal", "mySessions"] }),
@@ -596,6 +817,7 @@ function StaffView({
     mutationFn: (id: string) => deleteSession(id),
     onSuccess: invalidate,
   });
+  const confirmDelete = useConfirmDelete();
 
   const editMutation = useMutation({
     mutationFn: (s: SessionLog) => {
@@ -621,7 +843,7 @@ function StaffView({
   return (
     <>
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 5 }}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: 3, borderRadius: 3 }}>
             <Typography variant="h6" fontWeight={700} gutterBottom>
               活动纪录
@@ -690,12 +912,51 @@ function StaffView({
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 7 }}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3, borderRadius: 3 }}>
             <Typography variant="h6" fontWeight={700} gutterBottom>
-              最近的交流记录（{sessions?.length ?? 0}）
+              最近的交流记录（{filterCopy.counted(filteredSessions.length, sessions?.length ?? 0)}）
             </Typography>
-            {sessions && sessions.length > 0 ? (
+            {sessions && sessions.length > 0 && (
+              <FilterRow>
+                <FilterSearch
+                  value={sessionQuery}
+                  onChange={setSessionQuery}
+                  placeholder={filterCopy.sessionSearch}
+                />
+                <FilterSelect
+                  label={filterCopy.type}
+                  value={typeFilter}
+                  onChange={(v) => setTypeFilter(v as "all" | SessionType)}
+                  options={[
+                    { value: "all", label: portalCopy.tableFilters.all },
+                    ...sessionTypes.map((t) => ({ value: t, label: sessionTypeLabels[t] })),
+                  ]}
+                />
+                <FilterSelect
+                  label={filterCopy.period}
+                  value={periodFilter}
+                  onChange={(v) => setPeriodFilter(v as Period)}
+                  options={filterCopy.periods}
+                />
+                {filtersActive && (
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setSessionQuery("");
+                      setTypeFilter("all");
+                      setPeriodFilter("all");
+                    }}
+                  >
+                    {filterCopy.clear}
+                  </Button>
+                )}
+              </FilterRow>
+            )}
+            {sessions && sessions.length > 0 && filteredSessions.length === 0 ? (
+              <Alert severity="info">{filterCopy.noMatch}</Alert>
+            ) : sessions && sessions.length > 0 ? (
+              <>
               <TableContainer>
                 <Table size="small" sx={{ "& th, & td": { whiteSpace: "nowrap" } }}>
                   <TableHead>
@@ -705,13 +966,15 @@ function StaffView({
                       <TableCell>学员</TableCell>
                       <TableCell>类型</TableCell>
                       <TableCell>备注</TableCell>
-                      {role !== "volunteer" && (
-                        <TableCell align="right">操作</TableCell>
+                      {showActions && (
+                        <TableCell align="right" sx={stickyActionsSx}>
+                          操作
+                        </TableCell>
                       )}
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {sessions.map((s) => (
+                    {sessionPage.slice(filteredSessions).map((s) => (
                       <TableRow key={s.id}>
                         <TableCell>{s.session_date}</TableCell>
                         <TableCell>{nameOf(s.mentor_id ?? s.mentor_invite_id)}</TableCell>
@@ -724,13 +987,23 @@ function StaffView({
                             label={sessionTypeLabels[s.session_type]}
                           />
                         </TableCell>
-                        <TableCell sx={{ maxWidth: 200 }}>
-                          <Typography variant="body2" noWrap title={s.notes ?? ""}>
+                        <TableCell sx={{ whiteSpace: "normal !important", minWidth: 160 }}>
+                          <Typography
+                            variant="body2"
+                            title={s.notes ?? ""}
+                            sx={{
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                              wordBreak: "break-word",
+                            }}
+                          >
                             {s.notes ?? "—"}
                           </Typography>
                         </TableCell>
-                        {role !== "volunteer" && (
-                          <TableCell align="right">
+                        {showActions && (
+                          <TableCell align="right" sx={stickyActionsSx}>
                             <Tooltip title="编辑">
                               <IconButton aria-label="编辑" size="small" onClick={() => setEditing(s)}>
                                 <EditIcon fontSize="small" />
@@ -740,7 +1013,17 @@ function StaffView({
                               <IconButton
                                 aria-label="删除"
                                 size="small"
-                                onClick={() => deleteMutation.mutate(s.id)}
+                                onClick={() =>
+                                  confirmDelete.ask({
+                                    message: filterCopy.deleteSession(
+                                      s.session_date,
+                                      nameOf(s.mentor_id ?? s.mentor_invite_id),
+                                      nameOf(s.mentee_id ?? s.mentee_invite_id),
+                                    ),
+                                    warning: filterCopy.deleteSessionWarning,
+                                    run: () => deleteMutation.mutateAsync(s.id),
+                                  })
+                                }
                               >
                                 <DeleteIcon fontSize="small" />
                               </IconButton>
@@ -752,6 +1035,8 @@ function StaffView({
                   </TableBody>
                 </Table>
               </TableContainer>
+              <TablePager pagination={sessionPage} />
+              </>
             ) : (
               <Alert severity="info">还没有任何交流记录。</Alert>
             )}
@@ -759,7 +1044,12 @@ function StaffView({
         </Grid>
       </Grid>
 
-      {role !== "volunteer" && (
+      {confirmDelete.dialog}
+      {canManage && (
+        <ManagerParticipationSection cohortId={cohortId} nameOf={nameOf} />
+      )}
+
+      {showActions && (
         <EditSessionDialog
           session={editing}
           mentors={mentors}
@@ -860,4 +1150,293 @@ function EditSessionDialog({
       </DialogActions>
     </Dialog>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Progress managers (admin, group leads, 人事组): mentees' activity records.
+// ---------------------------------------------------------------------------
+
+function ManagerParticipationSection({
+  cohortId,
+  nameOf,
+}: {
+  cohortId: string;
+  nameOf: (id: string | null) => string;
+}) {
+  const queryClient = useQueryClient();
+  const { data: records } = useQuery({
+    queryKey: ["portal", "participation", cohortId, "all"],
+    queryFn: () => listParticipation({ cohortId }),
+  });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["portal", "participation"] });
+
+  const [editing, setEditing] = React.useState<ParticipationRecord | null>(null);
+  const editMutation = useMutation({
+    mutationFn: ({ record, eventName }: ParticipationEdit) =>
+      managerUpdateParticipation(record.id, eventName),
+    onSuccess: () => {
+      setEditing(null);
+      invalidate();
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => managerDeleteParticipation(id),
+    onSuccess: invalidate,
+  });
+  const confirmDelete = useConfirmDelete();
+  const [recordQuery, setRecordQuery] = React.useState("");
+  const [shotFilter, setShotFilter] = React.useState<"all" | "with" | "without">("all");
+  const [recordPeriod, setRecordPeriod] = React.useState<Period>("all");
+  const recordFiltersActive =
+    Boolean(recordQuery.trim()) || shotFilter !== "all" || recordPeriod !== "all";
+  const filteredRecords = (records ?? []).filter(
+    (r) =>
+      (shotFilter === "all" || (shotFilter === "with") === Boolean(r.screenshot_path)) &&
+      withinPeriod(r.created_at, recordPeriod) &&
+      matchesSearch(recordQuery, [nameOf(r.mentee_id), r.event_name]),
+  );
+  const recordPage = usePagination(
+    filteredRecords.length,
+    `${recordQuery}|${shotFilter}|${recordPeriod}`,
+    [12, 24, 48],
+  );
+
+  return (
+    <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
+      <Typography variant="h6" fontWeight={700} gutterBottom>
+        学员活动记录（{filterCopy.counted(filteredRecords.length, records?.length ?? 0)}）
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        学员提交的活动参与记录。管理员、各组负责人和人事组志愿者可以修改或删除。
+      </Typography>
+      {records && records.length > 0 && (
+        <FilterRow>
+          <FilterSearch
+            value={recordQuery}
+            onChange={setRecordQuery}
+            placeholder={filterCopy.recordSearch}
+          />
+          <FilterSelect
+            label={filterCopy.screenshot}
+            value={shotFilter}
+            onChange={(v) => setShotFilter(v as "all" | "with" | "without")}
+            options={filterCopy.screenshotOptions}
+          />
+          <FilterSelect
+            label={filterCopy.period}
+            value={recordPeriod}
+            onChange={(v) => setRecordPeriod(v as Period)}
+            options={filterCopy.periods}
+          />
+          {recordFiltersActive && (
+            <Button
+              size="small"
+              onClick={() => {
+                setRecordQuery("");
+                setShotFilter("all");
+                setRecordPeriod("all");
+              }}
+            >
+              {filterCopy.clear}
+            </Button>
+          )}
+        </FilterRow>
+      )}
+      {records && records.length > 0 && filteredRecords.length === 0 ? (
+        <Alert severity="info">{filterCopy.noMatch}</Alert>
+      ) : records && records.length > 0 ? (
+        <Grid container spacing={1.5}>
+          {recordPage.slice(filteredRecords).map((r) => (
+            <Grid key={r.id} size={{ xs: 12, md: 6 }}>
+              <ParticipationRow
+                record={r}
+                subtitle={nameOf(r.mentee_id)}
+                onEdit={() => setEditing(r)}
+                onDelete={() =>
+                  confirmDelete.ask({
+                    message: filterCopy.deleteRecord(r.event_name, nameOf(r.mentee_id)),
+                    warning: filterCopy.deleteWarning,
+                    run: () => deleteMutation.mutateAsync(r.id),
+                  })
+                }
+              />
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <Alert severity="info">还没有学员提交活动记录。</Alert>
+      )}
+      {filteredRecords.length > 0 && <TablePager pagination={recordPage} />}
+
+      {confirmDelete.dialog}
+      <EditParticipationDialog
+        record={editing}
+        allowScreenshot={false}
+        saving={editMutation.isPending}
+        error={editMutation.error}
+        onClose={() => {
+          setEditing(null);
+          editMutation.reset();
+        }}
+        onSave={(edit) => editMutation.mutate(edit)}
+      />
+    </Paper>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Delete confirmation shared by every delete button on this page.
+// ---------------------------------------------------------------------------
+
+type DeleteRequest = { message: string; warning: string; run: () => Promise<unknown> };
+
+/** How long the 已删除 check stays up before the dialog closes itself. */
+const DELETED_VISIBLE_MS = 1100;
+
+const popIn = keyframes`
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+`;
+const drawStroke = keyframes`
+  to { stroke-dashoffset: 0; }
+`;
+const fadeUp = keyframes`
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+`;
+
+/** A circle that pops in, then a check that draws itself, then the label. */
+function DeletedCheck() {
+  return (
+    <Stack
+      alignItems="center"
+      spacing={1.5}
+      sx={{
+        py: 3,
+        "@media (prefers-reduced-motion: reduce)": {
+          "& *": { animation: "none !important", strokeDashoffset: "0 !important" },
+        },
+      }}
+    >
+      <Box
+        component="svg"
+        viewBox="0 0 52 52"
+        aria-hidden
+        sx={{
+          width: 64,
+          height: 64,
+          color: "success.main",
+          animation: `${popIn} 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both`,
+        }}
+      >
+        <Box
+          component="circle"
+          cx="26"
+          cy="26"
+          r="24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          sx={{
+            strokeDasharray: 151,
+            strokeDashoffset: 151,
+            animation: `${drawStroke} 420ms ease-out 80ms forwards`,
+          }}
+        />
+        <Box
+          component="path"
+          d="M15 27 l7 7 l15 -15"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          sx={{
+            strokeDasharray: 36,
+            strokeDashoffset: 36,
+            animation: `${drawStroke} 280ms ease-out 420ms forwards`,
+          }}
+        />
+      </Box>
+      <Typography
+        fontWeight={700}
+        color="success.main"
+        sx={{ animation: `${fadeUp} 260ms ease-out 520ms both` }}
+      >
+        {filterCopy.deleted}
+      </Typography>
+    </Stack>
+  );
+}
+
+function useConfirmDelete() {
+  const [request, setRequest] = React.useState<DeleteRequest | null>(null);
+  const [pending, setPending] = React.useState(false);
+  const [done, setDone] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!done) return;
+    const timer = window.setTimeout(() => setRequest(null), DELETED_VISIBLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [done]);
+
+  const close = () => {
+    if (pending) return;
+    setRequest(null);
+    setError(null);
+  };
+  const ask = (next: DeleteRequest) => {
+    setDone(false);
+    setError(null);
+    setRequest(next);
+  };
+  const confirm = async () => {
+    if (!request) return;
+    setPending(true);
+    setError(null);
+    try {
+      await request.run();
+      setDone(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "删除失败。");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const dialog = (
+    <Dialog open={Boolean(request)} onClose={close} maxWidth="xs" fullWidth>
+      {done ? (
+        <DialogContent>
+          <DeletedCheck />
+        </DialogContent>
+      ) : (
+        <>
+          <DialogTitle>{filterCopy.deleteTitle}</DialogTitle>
+          <DialogContent>
+            <Stack spacing={1.5}>
+              {error && <Alert severity="error">{error}</Alert>}
+              <Typography>{request?.message}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {request?.warning}
+              </Typography>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={close} disabled={pending}>
+              {filterCopy.cancel}
+            </Button>
+            <Button variant="contained" color="error" onClick={confirm} disabled={pending}>
+              {filterCopy.confirmDelete}
+            </Button>
+          </DialogActions>
+        </>
+      )}
+    </Dialog>
+  );
+
+  return { ask, dialog };
 }
